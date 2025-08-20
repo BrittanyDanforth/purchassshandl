@@ -1,0 +1,101 @@
+--[[
+	Modernized DevProduct Handler (2025 Standards)
+	Handles Robux purchases for tycoon items
+--]]
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
+local Settings = require(script.Parent.Settings)
+
+-- Get reference tycoon for dev products
+local tycoonFolder = script.Parent:WaitForChild("Tycoons")
+local referenceTycoon = tycoonFolder:GetChildren()[1]
+
+-- Move to ServerScriptService for security
+script.Parent = game.ServerScriptService
+
+-- Build dev products table
+local DevProducts = {}
+local buttonsFolder = referenceTycoon:WaitForChild("Buttons")
+
+for _, button in ipairs(buttonsFolder:GetChildren()) do
+	local devProduct = button:FindFirstChild("DevProduct")
+	if devProduct and devProduct.Value > 0 then
+		DevProducts[devProduct.Value] = button
+		print("Registered DevProduct:", devProduct.Value, "for button:", button.Name)
+	end
+end
+
+-- Modern ProcessReceipt implementation
+local function processReceipt(receiptInfo)
+	-- Find the player
+	local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	-- Check if this is a registered dev product
+	local buttonInfo = DevProducts[receiptInfo.ProductId]
+	if not buttonInfo then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	-- Get player's tycoon ownership
+	local playerMoney = ServerStorage:WaitForChild("PlayerMoney"):FindFirstChild(player.Name)
+	if not playerMoney then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	local ownsTycoon = playerMoney:FindFirstChild("OwnsTycoon")
+	if not ownsTycoon or not ownsTycoon.Value then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	-- Create purchase instruction for the tycoon
+	local purchaseData = Instance.new("Model")
+	purchaseData.Name = "DevProductPurchase_" .. receiptInfo.ProductId
+
+	local cost = Instance.new("NumberValue")
+	cost.Name = "Cost"
+	cost.Value = 0 -- Dev products are free (paid with Robux)
+	cost.Parent = purchaseData
+
+	local buttonRef = Instance.new("ObjectValue")
+	buttonRef.Name = "Button"
+	buttonRef.Value = buttonInfo
+	buttonRef.Parent = purchaseData
+
+	local statsRef = Instance.new("ObjectValue")
+	statsRef.Name = "Stats"
+	statsRef.Value = playerMoney
+	statsRef.Parent = purchaseData
+
+	-- Send to tycoon's BuyObject folder
+	local buyObject = ownsTycoon.Value:FindFirstChild("BuyObject")
+	if buyObject then
+		purchaseData.Parent = buyObject
+
+		-- Log successful purchase
+		print(string.format("DevProduct %d purchased by %s", receiptInfo.ProductId, player.Name))
+
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+
+	return Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
+-- Set the ProcessReceipt callback
+MarketplaceService.ProcessReceipt = processReceipt
+
+-- Add error handling for failed purchases
+MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, wasPurchased)
+	if not wasPurchased then
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			print(string.format("Product purchase cancelled: Player %s, Product %d", player.Name, productId))
+		end
+	end
+end)
+
+print("DevProduct Handler initialized with", #DevProducts, "products")
