@@ -1,0 +1,167 @@
+--[[
+	Modernized Core Handler for Tycoon Kit (2025 Standards)
+	All configurations are located in the "Settings" Module script.
+	FIXED: Arithmetic error with nil SpawnTime attribute
+--]]
+
+local Tycoons = {}
+local Teams = game:GetService("Teams")
+local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
+local RunService = game:GetService("RunService")
+local Settings = require(script.Parent.Settings)
+
+-- Create storage folders (modern approach without parent parameter)
+local Storage = ServerStorage:FindFirstChild("PlayerMoney")
+if not Storage then
+	Storage = Instance.new("Folder")
+	Storage.Name = "PlayerMoney"
+	Storage.Parent = ServerStorage
+end
+
+local PartStorage = workspace:FindFirstChild("PartStorage")
+if not PartStorage then
+	PartStorage = Instance.new("Model")
+	PartStorage.Name = "PartStorage"
+	PartStorage.Parent = workspace
+end
+
+-- Modern function to check if team color is taken
+local function isColorTaken(color)
+	for _, team in ipairs(Teams:GetChildren()) do
+		if team:IsA("Team") and team.TeamColor == color then
+			return true
+		end
+	end
+	return false
+end
+
+-- Create "For Hire" team if auto-assign is disabled
+if not Settings.AutoAssignTeams then
+	local forHireTeam = Teams:FindFirstChild("For Hire")
+	if not forHireTeam then
+		forHireTeam = Instance.new("Team")
+		forHireTeam.Name = "For Hire"
+		forHireTeam.TeamColor = BrickColor.new("White")
+		forHireTeam.Parent = Teams
+	end
+end
+
+-- Initialize tycoons with modern practices
+local tycoonsFolder = script.Parent:WaitForChild("Tycoons")
+for _, tycoon in ipairs(tycoonsFolder:GetChildren()) do
+	if tycoon:IsA("Model") then
+		-- Store clean copy
+		Tycoons[tycoon.Name] = tycoon:Clone()
+
+		-- Handle duplicate team colors
+		local teamColor = tycoon:WaitForChild("TeamColor")
+		if isColorTaken(teamColor.Value) then
+			local newColor
+			repeat
+				task.wait() -- Modern wait
+				newColor = BrickColor.Random()
+			until not isColorTaken(newColor)
+			teamColor.Value = newColor
+		end
+
+		-- Create team for this tycoon
+		local team = Teams:FindFirstChild(tycoon.Name)
+		if not team then
+			team = Instance.new("Team")
+			team.Name = tycoon.Name
+			team.TeamColor = teamColor.Value
+			team.AutoAssignable = Settings.AutoAssignTeams
+			team.Parent = Teams
+		end
+
+		-- Enable purchase handler
+		local purchaseHandler = tycoon:FindFirstChild("PurchaseHandler")
+		if purchaseHandler then
+			purchaseHandler.Disabled = false
+		end
+	end
+end
+
+-- Modern function to get player's tycoon
+local function getPlayerTycoon(player)
+	for _, tycoon in ipairs(tycoonsFolder:GetChildren()) do
+		if tycoon:IsA("Model") then
+			local owner = tycoon:FindFirstChild("Owner")
+			if owner and owner.Value == player then
+				return tycoon
+			end
+		end
+	end
+	return nil
+end
+
+-- Handle player joining with modern practices
+Players.PlayerAdded:Connect(function(player)
+	-- Create player stats
+	local existingStats = Storage:FindFirstChild(player.Name)
+	if not existingStats then
+		local plrStats = Instance.new("NumberValue")
+		plrStats.Name = player.Name
+		plrStats.Value = 0
+
+		local isOwner = Instance.new("ObjectValue")
+		isOwner.Name = "OwnsTycoon"
+		isOwner.Parent = plrStats
+
+		plrStats.Parent = Storage
+	end
+end)
+
+-- Handle player leaving with modern practices
+Players.PlayerRemoving:Connect(function(player)
+	-- Clean up player stats
+	local plrStats = Storage:FindFirstChild(player.Name)
+	if plrStats then
+		plrStats:Destroy()
+	end
+
+	-- Reset tycoon
+	local tycoon = getPlayerTycoon(player)
+	if tycoon and Tycoons[tycoon.Name] then
+		local tycoonName = tycoon.Name
+		tycoon:Destroy()
+
+		-- Restore tycoon after short delay
+		task.wait(0.1)
+		local backup = Tycoons[tycoonName]:Clone()
+		backup.Parent = tycoonsFolder
+
+		-- Re-enable purchase handler
+		local purchaseHandler = backup:FindFirstChild("PurchaseHandler")
+		if purchaseHandler then
+			purchaseHandler.Disabled = false
+		end
+	end
+end)
+
+-- Clean up parts in PartStorage periodically
+task.spawn(function()
+	while true do
+		task.wait(30) -- Check every 30 seconds
+		for _, part in ipairs(PartStorage:GetChildren()) do
+			if part:IsA("BasePart") then
+				-- FIX: Properly handle nil SpawnTime attribute
+				local spawnTime = part:GetAttribute("SpawnTime") or tick()
+				local age = tick() - spawnTime
+
+				-- Remove parts older than 60 seconds
+				if age > 60 then
+					part:Destroy()
+				end
+			end
+		end
+	end
+end)
+
+-- Optional: Set SpawnTime attribute when parts are added to PartStorage
+PartStorage.ChildAdded:Connect(function(child)
+	if child:IsA("BasePart") and not child:GetAttribute("SpawnTime") then
+		child:SetAttribute("SpawnTime", tick())
+	end
+end)
