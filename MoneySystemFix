@@ -1,0 +1,79 @@
+-- Money System Fix - v2 (Cooperative Version)
+-- This script's ONLY job is to ensure the money data managed by the
+-- UnifiedLeaderboard is correctly displayed. It does NOT manage money itself.
+
+local ServerStorage = game:GetService("ServerStorage")
+local Players = game:GetService("Players")
+
+print("✅ MoneySystemFix (Cooperative Version) Initializing...")
+
+-- Wait for the UnifiedLeaderboard to create the PlayerMoney folder.
+local playerMoneyFolder = ServerStorage:WaitForChild("PlayerMoney", 30)
+if not playerMoneyFolder then
+	error("MoneySystemFix FATAL ERROR: Timed out waiting for PlayerMoney folder. Is the UnifiedLeaderboard script enabled?")
+end
+
+print("MoneySystemFix: Successfully located PlayerMoney folder.")
+
+-- This function's only job is to connect a player's money data to their leaderboard display.
+local function linkPlayerMoneyToDisplay(player)
+	-- The UnifiedLeaderboard is responsible for creating the leaderstats. We just wait for it.
+	local leaderstats = player:WaitForChild("leaderstats", 30)
+	if not leaderstats then
+		warn("MoneySystemFix: Timed out waiting for leaderstats for " .. player.Name)
+		return
+	end
+
+	-- The UnifiedLeaderboard is also responsible for creating the cash display.
+	local cashDisplay = leaderstats:WaitForChild("Cash", 30)
+	if not cashDisplay then
+		warn("MoneySystemFix: Timed out waiting for 'Cash' display for " .. player.Name)
+		return
+	end
+
+	-- And finally, the UnifiedLeaderboard creates the actual money data value.
+	local moneyValue = playerMoneyFolder:WaitForChild(player.Name, 30)
+	if not moneyValue then
+		warn("MoneySystemFix: Timed out waiting for money data for " .. player.Name)
+		return
+	end
+
+	-- Now, we create the connection.
+	-- Whenever the money value changes (because of the MoneyShop or tycoon),
+	-- this will trigger the leaderboard to update its display text.
+	-- This re-uses the formatting functions from your own UnifiedLeaderboard settings.
+	local connection = moneyValue.Changed:Connect(function(newValue)
+		local settings = _G.Settings -- Use the settings loaded by the leaderboard
+		if settings and settings.LeaderboardSettings.ShowShortCurrency then
+			cashDisplay.Value = settings:ConvertShort(newValue)
+		elseif settings then
+			cashDisplay.Value = settings:ConvertComma(newValue)
+		else
+			-- Fallback if settings somehow aren't available
+			cashDisplay.Value = tostring(newValue)
+		end
+	end)
+
+	-- Also set the initial value correctly.
+	local settings = _G.Settings
+	if settings and settings.LeaderboardSettings.ShowShortCurrency then
+		cashDisplay.Value = settings:ConvertShort(moneyValue.Value)
+	elseif settings then
+		cashDisplay.Value = settings:ConvertComma(moneyValue.Value)
+	else
+		cashDisplay.Value = tostring(moneyValue.Value)
+	end
+
+	print("MoneySystemFix: Successfully linked money data to display for " .. player.Name)
+end
+
+
+-- Run the setup for any player who joins
+Players.PlayerAdded:Connect(linkPlayerMoneyToDisplay)
+
+-- Also run for any players already in the game
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(linkPlayerMoneyToDisplay, player)
+end
+
+print("✅ MoneySystemFix Ready. Now linking money data to the leaderboard display.")
