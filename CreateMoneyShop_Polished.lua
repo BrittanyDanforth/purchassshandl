@@ -52,9 +52,9 @@ local products = {
 
 -- Gamepasses (replace with your actual gamepass IDs)
 local gamepasses = {
+	{id = 1412171840, name = "Auto Collect", icon = "🤖", description = "Here's the upgrade you've been waiting for! This pass collects all your cash for you, instantly. You can forget about that repetitive trip over and over again, and just spend your time decorating!", price = nil}, -- Price fetched from Roblox
 	{id = 123456789, name = "VIP", icon = "⭐", description = "Exclusive VIP benefits!", price = 399},
 	{id = 123456790, name = "2x Cash", icon = "💸", description = "Double all cash earnings!", price = 799},
-	{id = 123456791, name = "Auto Collect", icon = "🤖", description = "Automatically collect cash!", price = 599},
 	{id = 123456792, name = "Bigger Pockets", icon = "🎒", description = "50% more inventory space!", price = 299},
 }
 
@@ -615,6 +615,30 @@ for i, product in ipairs(products) do
 	end)
 end
 
+-- Function to fetch gamepass price
+local function fetchGamepassPrice(gamepassId)
+	local success, info = pcall(function()
+		return MarketplaceService:GetProductInfo(gamepassId, Enum.InfoType.GamePass)
+	end)
+	
+	if success and info then
+		return info.PriceInRobux
+	end
+	return nil
+end
+
+-- Fetch real prices for gamepasses
+spawn(function()
+	for _, gamepass in ipairs(gamepasses) do
+		if not gamepass.price then
+			local price = fetchGamepassPrice(gamepass.id)
+			if price then
+				gamepass.price = price
+			end
+		end
+	end
+end)
+
 -- Create gamepass cards
 for i, gamepass in ipairs(gamepasses) do
 	local card = Instance.new("Frame")
@@ -700,13 +724,26 @@ for i, gamepass in ipairs(gamepasses) do
 	priceBtn.Position = UDim2.new(1, -14, 0.5, 0)
 	priceBtn.AnchorPoint = Vector2.new(1, 0.5)
 	priceBtn.BackgroundColor3 = THEME.Palette.Success
-	priceBtn.Text = "R$" .. tostring(gamepass.price)
+	priceBtn.Text = gamepass.price and ("R$" .. tostring(gamepass.price)) or "Loading..."
 	priceBtn.TextColor3 = THEME.Palette.White
 	priceBtn.Font = THEME.Typography.Price
 	priceBtn.TextSize = 20
 	priceBtn.AutoButtonColor = false
 	priceBtn.ZIndex = 12
 	priceBtn.Parent = card
+	
+	-- Update price when loaded
+	if not gamepass.price then
+		spawn(function()
+			local price = fetchGamepassPrice(gamepass.id)
+			if price then
+				gamepass.price = price
+				priceBtn.Text = "R$" .. tostring(price)
+			else
+				priceBtn.Text = "Error"
+			end
+		end)
+	end
 	
 	local priceCorner = Instance.new("UICorner")
 	priceCorner.CornerRadius = UDim.new(0, 24)
