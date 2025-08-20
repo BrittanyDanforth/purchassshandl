@@ -448,7 +448,10 @@ currencyPage.Visible = false
 currencyPage.Parent = contentFrame
 
 local currencyPadding = Instance.new("UIPadding")
-currencyPadding.PaddingAll = UDim.new(0, 12)
+currencyPadding.PaddingTop = UDim.new(0, 12)
+currencyPadding.PaddingBottom = UDim.new(0, 12)
+currencyPadding.PaddingLeft = UDim.new(0, 12)
+currencyPadding.PaddingRight = UDim.new(0, 12)
 currencyPadding.Parent = currencyPage
 
 local currencyGrid = Instance.new("UIGridLayout")
@@ -510,7 +513,10 @@ for i, product in ipairs(CURRENCY_PRODUCTS) do
 	cardLayout.Parent = card
 	
 	local cardPadding = Instance.new("UIPadding")
-	cardPadding.PaddingAll = UDim.new(0, 16)
+	cardPadding.PaddingTop = UDim.new(0, 16)
+	cardPadding.PaddingBottom = UDim.new(0, 16)
+	cardPadding.PaddingLeft = UDim.new(0, 16)
+	cardPadding.PaddingRight = UDim.new(0, 16)
 	cardPadding.Parent = card
 	
 	-- Icon background
@@ -661,7 +667,10 @@ gamepassPage.Visible = false
 gamepassPage.Parent = contentFrame
 
 local gamepassPadding = Instance.new("UIPadding")
-gamepassPadding.PaddingAll = UDim.new(0, 12)
+gamepassPadding.PaddingTop = UDim.new(0, 12)
+gamepassPadding.PaddingBottom = UDim.new(0, 12)
+gamepassPadding.PaddingLeft = UDim.new(0, 12)
+gamepassPadding.PaddingRight = UDim.new(0, 12)
 gamepassPadding.Parent = gamepassPage
 
 local gamepassLayout = Instance.new("UIListLayout")
@@ -725,7 +734,10 @@ for i, gamepass in ipairs(GAMEPASS_CONFIG) do
 	end
 	
 	local cardPadding = Instance.new("UIPadding")
-	cardPadding.PaddingAll = UDim.new(0, 20)
+	cardPadding.PaddingTop = UDim.new(0, 20)
+	cardPadding.PaddingBottom = UDim.new(0, 20)
+	cardPadding.PaddingLeft = UDim.new(0, 20)
+	cardPadding.PaddingRight = UDim.new(0, 20)
 	cardPadding.Parent = card
 	
 	local cardContentLayout = Instance.new("UIListLayout")
