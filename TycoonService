@@ -1,0 +1,85 @@
+-- TycoonService Module (Modernized)
+-- inside of serverscriptservice
+-- This service manages all tycoons in the game.
+-- It is designed for multiplayer and uses hardcoded names for simplicity.
+
+local TycoonService = {}
+
+-- Services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+-- Modules & Templates (Loaded once at the start)
+local TycoonModule = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Tycoon"))
+local TycoonTemplate = Workspace:WaitForChild("Cinnamoroll tycoon"):WaitForChild("Cinnamoroll")
+local PlotsFolder = Workspace:WaitForChild("Plots")
+
+-- Private table to keep track of all active tycoon objects
+local tycoons = {}
+
+
+---
+-- Finds the tycoon object owned by a specific player.
+-- @param player The player to check.
+-- @return The Tycoon object or nil if not found.
+---
+function TycoonService:GetPlayerTycoon(player)
+	for _, tycoon in ipairs(tycoons) do
+		if tycoon.Owner == player then
+			return tycoon
+		end
+	end
+	return nil
+end
+
+
+---
+-- Initializes the entire tycoon system.
+-- It finds all plots and creates a tycoon for each one.
+---
+function TycoonService:Init()
+	print("TycoonService: Initializing...")
+
+	-- Loop through every plot and create a tycoon. This is what makes it multiplayer.
+	for _, plot in ipairs(PlotsFolder:GetChildren()) do
+		if plot:IsA("Model") then
+			local tycoonModel = TycoonTemplate:Clone()
+			tycoonModel:PivotTo(plot:GetPivot())
+			tycoonModel.Name = plot.Name .. " Tycoon"
+			tycoonModel.Parent = Workspace
+
+			-- Use the required Tycoon module to create a new tycoon object
+			local tycoon = TycoonModule.new(tycoonModel)
+			table.insert(tycoons, tycoon)
+
+			-- Handle claiming the tycoon
+			local ownerDoor = tycoonModel.MainItems:WaitForChild("OwnerDoor")
+			tycoon.ClaimConnection = ownerDoor.Touched:Connect(function(hit)
+				if tycoon.Owner then return end -- Stop if already claimed
+
+				local player = Players:GetPlayerFromCharacter(hit.Parent)
+				-- IMPORTANT FIX: Use "TycoonService" here instead of "self".
+				-- In a .Touched event, "self" can be unreliable. This is safer.
+				if player and not TycoonService:GetPlayerTycoon(player) then
+					tycoon:SetOwner(player)
+				end
+			end)
+
+			plot:Destroy() -- Remove the plot marker
+		end
+	end
+
+	-- Handle players leaving the game
+	Players.PlayerRemoving:Connect(function(player)
+		-- IMPORTANT FIX: Use "TycoonService" here as well for safety.
+		local tycoon = TycoonService:GetPlayerTycoon(player)
+		if tycoon then
+			tycoon:Reset() -- Reset the tycoon for a new player
+		end
+	end)
+
+	print("✅ TycoonService: Initialization complete. " .. #tycoons .. " tycoons created.")
+end
+
+return TycoonService
