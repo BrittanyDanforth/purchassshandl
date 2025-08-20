@@ -1,11 +1,12 @@
 --[[
 	Modernized DevProduct Handler (2025 Standards)
-	Handles Robux purchases for tycoon items
+	Handles Robux purchases for tycoon items and currency
 --]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
+local DataStoreService = game:GetService("DataStoreService")
 local Settings = require(script.Parent.Settings)
 
 -- Get reference tycoon for dev products
@@ -15,7 +16,7 @@ local referenceTycoon = tycoonFolder:GetChildren()[1]
 -- Move to ServerScriptService for security
 script.Parent = game.ServerScriptService
 
--- Build dev products table
+-- Build dev products table (maps ProductId -> Button instance)
 local DevProducts = {}
 local buttonsFolder = referenceTycoon:WaitForChild("Buttons")
 
@@ -27,6 +28,18 @@ for _, button in ipairs(buttonsFolder:GetChildren()) do
 	end
 end
 
+-- Currency developer products mapping (ProductId -> amount)
+-- TODO: Replace IDs/amounts with your actual product IDs
+local CurrencyProducts = {
+	[3366419712] = 1000,
+	[3366420012] = 5000,
+	[3366420478] = 10000,
+	[3366420800] = 25000,
+}
+
+-- Idempotency store to avoid duplicate grants
+local purchaseHistoryStore = DataStoreService:GetDataStore("PurchaseHistory")
+
 -- Modern ProcessReceipt implementation
 local function processReceipt(receiptInfo)
 	-- Find the player
@@ -35,15 +48,41 @@ local function processReceipt(receiptInfo)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	-- Check if this is a registered dev product
-	local buttonInfo = DevProducts[receiptInfo.ProductId]
-	if not buttonInfo then
+	local moneyFolder = ServerStorage:WaitForChild("PlayerMoney")
+	local playerMoney = moneyFolder:FindFirstChild(player.Name)
+	if not playerMoney then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	-- Get player's tycoon ownership
-	local playerMoney = ServerStorage:WaitForChild("PlayerMoney"):FindFirstChild(player.Name)
-	if not playerMoney then
+	-- Idempotency key per unique purchase
+	local purchaseKey = string.format("player_%d_purchase_%s", receiptInfo.PlayerId, tostring(receiptInfo.PurchaseId))
+	local okGet, alreadyProcessed = pcall(function()
+		return purchaseHistoryStore:GetAsync(purchaseKey)
+	end)
+	if not okGet then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	if alreadyProcessed then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+
+	-- 1) Currency products: grant cash directly
+	local currencyAmount = CurrencyProducts[receiptInfo.ProductId]
+	if currencyAmount then
+		playerMoney.Value = playerMoney.Value + currencyAmount
+		local okSet, errSet = pcall(function()
+			purchaseHistoryStore:SetAsync(purchaseKey, true)
+		end)
+		if not okSet then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		print(string.format("Currency product %d (+%d) granted to %s", receiptInfo.ProductId, currencyAmount, player.Name))
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+
+	-- 2) Tycoon button products: forward to BuyObject for server-authoritative spawn
+	local buttonInfo = DevProducts[receiptInfo.ProductId]
+	if not buttonInfo then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
@@ -58,7 +97,7 @@ local function processReceipt(receiptInfo)
 
 	local cost = Instance.new("NumberValue")
 	cost.Name = "Cost"
-	cost.Value = 0 -- Dev products are free (paid with Robux)
+	cost.Value = 0 -- Paid with Robux
 	cost.Parent = purchaseData
 
 	local buttonRef = Instance.new("ObjectValue")
@@ -75,10 +114,13 @@ local function processReceipt(receiptInfo)
 	local buyObject = ownsTycoon.Value:FindFirstChild("BuyObject")
 	if buyObject then
 		purchaseData.Parent = buyObject
-
-		-- Log successful purchase
-		print(string.format("DevProduct %d purchased by %s", receiptInfo.ProductId, player.Name))
-
+		local okSet2, errSet2 = pcall(function()
+			purchaseHistoryStore:SetAsync(purchaseKey, true)
+		end)
+		if not okSet2 then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		print(string.format("DevProduct %d forwarded to tycoon for %s", receiptInfo.ProductId, player.Name))
 		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
@@ -98,4 +140,4 @@ MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, produc
 	end
 end)
 
-print("DevProduct Handler initialized with", #DevProducts, "products")
+print("DevProduct Handler initialized with", #DevProducts, "products and", tostring(#(function(t)local c=0 for _ in pairs(CurrencyProducts) do c=c+1 end return {c} end)(CurrencyProducts)[1]), "currency products")
