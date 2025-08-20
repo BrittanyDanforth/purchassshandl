@@ -1,0 +1,60 @@
+-- Settings Module (Modernized)
+-- This module centralizes all configurable values for the game,
+-- making it easy to tweak gameplay without editing multiple scripts.
+
+local Settings = {}
+
+-------------------------------------------------
+--                LEADERBOARD
+-------------------------------------------------
+Settings.LeaderboardSettings = {
+	-- Toggle which stats appear on the leaderboard.
+	KOs = true,
+	WOs = true,
+	ShowCurrency = true,
+	ShowShortCurrency = true,
+
+	-- Customize the names that appear on the leaderboard.
+	KillsName = "KOs",
+	DeathsName = "Wipeouts",
+}
+
+-------------------------------------------------
+--                  CURRENCY
+-------------------------------------------------
+Settings.CurrencyName = "Cash"
+
+-------------------------------------------------
+--             HELPER FUNCTIONS
+-------------------------------------------------
+-- These functions are now attached directly to the Settings table.
+
+-- Converts a number to a short format (e.g., 1000 -> "1K").
+function Settings.ConvertShort(value)
+	value = tonumber(value) or 0
+	if value >= 1e12 then -- Trillions
+		return string.format("%.1fT", value / 1e12)
+	elseif value >= 1e9 then -- Billions
+		return string.format("%.1fB", value / 1e9)
+	elseif value >= 1e6 then -- Millions
+		return string.format("%.1fM", value / 1e6)
+	elseif value >= 1e3 then -- Thousands
+		return string.format("%.1fK", value / 1e3)
+	else
+		return tostring(value)
+	end
+end
+
+-- Converts a number to a comma-separated format (e.g., 1000 -> "1,000").
+function Settings.ConvertComma(value)
+	local formatted = tostring(math.floor(value))
+	-- This uses a pattern to insert commas every three digits.
+	while true do
+		local newFormatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+		if k == 0 then break end
+		formatted = newFormatted
+	end
+	return formatted
+end
+
+return Settings
