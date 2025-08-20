@@ -52,7 +52,7 @@ local products = {
 
 -- Gamepasses (replace with your actual gamepass IDs)
 local gamepasses = {
-	{id = 1412171840, name = "Auto Collect", icon = "🤖", description = "Here's the upgrade you've been waiting for! This pass collects all your cash for you, instantly. You can forget about that repetitive trip over and over again, and just spend your time decorating!", price = nil}, -- Price fetched from Roblox
+	{id = 1412171840, name = "Auto Collect", icon = "🤖", description = "Here's the upgrade you've been waiting for! This pass collects all your cash for you, instantly. You can forget about that repetitive trip over and over again, and just spend your time decorating!", price = nil, hasToggle = true}, -- Price fetched from Roblox
 	{id = 123456789, name = "VIP", icon = "⭐", description = "Exclusive VIP benefits!", price = 399},
 	{id = 123456790, name = "2x Cash", icon = "💸", description = "Double all cash earnings!", price = 799},
 	{id = 123456792, name = "Bigger Pockets", icon = "🎒", description = "50% more inventory space!", price = 299},
@@ -775,9 +775,99 @@ for i, gamepass in ipairs(gamepasses) do
 		}):Play()
 	end)
 	
+	-- Check if player owns this gamepass
+	local ownsGamepass = false
+	spawn(function()
+		local success, result = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, gamepass.id)
+		end)
+		if success and result then
+			ownsGamepass = true
+			-- Update button appearance if they own it
+			priceBtn.BackgroundColor3 = THEME.Palette.AccentDark
+			priceBtn.Text = "Owned"
+			
+			-- Add toggle if this gamepass supports it
+			if gamepass.hasToggle then
+				-- Create toggle switch
+				local toggleFrame = Instance.new("Frame")
+				toggleFrame.Size = UDim2.fromOffset(60, 30)
+				toggleFrame.Position = UDim2.new(1, -14, 0.5, 0)
+				toggleFrame.AnchorPoint = Vector2.new(1, 0.5)
+				toggleFrame.BackgroundColor3 = THEME.Palette.AccentLight
+				toggleFrame.BorderSizePixel = 0
+				toggleFrame.ZIndex = 12
+				toggleFrame.Parent = card
+				
+				local toggleCorner = Instance.new("UICorner")
+				toggleCorner.CornerRadius = UDim.new(0.5, 0)
+				toggleCorner.Parent = toggleFrame
+				
+				local toggleStroke = Instance.new("UIStroke")
+				toggleStroke.Thickness = 2
+				toggleStroke.Color = THEME.Palette.AccentDark
+				toggleStroke.Transparency = 0.5
+				toggleStroke.Parent = toggleFrame
+				
+				local toggleButton = Instance.new("TextButton")
+				toggleButton.Size = UDim2.fromOffset(26, 26)
+				toggleButton.Position = UDim2.fromOffset(2, 2)
+				toggleButton.BackgroundColor3 = THEME.Palette.White
+				toggleButton.Text = ""
+				toggleButton.AutoButtonColor = false
+				toggleButton.ZIndex = 13
+				toggleButton.Parent = toggleFrame
+				
+				local toggleButtonCorner = Instance.new("UICorner")
+				toggleButtonCorner.CornerRadius = UDim.new(0.5, 0)
+				toggleButtonCorner.Parent = toggleButton
+				
+				-- Check current state from server
+				local remoteFolder = ReplicatedStorage:WaitForChild("TycoonRemotes", 5)
+				local autoCollectRemote = remoteFolder and remoteFolder:FindFirstChild("AutoCollectToggle")
+				
+				local isEnabled = true -- Default to enabled
+				
+				-- Toggle function
+				local function updateToggleVisual(enabled)
+					if enabled then
+						toggleFrame.BackgroundColor3 = THEME.Palette.Success
+						TweenService:Create(toggleButton, TweenInfo.new(0.2), {
+							Position = UDim2.fromOffset(32, 2)
+						}):Play()
+					else
+						toggleFrame.BackgroundColor3 = THEME.Palette.AccentLight
+						TweenService:Create(toggleButton, TweenInfo.new(0.2), {
+							Position = UDim2.fromOffset(2, 2)
+						}):Play()
+					end
+				end
+				
+				updateToggleVisual(isEnabled)
+				
+				-- Toggle click
+				toggleButton.MouseButton1Click:Connect(function()
+					playSound("click")
+					isEnabled = not isEnabled
+					updateToggleVisual(isEnabled)
+					
+					-- Fire to server
+					if autoCollectRemote then
+						autoCollectRemote:FireServer(isEnabled)
+					end
+				end)
+				
+				-- Move price button
+				priceBtn:Destroy()
+			end
+		end
+	end)
+	
 	priceBtn.MouseButton1Click:Connect(function()
-		playSound("click")
-		MarketplaceService:PromptGamePassPurchase(player, gamepass.id)
+		if not ownsGamepass then
+			playSound("click")
+			MarketplaceService:PromptGamePassPurchase(player, gamepass.id)
+		end
 	end)
 end
 
