@@ -77,10 +77,7 @@ local ShopData = {
 	end
 }
 
--- Ownership cache for better performance
-local ownedPassesCache = {}
-
--- Theme colors
+-- Theme colors (MUST BE DEFINED FIRST)
 local Theme = {
 	colors = {
 		kitty = Color3.fromRGB(255, 110, 157),
@@ -98,14 +95,26 @@ local Theme = {
 	c = function(name) return Theme.colors[name] or Color3.new(1,1,1) end
 }
 
+-- Ownership cache for better performance
+local ownedPassesCache = {}
+
 -- UI builder helpers
 local UI = {}
 function UI.frame(props)
 	local f = Instance.new("Frame")
 	for k,v in pairs(props) do
-		if k == "CornerRadius" then Instance.new("UICorner").CornerRadius = v; continue end
+		if k == "CornerRadius" then 
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = v
+			corner.Parent = f
+			continue 
+		end
 		if k == "Stroke" then
-			local s = Instance.new("UIStroke"); s.Thickness = v.Thickness or 1; s.Color = v.Color or Color3.new(0,0,0); s.Transparency = v.Transparency or 0; s.Parent = f
+			local s = Instance.new("UIStroke")
+			s.Thickness = v.Thickness or 1
+			s.Color = v.Color or Color3.new(0,0,0)
+			s.Transparency = v.Transparency or 0
+			s.Parent = f
 			continue
 		end
 		if k == "Layout" then
