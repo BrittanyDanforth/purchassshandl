@@ -220,7 +220,8 @@ local Utils = {
 	comma = function(n)
 		local formatted = tostring(n)
 		while true do
-			formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+			local newFormatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+			formatted = newFormatted
 			if k == 0 then break end
 		end
 		return formatted
@@ -696,7 +697,7 @@ end
 
 -- // Build Pages
 
-local function buildHome()
+buildHome = function()
 	-- overlay + soft bows
 	local overlay = UI.frame({Name = "HomeOverlay", Size = UDim2.new(1,-24,1,-24), Position = UDim2.new(0,12,0,12), BackgroundColor3 = Utils.blend(Theme.c("kitty"), Color3.new(1,1,1), 0.65), CornerRadius = UDim.new(0,18), ClipsDescendants = true, ZIndex = 11})
 	overlay.Parent = homePage
@@ -744,7 +745,7 @@ local function buildHome()
 	end
 end
 
-local function buildCash()
+buildCash = function()
 	local overlay = UI.frame({Name = "CashOverlay", Size = UDim2.new(1,-24,1,-24), Position = UDim2.new(0,12,0,12), BackgroundColor3 = Utils.blend(Theme.c("cinna"), Color3.new(1,1,1), 0.7), CornerRadius = UDim.new(0,18), ClipsDescendants = true, ZIndex = 11})
 	overlay.Parent = cashPage
 	local grad = Instance.new("UIGradient"); grad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Utils.blend(Theme.c("cinna"), Color3.new(1,1,1), 0.85))}; grad.Rotation = 90; grad.Parent = overlay
@@ -765,7 +766,7 @@ local function buildCash()
 	task.defer(function() local lay = grid:FindFirstChildOfClass("UIGridLayout"); if lay then grid.CanvasSize = UDim2.new(0,0,0, lay.AbsoluteContentSize.Y + 32) end end)
 end
 
-local function buildPasses()
+buildPasses = function()
 	local bg = UI.frame({Name = "PassBG", BackgroundColor3 = Color3.fromRGB(22,22,26), CornerRadius = UDim.new(0,18), ClipsDescendants = true, ZIndex = 11})
 	bg.Parent = passPage
 	local overlay = UI.frame({Name = "Overlay", Size = UDim2.new(1,-24,1,-24), Position = UDim2.new(0,12,0,12), BackgroundColor3 = Utils.blend(Theme.c("kuromi"), Color3.new(1,1,1), 0.85), CornerRadius = UDim.new(0,18), ClipsDescendants = true, ZIndex = 11})
@@ -950,10 +951,15 @@ function Shop:reset()
 	Blur:hide()
 end
 
--- Build everything after metadata
-buildHome()
-buildCash()
-buildPasses()
+-- Forward declare build functions
+local buildHome, buildCash, buildPasses
+
+-- Build all pages (called after functions are defined)
+local function initializeShop()
+	buildHome()
+	buildCash()
+	buildPasses()
+end
 
 -- Connect shop button
 toggle.MouseButton1Click:Connect(function()
@@ -1023,5 +1029,8 @@ localPlayer.CharacterAdded:Connect(function()
 		end)
 	end
 end)
+
+-- Initialize the shop by building all pages
+initializeShop()
 
 print("🎀 SANRIO SHOP — Fully fixed version loaded! All issues resolved.")
