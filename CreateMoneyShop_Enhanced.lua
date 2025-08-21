@@ -1,194 +1,81 @@
---[[
-	✨ KAWAII MONEY SHOP ENHANCED - Full Implementation
-	Based on "The Kawaii Monetization Blueprint"
-	
-	Features:
-	- Multiple Sanrio themes (Cinnamoroll, Hello Kitty, My Melody, Kuromi)
-	- Tabbed navigation (Currency, Gamepasses, Featured)
-	- Real-time price fetching for gamepasses
-	- Auto-claim integration support
-	- 2x Cash gamepass detection
-	- Psychological nudges (Best Value, Most Popular)
-	- Enhanced animations and polish
---]]
+-- Enhanced Money Shop with Gamepasses (Polished Version)
+-- Place in: StarterPlayer/StarterPlayerScripts
 
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 
--- ========================================
--- THEME SYSTEM (Section 1.3)
--- ========================================
+-- Wait for character
+local character = player.Character or player.CharacterAdded:Wait()
 
-local THEMES = {
-	-- Cinnamoroll Sky Theme (Default)
-	Cinnamoroll = {
-		BackgroundPrimary = Color3.fromRGB(255, 255, 255),      -- White
-		PanelFill = Color3.fromRGB(193, 231, 245),             -- Light Blue
-		Accent = Color3.fromRGB(76, 181, 232),                 -- Sky Blue
-		AccentDark = Color3.fromRGB(251, 216, 222),            -- Blush Pink
-		TextPrimary = Color3.fromRGB(30, 24, 26),              -- Near Black
-		Success = Color3.fromRGB(255, 208, 225),               -- Pastel Pink
-		Warning = Color3.fromRGB(255, 231, 153),               -- Pastel Yellow
+-- Enhanced Sanrio-inspired design tokens
+local THEME = {
+	Palette = {
+		BackgroundPrimary = Color3.fromRGB(253, 242, 250),
+		PanelFill = Color3.fromRGB(247, 214, 225),
+		Accent = Color3.fromRGB(248, 189, 195),
+		AccentDark = Color3.fromRGB(191, 141, 142),
+		AccentLight = Color3.fromRGB(252, 220, 224),
+		NeutralDark = Color3.fromRGB(30, 24, 26),
 		White = Color3.fromRGB(255, 255, 255),
+		Success = Color3.fromRGB(152, 251, 152),
+		Gold = Color3.fromRGB(255, 215, 0),
 	},
-	-- Hello Kitty Classic
-	HelloKitty = {
-		BackgroundPrimary = Color3.fromRGB(255, 255, 255),
-		PanelFill = Color3.fromRGB(255, 231, 23),              -- Yellow
-		Accent = Color3.fromRGB(237, 22, 79),                  -- Crimson
-		AccentDark = Color3.fromRGB(28, 99, 183),              -- Blue
-		TextPrimary = Color3.fromRGB(30, 24, 26),
-		Success = Color3.fromRGB(123, 237, 159),               -- Mint
-		Warning = Color3.fromRGB(255, 231, 23),                -- Yellow
-		White = Color3.fromRGB(255, 255, 255),
+	Typography = {
+		Header = Enum.Font.Cartoon,
+		Body = Enum.Font.Gotham,
+		Button = Enum.Font.GothamBold,
+		Price = Enum.Font.SourceSansBold,
 	},
-	-- My Melody Sweet
-	MyMelody = {
-		BackgroundPrimary = Color3.fromRGB(253, 242, 250),     -- Off-White
-		PanelFill = Color3.fromRGB(252, 234, 248),             -- Light Pink
-		Accent = Color3.fromRGB(248, 189, 195),                -- Pink
-		AccentDark = Color3.fromRGB(191, 141, 142),            -- Muted Rose
-		TextPrimary = Color3.fromRGB(30, 24, 26),
-		Success = Color3.fromRGB(147, 214, 161),               -- Soft Green
-		Warning = Color3.fromRGB(255, 208, 225),               -- Dusty Rose
-		White = Color3.fromRGB(255, 255, 255),
+	Strokes = {
+		DefaultThickness = 2,
+		HoverThickness = 3,
+		LineJoinMode = Enum.LineJoinMode.Round,
 	},
-	-- Kuromi Punk
-	Kuromi = {
-		BackgroundPrimary = Color3.fromRGB(225, 221, 244),     -- Light Lilac
-		PanelFill = Color3.fromRGB(202, 197, 237),             -- Lavender
-		Accent = Color3.fromRGB(240, 195, 226),                -- Pastel Pink
-		AccentDark = Color3.fromRGB(81, 66, 131),              -- Dark Purple
-		TextPrimary = Color3.fromRGB(0, 0, 0),                 -- Black
-		Success = Color3.fromRGB(202, 197, 237),               -- Lavender
-		Warning = Color3.fromRGB(240, 195, 226),               -- Pink
-		White = Color3.fromRGB(255, 255, 255),
-	}
-}
-
--- Select theme (can be changed dynamically)
-local CURRENT_THEME = "Cinnamoroll"
-local PALETTE = THEMES[CURRENT_THEME]
-
--- Typography (Section 1.3)
-local FONTS = {
-	Header = Enum.Font.FredokaOne,          -- Rounded, kawaii
-	Body = Enum.Font.Gotham,                -- Clean, legible
-	Button = Enum.Font.FredokaOne,          -- Chunky
-	Currency = Enum.Font.SourceSansBold,    -- Clear numbers
-}
-
--- Animation timings
-local MOTION = {
-	Quick = 0.15,       -- Hover effects
-	Normal = 0.3,       -- Standard transitions
-	Bounce = 0.4,       -- Bouncy animations
-	Elastic = 0.5,      -- Elastic effects
-}
-
--- UI styling constants
-local CORNER_RADIUS = {
-	Container = UDim.new(0.05, 0),
-	Card = UDim.new(0.1, 0),
-	Button = UDim.new(0.25, 0),
-	Round = UDim.new(0.5, 0),
-}
-
--- ========================================
--- SHOP DATA CONFIGURATION
--- ========================================
-
--- Currency products with psychological nudges (Section 2.3)
-local CURRENCY_PRODUCTS = {
-	{
-		id = 3366419712,
-		amount = 1000,
-		icon = "💵",
-		description = "Small starter boost",
-		tag = nil,
-	},
-	{
-		id = 3366420012,
-		amount = 5000,
-		icon = "💰",
-		description = "Perfect for regular players",
-		tag = "MOST POPULAR",
-		tagColor = "Success",
-	},
-	{
-		id = 3366420478,
-		amount = 10000,
-		icon = "💎",
-		description = "Great value for builders",
-		tag = nil,
-	},
-	{
-		id = 3366420800,
-		amount = 25000,
-		icon = "👑",
-		description = "Maximum cash for pros!",
-		tag = "BEST VALUE",
-		tagColor = "Warning",
+	Motion = {
+		Transition = 0.3,
+		Quick = 0.15,
+		Bounce = 0.4,
 	},
 }
 
--- Gamepass configuration (will fetch real prices)
-local GAMEPASS_CONFIG = {
-	{
-		id = 123456789, -- Replace with your VIP gamepass ID
-		name = "VIP Access",
-		icon = "⭐",
-		benefits = {
-			"Exclusive VIP area access",
-			"Special VIP chat tag",
-			"20% bonus on all purchases",
-		},
-		tag = "EXCLUSIVE",
-		tagColor = "Accent",
-	},
-	{
-		id = 123456790, -- Replace with your 2x Cash gamepass ID
-		name = "2x Cash Forever",
-		icon = "💰",
-		benefits = {
-			"Double all cash earnings",
-			"Works with auto-collect",
-			"Stacks with other bonuses",
-		},
-		tag = "POPULAR",
-		tagColor = "Success",
-	},
-	{
-		id = 123456791, -- Replace with your auto-collect gamepass ID
-		name = "Auto Collect",
-		icon = "🔄",
-		benefits = {
-			"Automatically collect cash",
-			"No more manual clicking",
-			"Works 24/7",
-		},
-		tag = nil,
-	},
-	{
-		id = 123456792, -- Replace with your bigger pockets gamepass ID
-		name = "Bigger Pockets",
-		icon = "🎒",
-		benefits = {
-			"2x inventory capacity",
-			"Store more items",
-			"Quality of life upgrade",
-		},
-		tag = nil,
-	},
+-- Developer products
+local products = {
+	{id = 3366419712, amount = 1000, icon = "💵", popular = false},
+	{id = 3366420012, amount = 5000, icon = "💰", popular = true},
+	{id = 3366420478, amount = 10000, icon = "💎", popular = false},
+	{id = 3366420800, amount = 25000, icon = "👑", popular = false, bestValue = true},
 }
 
--- ========================================
--- HELPER FUNCTIONS
--- ========================================
+-- Gamepasses - Auto Collect has real ID and dynamic price
+local gamepasses = {
+	{id = 1412171840, name = "Auto Collect", icon = "🤖", description = "Automatically collect cash!", price = nil, hasToggle = true}, -- Price fetched from Roblox
+	{id = 123456789, name = "VIP", icon = "⭐", description = "Exclusive VIP benefits!", price = 399},
+	{id = 123456790, name = "2x Cash", icon = "💸", description = "Double all cash earnings!", price = 799},
+	{id = 123456792, name = "Bigger Pockets", icon = "🎒", description = "50% more inventory space!", price = 299},
+}
+
+-- Sound effects
+local sounds = {
+	hover = "rbxassetid://9120458165",
+	click = "rbxassetid://9120373176",
+	purchase = "rbxassetid://9120443648",
+	tabSwitch = "rbxassetid://9120386886",
+}
+
+-- Create sound objects
+local soundObjects = {}
+for name, id in pairs(sounds) do
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = 0.3
+	sound.Parent = SoundService
+	soundObjects[name] = sound
+end
 
 -- Format numbers with commas
 local function formatNumber(n)
@@ -201,65 +88,48 @@ local function formatNumber(n)
 	return formatted
 end
 
--- Connection tracking for cleanup
-local connections = {}
-local function track(conn)
-	table.insert(connections, conn)
-	return conn
-end
-
--- Create tween helper
-local function tween(object, properties, duration, style, direction)
-	duration = duration or MOTION.Quick
-	style = style or Enum.EasingStyle.Quad
-	direction = direction or Enum.EasingDirection.Out
-	
-	return TweenService:Create(object, TweenInfo.new(duration, style, direction), properties)
-end
-
--- Fetch gamepass price and ownership
-local function fetchGamepassInfo(gamepassId)
-	local info = {price = "???", owned = false}
-	
-	-- Check ownership
-	local success, owned = pcall(function()
-		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, gamepassId)
-	end)
-	
-	if success then
-		info.owned = owned
+-- Play sound effect
+local function playSound(soundName)
+	local sound = soundObjects[soundName]
+	if sound then
+		sound:Play()
 	end
-	
-	-- Get product info for price
-	local success2, productInfo = pcall(function()
+end
+
+-- Function to fetch gamepass price
+local function fetchGamepassPrice(gamepassId)
+	local success, info = pcall(function()
 		return MarketplaceService:GetProductInfo(gamepassId, Enum.InfoType.GamePass)
 	end)
 	
-	if success2 and productInfo then
-		if productInfo.PriceInRobux then
-			info.price = tostring(productInfo.PriceInRobux)
-		else
-			info.price = "Free"
-		end
+	if success and info then
+		return info.PriceInRobux
 	end
-	
-	return info
+	return nil
 end
 
--- ========================================
--- CREATE UI STRUCTURE
--- ========================================
+-- Fetch real prices for gamepasses without set prices
+spawn(function()
+	for _, gamepass in ipairs(gamepasses) do
+		if not gamepass.price then
+			local price = fetchGamepassPrice(gamepass.id)
+			if price then
+				gamepass.price = price
+			end
+		end
+	end
+end)
 
 -- Root GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "KawaiiMoneyShop"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.DisplayOrder = 10
-gui.Parent = player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MoneyShop_Enhanced"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.DisplayOrder = 10
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Dark overlay
+-- Overlay with blur effect
 local overlay = Instance.new("TextButton")
 overlay.Name = "Overlay"
 overlay.Size = UDim2.new(1, 0, 1, 0)
@@ -270,51 +140,51 @@ overlay.AutoButtonColor = false
 overlay.Visible = false
 overlay.Modal = true
 overlay.ZIndex = 5
-overlay.Parent = gui
+overlay.Parent = screenGui
 
--- Main container (Hybrid sizing - Section 3.1)
+-- Main modal container
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.fromScale(0.85, 0.85)
+mainFrame.Size = UDim2.new(0.85, 0, 0.75, 0)
+mainFrame.SizeConstraint = Enum.SizeConstraint.RelativeXX
 mainFrame.Position = UDim2.fromScale(0.5, 0.5)
 mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-mainFrame.BackgroundColor3 = PALETTE.BackgroundPrimary
+mainFrame.BackgroundColor3 = THEME.Palette.BackgroundPrimary
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
+mainFrame.ClipsDescendants = true
 mainFrame.ZIndex = 10
-mainFrame.Parent = gui
+mainFrame.Parent = screenGui
 
--- Main frame styling
+-- Add aspect ratio constraint for consistent shape
+local aspectRatio = Instance.new("UIAspectRatioConstraint")
+aspectRatio.AspectRatio = 1.5
+aspectRatio.AspectType = Enum.AspectType.ScaleWithParentSize
+aspectRatio.DominantAxis = Enum.DominantAxis.Width
+aspectRatio.Parent = mainFrame
+
 local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = CORNER_RADIUS.Container
+mainCorner.CornerRadius = UDim.new(0, 24)
 mainCorner.Parent = mainFrame
 
 local mainStroke = Instance.new("UIStroke")
-mainStroke.Thickness = 3
-mainStroke.LineJoinMode = Enum.LineJoinMode.Round
-mainStroke.Color = PALETTE.AccentDark
+mainStroke.Thickness = THEME.Strokes.DefaultThickness
+mainStroke.LineJoinMode = THEME.Strokes.LineJoinMode
+mainStroke.Color = THEME.Palette.AccentDark
 mainStroke.Transparency = 0.3
 mainStroke.Parent = mainFrame
 
-local mainGradient = Instance.new("UIGradient")
-mainGradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, PALETTE.BackgroundPrimary:Lerp(PALETTE.White, 0.1)),
-	ColorSequenceKeypoint.new(1, PALETTE.PanelFill)
+-- Gradient background
+local gradient = Instance.new("UIGradient")
+gradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, THEME.Palette.BackgroundPrimary),
+	ColorSequenceKeypoint.new(0.5, THEME.Palette.BackgroundPrimary:Lerp(THEME.Palette.PanelFill, 0.3)),
+	ColorSequenceKeypoint.new(1, THEME.Palette.PanelFill)
 }
-mainGradient.Rotation = 90
-mainGradient.Parent = mainFrame
+gradient.Rotation = 135
+gradient.Parent = mainFrame
 
-local mainPadding = Instance.new("UIPadding")
-mainPadding.PaddingTop = UDim.new(0, 20)
-mainPadding.PaddingBottom = UDim.new(0, 20)
-mainPadding.PaddingLeft = UDim.new(0, 20)
-mainPadding.PaddingRight = UDim.new(0, 20)
-mainPadding.Parent = mainFrame
-
--- ========================================
--- HEADER
--- ========================================
-
+-- Header with better structure
 local header = Instance.new("Frame")
 header.Name = "Header"
 header.Size = UDim2.new(1, 0, 0, 80)
@@ -322,778 +192,922 @@ header.BackgroundTransparency = 1
 header.ZIndex = 11
 header.Parent = mainFrame
 
--- Title
+-- Header background for visual separation
+local headerBg = Instance.new("Frame")
+headerBg.Size = UDim2.new(1, 0, 1, 10)
+headerBg.BackgroundColor3 = THEME.Palette.White
+headerBg.BackgroundTransparency = 0.9
+headerBg.BorderSizePixel = 0
+headerBg.Parent = header
+
+local headerGradient = Instance.new("UIGradient")
+headerGradient.Transparency = NumberSequence.new{
+	NumberSequenceKeypoint.new(0, 0),
+	NumberSequenceKeypoint.new(0.8, 0),
+	NumberSequenceKeypoint.new(1, 1)
+}
+headerGradient.Rotation = 90
+headerGradient.Parent = headerBg
+
+-- Title with better positioning
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -60, 0, 40)
-title.Position = UDim2.new(0, 0, 0, 0)
+title.Size = UDim2.new(0.5, 0, 0, 36)
+title.Position = UDim2.new(0, 24, 0, 12)
 title.BackgroundTransparency = 1
 title.Text = "✨ Kawaii Shop ✨"
-title.TextColor3 = PALETTE.TextPrimary
-title.Font = FONTS.Header
-title.TextSize = 36
+title.TextColor3 = THEME.Palette.AccentDark
+title.TextStrokeColor3 = THEME.Palette.White
+title.TextStrokeTransparency = 0.7
+title.Font = THEME.Typography.Header
+title.TextSize = 32
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 12
 title.Parent = header
 
--- Subtitle
 local subtitle = Instance.new("TextLabel")
-subtitle.Size = UDim2.new(1, -60, 0, 24)
-subtitle.Position = UDim2.new(0, 0, 0, 40)
+subtitle.Size = UDim2.new(0.6, 0, 0, 20)
+subtitle.Position = UDim2.new(0, 24, 0, 48)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "Get cute boosts & exclusive perks! 💖"
-subtitle.TextColor3 = PALETTE.TextPrimary
-subtitle.TextTransparency = 0.2
-subtitle.Font = FONTS.Body
-subtitle.TextSize = 18
+subtitle.Text = "Get exclusive items and boosts! 💖"
+subtitle.TextColor3 = THEME.Palette.NeutralDark
+subtitle.TextTransparency = 0.1
+subtitle.Font = THEME.Typography.Body
+subtitle.TextSize = 16
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.ZIndex = 12
 subtitle.Parent = header
 
--- Close button
+-- Close button with better design
 local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
 closeBtn.Size = UDim2.fromOffset(48, 48)
-closeBtn.Position = UDim2.new(1, -48, 0, 16)
-closeBtn.BackgroundColor3 = PALETTE.Accent
+closeBtn.Position = UDim2.new(1, -24, 0, 16)
+closeBtn.AnchorPoint = Vector2.new(1, 0)
+closeBtn.BackgroundColor3 = THEME.Palette.Accent
 closeBtn.Text = "✕"
-closeBtn.TextColor3 = PALETTE.White
-closeBtn.Font = FONTS.Button
+closeBtn.TextColor3 = THEME.Palette.White
+closeBtn.Font = THEME.Typography.Button
 closeBtn.TextSize = 24
 closeBtn.AutoButtonColor = false
-closeBtn.ZIndex = 12
+closeBtn.ZIndex = 13
 closeBtn.Parent = header
 
 local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = CORNER_RADIUS.Round
+closeCorner.CornerRadius = UDim.new(0.5, 0)
 closeCorner.Parent = closeBtn
 
 local closeStroke = Instance.new("UIStroke")
-closeStroke.Thickness = 3
-closeStroke.Color = PALETTE.AccentDark
+closeStroke.Thickness = 0
+closeStroke.Color = THEME.Palette.AccentDark
 closeStroke.Parent = closeBtn
 
--- ========================================
--- TAB NAVIGATION (Section 2.3)
--- ========================================
-
+-- Tab navigation
 local tabContainer = Instance.new("Frame")
 tabContainer.Name = "TabContainer"
-tabContainer.Size = UDim2.new(1, 0, 0, 60)
-tabContainer.Position = UDim2.new(0, 0, 0, 90)
+tabContainer.Size = UDim2.new(1, -48, 0, 48)
+tabContainer.Position = UDim2.new(0, 24, 0, 88)
 tabContainer.BackgroundTransparency = 1
 tabContainer.ZIndex = 11
 tabContainer.Parent = mainFrame
 
 local tabLayout = Instance.new("UIListLayout")
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 tabLayout.Padding = UDim.new(0, 12)
 tabLayout.Parent = tabContainer
 
--- Create tabs
-local tabs = {}
-local currentTab = nil
-
-local TAB_DATA = {
-	{id = "currency", name = "💰 Currency", icon = "💰"},
-	{id = "gamepasses", name = "⭐ Game Passes", icon = "⭐"},
-	{id = "featured", name = "✨ Featured", icon = "✨"},
-}
-
-for _, tabData in ipairs(TAB_DATA) do
-	local tabBtn = Instance.new("TextButton")
-	tabBtn.Name = tabData.id .. "Tab"
-	tabBtn.Size = UDim2.fromOffset(160, 48)
-	tabBtn.BackgroundColor3 = PALETTE.PanelFill
-	tabBtn.Text = tabData.name
-	tabBtn.TextColor3 = PALETTE.TextPrimary
-	tabBtn.Font = FONTS.Button
-	tabBtn.TextSize = 20
-	tabBtn.AutoButtonColor = false
-	tabBtn.Parent = tabContainer
-	
-	local tabCorner = Instance.new("UICorner")
-	tabCorner.CornerRadius = CORNER_RADIUS.Button
-	tabCorner.Parent = tabBtn
-	
-	local tabStroke = Instance.new("UIStroke")
-	tabStroke.Thickness = 2
-	tabStroke.Color = PALETTE.Accent
-	tabStroke.Transparency = 0.5
-	tabStroke.Parent = tabBtn
-	
-	tabs[tabData.id] = tabBtn
-end
-
--- Content container
+-- Content frame
 local contentFrame = Instance.new("Frame")
 contentFrame.Name = "ContentFrame"
-contentFrame.Size = UDim2.new(1, 0, 1, -160)
-contentFrame.Position = UDim2.new(0, 0, 0, 160)
+contentFrame.Size = UDim2.new(1, -48, 1, -160)
+contentFrame.Position = UDim2.new(0, 24, 0, 144)
 contentFrame.BackgroundTransparency = 1
 contentFrame.ClipsDescendants = true
 contentFrame.ZIndex = 10
 contentFrame.Parent = mainFrame
 
+-- Tab creation function
+local currentTab = nil
+local tabs = {}
 local pages = {}
 
--- ========================================
--- CURRENCY PAGE
--- ========================================
+local function createTab(name, icon)
+	local tab = Instance.new("TextButton")
+	tab.Name = name .. "Tab"
+	tab.Size = UDim2.fromOffset(120, 40)
+	tab.BackgroundColor3 = THEME.Palette.White
+	tab.BackgroundTransparency = 0.9
+	tab.Text = icon .. " " .. name
+	tab.TextColor3 = THEME.Palette.NeutralDark
+	tab.Font = THEME.Typography.Button
+	tab.TextSize = 16
+	tab.AutoButtonColor = false
+	tab.ZIndex = 12
+	tab.Parent = tabContainer
 
-local currencyPage = Instance.new("ScrollingFrame")
-currencyPage.Name = "CurrencyPage"
-currencyPage.Size = UDim2.fromScale(1, 1)
-currencyPage.BackgroundTransparency = 1
-currencyPage.ScrollBarThickness = 6
-currencyPage.ScrollBarImageColor3 = PALETTE.AccentDark
-currencyPage.BorderSizePixel = 0
-currencyPage.CanvasSize = UDim2.new(0, 0, 0, 0)
-currencyPage.Visible = false
-currencyPage.Parent = contentFrame
+	local tabCorner = Instance.new("UICorner")
+	tabCorner.CornerRadius = UDim.new(0, 20)
+	tabCorner.Parent = tab
 
-local currencyPadding = Instance.new("UIPadding")
-currencyPadding.PaddingTop = UDim.new(0, 12)
-currencyPadding.PaddingBottom = UDim.new(0, 12)
-currencyPadding.PaddingLeft = UDim.new(0, 12)
-currencyPadding.PaddingRight = UDim.new(0, 12)
-currencyPadding.Parent = currencyPage
+	local tabStroke = Instance.new("UIStroke")
+	tabStroke.Thickness = 0
+	tabStroke.Color = THEME.Palette.AccentDark
+	tabStroke.Transparency = 0.5
+	tabStroke.Parent = tab
 
-local currencyGrid = Instance.new("UIGridLayout")
-currencyGrid.CellSize = UDim2.new(1, -16, 0, 120)
-currencyGrid.CellPadding = UDim2.fromOffset(12, 12)
-currencyGrid.FillDirection = Enum.FillDirection.Horizontal
-currencyGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
-currencyGrid.SortOrder = Enum.SortOrder.LayoutOrder
-currencyGrid.Parent = currencyPage
+	tabs[name] = tab
+	return tab
+end
 
--- Create currency product cards
-for i, product in ipairs(CURRENCY_PRODUCTS) do
+-- Create tabs
+createTab("Cash", "💰")
+createTab("Gamepasses", "⭐")
+
+-- Page creation function
+local function createPage(name)
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name .. "Page"
+	page.Size = UDim2.fromScale(1, 1)
+	page.BackgroundTransparency = 1
+	page.ScrollBarThickness = 6
+	page.ScrollBarImageColor3 = THEME.Palette.AccentDark
+	page.ScrollBarImageTransparency = 0.3
+	page.BorderSizePixel = 0
+	page.CanvasSize = UDim2.new(0, 0, 0, 0)
+	page.Visible = false
+	page.ZIndex = 10
+	page.Parent = contentFrame
+
+	local pagePadding = Instance.new("UIPadding")
+	pagePadding.PaddingTop = UDim.new(0, 8)
+	pagePadding.PaddingBottom = UDim.new(0, 8)
+	pagePadding.PaddingLeft = UDim.new(0, 8)
+	pagePadding.PaddingRight = UDim.new(0, 8)
+	pagePadding.Parent = page
+
+	pages[name] = page
+	return page
+end
+
+-- Create pages
+local cashPage = createPage("Cash")
+local gamepassPage = createPage("Gamepasses")
+
+-- Cash page layout
+local cashLayout = Instance.new("UIGridLayout")
+cashLayout.CellSize = UDim2.new(0.48, 0, 0, 120)
+cashLayout.CellPadding = UDim2.new(0.04, 0, 0, 16)
+cashLayout.FillDirection = Enum.FillDirection.Horizontal
+cashLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+cashLayout.SortOrder = Enum.SortOrder.LayoutOrder
+cashLayout.Parent = cashPage
+
+-- Gamepass page layout
+local gamepassLayout = Instance.new("UIListLayout")
+gamepassLayout.FillDirection = Enum.FillDirection.Vertical
+gamepassLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+gamepassLayout.Padding = UDim.new(0, 12)
+gamepassLayout.SortOrder = Enum.SortOrder.LayoutOrder
+gamepassLayout.Parent = gamepassPage
+
+-- Update canvas size
+local function updateCanvas(page, layout)
+	page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 16)
+end
+
+cashLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	updateCanvas(cashPage, cashLayout)
+end)
+
+gamepassLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	updateCanvas(gamepassPage, gamepassLayout)
+end)
+
+-- Tab switching logic
+local function switchTab(tabName)
+	if currentTab == tabName then return end
+
+	playSound("tabSwitch")
+
+	-- Update tab appearance
+	for name, tab in pairs(tabs) do
+		if name == tabName then
+			TweenService:Create(tab, TweenInfo.new(THEME.Motion.Quick), {
+				BackgroundTransparency = 0.1,
+				TextColor3 = THEME.Palette.AccentDark
+			}):Play()
+			TweenService:Create(tab:FindFirstChild("UIStroke"), TweenInfo.new(THEME.Motion.Quick), {
+				Thickness = 2
+			}):Play()
+		else
+			TweenService:Create(tab, TweenInfo.new(THEME.Motion.Quick), {
+				BackgroundTransparency = 0.9,
+				TextColor3 = THEME.Palette.NeutralDark
+			}):Play()
+			TweenService:Create(tab:FindFirstChild("UIStroke"), TweenInfo.new(THEME.Motion.Quick), {
+				Thickness = 0
+			}):Play()
+		end
+	end
+
+	-- Hide all pages
+	for _, page in pairs(pages) do
+		page.Visible = false
+	end
+
+	-- Show selected page with animation
+	local selectedPage = pages[tabName]
+	if selectedPage then
+		selectedPage.Visible = true
+		selectedPage.CanvasPosition = Vector2.new(0, 0)
+
+		-- Animate page entrance
+		local pageScale = selectedPage:FindFirstChild("UIScale")
+		if not pageScale then
+			pageScale = Instance.new("UIScale")
+			pageScale.Parent = selectedPage
+		end
+		pageScale.Scale = 0.95
+		TweenService:Create(pageScale, TweenInfo.new(THEME.Motion.Quick, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Scale = 1
+		}):Play()
+	end
+
+	currentTab = tabName
+end
+
+-- Connect tab buttons
+for name, tab in pairs(tabs) do
+	tab.MouseButton1Click:Connect(function()
+		switchTab(name)
+	end)
+
+	tab.MouseEnter:Connect(function()
+		playSound("hover")
+		if currentTab ~= name then
+			TweenService:Create(tab, TweenInfo.new(THEME.Motion.Quick), {
+				BackgroundTransparency = 0.7
+			}):Play()
+		end
+	end)
+
+	tab.MouseLeave:Connect(function()
+		if currentTab ~= name then
+			TweenService:Create(tab, TweenInfo.new(THEME.Motion.Quick), {
+				BackgroundTransparency = 0.9
+			}):Play()
+		end
+	end)
+end
+
+-- Create product cards
+for i, product in ipairs(products) do
 	local card = Instance.new("Frame")
 	card.Name = "Product" .. i
-	card.BackgroundColor3 = PALETTE.PanelFill
+	card.BackgroundColor3 = THEME.Palette.White
+	card.BackgroundTransparency = 0.1
 	card.BorderSizePixel = 0
 	card.LayoutOrder = i
-	card.Parent = currencyPage
-	
+	card.ZIndex = 10
+	card.Parent = cashPage
+
 	local cardCorner = Instance.new("UICorner")
-	cardCorner.CornerRadius = CORNER_RADIUS.Card
+	cardCorner.CornerRadius = UDim.new(0, 16)
 	cardCorner.Parent = card
-	
+
 	local cardStroke = Instance.new("UIStroke")
 	cardStroke.Thickness = 2
-	cardStroke.Color = PALETTE.Accent
-	cardStroke.Transparency = 0.4
+	cardStroke.Color = THEME.Palette.AccentLight
+	cardStroke.Transparency = 0.3
 	cardStroke.Parent = card
-	
-	-- Tag if exists (psychological nudge)
-	if product.tag then
-		local tagFrame = Instance.new("Frame")
-		tagFrame.Size = UDim2.fromOffset(120, 28)
-		tagFrame.Position = UDim2.new(1, -8, 0, 8)
-		tagFrame.AnchorPoint = Vector2.new(1, 0)
-		tagFrame.BackgroundColor3 = PALETTE[product.tagColor] or PALETTE.Accent
-		tagFrame.ZIndex = 12
-		tagFrame.Parent = card
-		
-		local tagCorner = Instance.new("UICorner")
-		tagCorner.CornerRadius = CORNER_RADIUS.Button
-		tagCorner.Parent = tagFrame
-		
-		local tagLabel = Instance.new("TextLabel")
-		tagLabel.Size = UDim2.fromScale(1, 1)
-		tagLabel.BackgroundTransparency = 1
-		tagLabel.Text = product.tag
-		tagLabel.TextColor3 = PALETTE.White
-		tagLabel.Font = FONTS.Button
-		tagLabel.TextSize = 14
-		tagLabel.Parent = tagFrame
-	end
-	
-	-- Card layout
-	local cardLayout = Instance.new("UIListLayout")
-	cardLayout.FillDirection = Enum.FillDirection.Horizontal
-	cardLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	cardLayout.Padding = UDim.new(0, 16)
-	cardLayout.Parent = card
-	
-	local cardPadding = Instance.new("UIPadding")
-	cardPadding.PaddingTop = UDim.new(0, 16)
-	cardPadding.PaddingBottom = UDim.new(0, 16)
-	cardPadding.PaddingLeft = UDim.new(0, 16)
-	cardPadding.PaddingRight = UDim.new(0, 16)
-	cardPadding.Parent = card
-	
-	-- Icon background
+
+	-- Shadow effect
+	local shadow = Instance.new("ImageLabel")
+	shadow.Name = "Shadow"
+	shadow.Size = UDim2.new(1, 12, 1, 12)
+	shadow.Position = UDim2.fromOffset(-6, -6)
+	shadow.BackgroundTransparency = 1
+	shadow.Image = "rbxassetid://1316045217"
+	shadow.ImageColor3 = Color3.new(0, 0, 0)
+	shadow.ImageTransparency = 0.9
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+	shadow.ZIndex = 9
+	shadow.Parent = card
+
+	-- Icon with gradient background
 	local iconFrame = Instance.new("Frame")
-	iconFrame.Size = UDim2.fromOffset(80, 80)
-	iconFrame.BackgroundColor3 = PALETTE.Accent
+	iconFrame.Size = UDim2.fromOffset(64, 64)
+	iconFrame.Position = UDim2.new(0.5, 0, 0, 16)
+	iconFrame.AnchorPoint = Vector2.new(0.5, 0)
+	iconFrame.BackgroundColor3 = THEME.Palette.Accent
+	iconFrame.ZIndex = 11
 	iconFrame.Parent = card
-	
+
 	local iconCorner = Instance.new("UICorner")
-	iconCorner.CornerRadius = CORNER_RADIUS.Button
+	iconCorner.CornerRadius = UDim.new(0, 16)
 	iconCorner.Parent = iconFrame
-	
-	local iconStroke = Instance.new("UIStroke")
-	iconStroke.Thickness = 2
-	iconStroke.Color = PALETTE.AccentDark
-	iconStroke.Parent = iconFrame
-	
-	local iconAspect = Instance.new("UIAspectRatioConstraint")
-	iconAspect.AspectRatio = 1
-	iconAspect.Parent = iconFrame
-	
+
+	local iconGradient = Instance.new("UIGradient")
+	iconGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, THEME.Palette.AccentLight),
+		ColorSequenceKeypoint.new(1, THEME.Palette.Accent)
+	}
+	iconGradient.Rotation = 45
+	iconGradient.Parent = iconFrame
+
 	local icon = Instance.new("TextLabel")
 	icon.Size = UDim2.fromScale(1, 1)
 	icon.BackgroundTransparency = 1
 	icon.Text = product.icon
-	icon.TextColor3 = PALETTE.White
-	icon.Font = FONTS.Header
-	icon.TextSize = 36
+	icon.TextScaled = true
+	icon.Font = THEME.Typography.Header
+	icon.ZIndex = 12
 	icon.Parent = iconFrame
-	
-	-- Info container
-	local infoFrame = Instance.new("Frame")
-	infoFrame.Size = UDim2.new(1, -200, 1, 0)
-	infoFrame.BackgroundTransparency = 1
-	infoFrame.Parent = card
-	
-	local infoLayout = Instance.new("UIListLayout")
-	infoLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	infoLayout.Padding = UDim.new(0, 4)
-	infoLayout.Parent = infoFrame
-	
+
 	-- Amount
-	local amountLabel = Instance.new("TextLabel")
-	amountLabel.Size = UDim2.new(1, 0, 0, 28)
-	amountLabel.BackgroundTransparency = 1
-	amountLabel.Text = formatNumber(product.amount) .. " Cash"
-	amountLabel.TextColor3 = PALETTE.TextPrimary
-	amountLabel.Font = FONTS.Currency
-	amountLabel.TextSize = 24
-	amountLabel.TextXAlignment = Enum.TextXAlignment.Left
-	amountLabel.Parent = infoFrame
-	
-	-- Description
-	local descLabel = Instance.new("TextLabel")
-	descLabel.Size = UDim2.new(1, 0, 0, 20)
-	descLabel.BackgroundTransparency = 1
-	descLabel.Text = product.description
-	descLabel.TextColor3 = PALETTE.TextPrimary
-	descLabel.TextTransparency = 0.3
-	descLabel.Font = FONTS.Body
-	descLabel.TextSize = 16
-	descLabel.TextXAlignment = Enum.TextXAlignment.Left
-	descLabel.Parent = infoFrame
-	
-	-- Buy button
-	local buyBtn = Instance.new("TextButton")
-	buyBtn.Size = UDim2.fromOffset(100, 48)
-	buyBtn.BackgroundColor3 = PALETTE.Accent
-	buyBtn.Text = "Buy"
-	buyBtn.TextColor3 = PALETTE.White
-	buyBtn.Font = FONTS.Button
-	buyBtn.TextSize = 20
-	buyBtn.AutoButtonColor = false
-	buyBtn.Parent = card
-	
-	local buyCorner = Instance.new("UICorner")
-	buyCorner.CornerRadius = CORNER_RADIUS.Button
-	buyCorner.Parent = buyBtn
-	
-	local buyStroke = Instance.new("UIStroke")
-	buyStroke.Thickness = 3
-	buyStroke.Color = PALETTE.AccentDark
-	buyStroke.Parent = buyBtn
-	
-	local buyGradient = Instance.new("UIGradient")
-	buyGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, PALETTE.Accent:lerp(PALETTE.White, 0.15)),
-		ColorSequenceKeypoint.new(1, PALETTE.Accent)
-	})
-	buyGradient.Rotation = 90
-	buyGradient.Parent = buyBtn
-	
-	local buyScale = Instance.new("UIScale")
-	buyScale.Scale = 1
-	buyScale.Parent = buyBtn
-	
-	-- Button animations
-	track(buyBtn.MouseEnter:Connect(function()
-		tween(buyScale, {Scale = 1.05}):Play()
-		tween(buyBtn, {BackgroundColor3 = PALETTE.Accent:lerp(PALETTE.White, 0.1)}):Play()
-	end))
-	
-	track(buyBtn.MouseLeave:Connect(function()
-		tween(buyScale, {Scale = 1}):Play()
-		tween(buyBtn, {BackgroundColor3 = PALETTE.Accent}):Play()
-	end))
-	
-	track(buyBtn.MouseButton1Down:Connect(function()
-		tween(buyScale, {Scale = 0.95}, MOTION.Quick, Enum.EasingStyle.Back):Play()
-	end))
-	
-	track(buyBtn.MouseButton1Up:Connect(function()
-		tween(buyScale, {Scale = 1}, MOTION.Bounce, Enum.EasingStyle.Elastic):Play()
-		
-		-- Trigger purchase
-		MarketplaceService:PromptProductPurchase(player, product.id)
-		
-		-- Visual feedback
-		buyBtn.Text = "💖"
-		task.wait(0.5)
-		buyBtn.Text = "Buy"
-	end))
-end
+	local amount = Instance.new("TextLabel")
+	amount.Size = UDim2.new(1, -16, 0, 24)
+	amount.Position = UDim2.new(0, 8, 1, -32)
+	amount.BackgroundTransparency = 1
+	amount.Text = formatNumber(product.amount) .. " Cash"
+	amount.TextColor3 = THEME.Palette.NeutralDark
+	amount.Font = THEME.Typography.Price
+	amount.TextSize = 18
+	amount.ZIndex = 11
+	amount.Parent = card
 
--- Update currency canvas
-local function updateCurrencyCanvas()
-	local contentSize = currencyGrid.AbsoluteContentSize
-	currencyPage.CanvasSize = UDim2.fromOffset(contentSize.X, contentSize.Y + 24)
-end
-currencyGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCurrencyCanvas)
-updateCurrencyCanvas()
+	-- Tags
+	if product.popular then
+		local popularTag = Instance.new("Frame")
+		popularTag.Size = UDim2.fromOffset(80, 24)
+		popularTag.Position = UDim2.new(1, -8, 0, 8)
+		popularTag.AnchorPoint = Vector2.new(1, 0)
+		popularTag.BackgroundColor3 = THEME.Palette.Accent
+		popularTag.ZIndex = 12
+		popularTag.Parent = card
 
-pages["currency"] = currencyPage
-
--- ========================================
--- GAMEPASSES PAGE
--- ========================================
-
-local gamepassPage = Instance.new("ScrollingFrame")
-gamepassPage.Name = "GamepassPage"
-gamepassPage.Size = UDim2.fromScale(1, 1)
-gamepassPage.BackgroundTransparency = 1
-gamepassPage.ScrollBarThickness = 6
-gamepassPage.ScrollBarImageColor3 = PALETTE.AccentDark
-gamepassPage.BorderSizePixel = 0
-gamepassPage.CanvasSize = UDim2.new(0, 0, 0, 0)
-gamepassPage.Visible = false
-gamepassPage.Parent = contentFrame
-
-local gamepassPadding = Instance.new("UIPadding")
-gamepassPadding.PaddingTop = UDim.new(0, 12)
-gamepassPadding.PaddingBottom = UDim.new(0, 12)
-gamepassPadding.PaddingLeft = UDim.new(0, 12)
-gamepassPadding.PaddingRight = UDim.new(0, 12)
-gamepassPadding.Parent = gamepassPage
-
-local gamepassLayout = Instance.new("UIListLayout")
-gamepassLayout.FillDirection = Enum.FillDirection.Vertical
-gamepassLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-gamepassLayout.Padding = UDim.new(0, 16)
-gamepassLayout.SortOrder = Enum.SortOrder.LayoutOrder
-gamepassLayout.Parent = gamepassPage
-
--- Create gamepass cards with real-time price fetching
-for i, gamepass in ipairs(GAMEPASS_CONFIG) do
-	local card = Instance.new("Frame")
-	card.Name = "Gamepass" .. i
-	card.Size = UDim2.new(1, -24, 0, 180)
-	card.BackgroundColor3 = PALETTE.PanelFill
-	card.BorderSizePixel = 0
-	card.LayoutOrder = i
-	card.Parent = gamepassPage
-	
-	local cardCorner = Instance.new("UICorner")
-	cardCorner.CornerRadius = CORNER_RADIUS.Card
-	cardCorner.Parent = card
-	
-	local cardStroke = Instance.new("UIStroke")
-	cardStroke.Thickness = 2
-	cardStroke.Color = PALETTE.Accent
-	cardStroke.Transparency = 0.4
-	cardStroke.Parent = card
-	
-	-- Special gradient for gamepasses
-	local cardGradient = Instance.new("UIGradient")
-	cardGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
-		ColorSequenceKeypoint.new(1, PALETTE.Accent:lerp(PALETTE.White, 0.9))
-	})
-	cardGradient.Rotation = 45
-	cardGradient.Parent = card
-	
-	-- Tag if exists
-	if gamepass.tag then
-		local tagFrame = Instance.new("Frame")
-		tagFrame.Size = UDim2.fromOffset(100, 28)
-		tagFrame.Position = UDim2.new(1, -8, 0, 8)
-		tagFrame.AnchorPoint = Vector2.new(1, 0)
-		tagFrame.BackgroundColor3 = PALETTE[gamepass.tagColor] or PALETTE.Accent
-		tagFrame.ZIndex = 12
-		tagFrame.Parent = card
-		
 		local tagCorner = Instance.new("UICorner")
-		tagCorner.CornerRadius = CORNER_RADIUS.Button
-		tagCorner.Parent = tagFrame
-		
+		tagCorner.CornerRadius = UDim.new(0, 12)
+		tagCorner.Parent = popularTag
+
 		local tagLabel = Instance.new("TextLabel")
 		tagLabel.Size = UDim2.fromScale(1, 1)
 		tagLabel.BackgroundTransparency = 1
-		tagLabel.Text = gamepass.tag
-		tagLabel.TextColor3 = PALETTE.White
-		tagLabel.Font = FONTS.Button
-		tagLabel.TextSize = 14
-		tagLabel.Parent = tagFrame
+		tagLabel.Text = "POPULAR"
+		tagLabel.TextColor3 = THEME.Palette.White
+		tagLabel.Font = THEME.Typography.Button
+		tagLabel.TextSize = 12
+		tagLabel.ZIndex = 13
+		tagLabel.Parent = popularTag
+	elseif product.bestValue then
+		local valueTag = Instance.new("Frame")
+		valueTag.Size = UDim2.fromOffset(90, 24)
+		valueTag.Position = UDim2.new(1, -8, 0, 8)
+		valueTag.AnchorPoint = Vector2.new(1, 0)
+		valueTag.BackgroundColor3 = THEME.Palette.Gold
+		valueTag.ZIndex = 12
+		valueTag.Parent = card
+
+		local tagCorner = Instance.new("UICorner")
+		tagCorner.CornerRadius = UDim.new(0, 12)
+		tagCorner.Parent = valueTag
+
+		local tagLabel = Instance.new("TextLabel")
+		tagLabel.Size = UDim2.fromScale(1, 1)
+		tagLabel.BackgroundTransparency = 1
+		tagLabel.Text = "BEST VALUE"
+		tagLabel.TextColor3 = THEME.Palette.NeutralDark
+		tagLabel.Font = THEME.Typography.Button
+		tagLabel.TextSize = 12
+		tagLabel.ZIndex = 13
+		tagLabel.Parent = valueTag
 	end
-	
-	local cardPadding = Instance.new("UIPadding")
-	cardPadding.PaddingTop = UDim.new(0, 20)
-	cardPadding.PaddingBottom = UDim.new(0, 20)
-	cardPadding.PaddingLeft = UDim.new(0, 20)
-	cardPadding.PaddingRight = UDim.new(0, 20)
-	cardPadding.Parent = card
-	
-	local cardContentLayout = Instance.new("UIListLayout")
-	cardContentLayout.FillDirection = Enum.FillDirection.Vertical
-	cardContentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	cardContentLayout.Padding = UDim.new(0, 12)
-	cardContentLayout.Parent = card
-	
-	-- Title row
-	local titleRow = Instance.new("Frame")
-	titleRow.Size = UDim2.new(1, 0, 0, 32)
-	titleRow.BackgroundTransparency = 1
-	titleRow.Parent = card
-	
-	local titleLayout = Instance.new("UIListLayout")
-	titleLayout.FillDirection = Enum.FillDirection.Horizontal
-	titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	titleLayout.Padding = UDim.new(0, 12)
-	titleLayout.Parent = titleRow
-	
-	-- Icon
-	local iconLabel = Instance.new("TextLabel")
-	iconLabel.Size = UDim2.fromOffset(32, 32)
-	iconLabel.BackgroundTransparency = 1
-	iconLabel.Text = gamepass.icon
-	iconLabel.TextColor3 = PALETTE.AccentDark
-	iconLabel.Font = FONTS.Header
-	iconLabel.TextSize = 28
-	iconLabel.Parent = titleRow
-	
-	-- Name
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, -44, 1, 0)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Text = gamepass.name
-	nameLabel.TextColor3 = PALETTE.TextPrimary
-	nameLabel.Font = FONTS.Header
-	nameLabel.TextSize = 24
-	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	nameLabel.Parent = titleRow
-	
-	-- Benefits list
-	local benefitsFrame = Instance.new("Frame")
-	benefitsFrame.Size = UDim2.new(1, 0, 0, 80)
-	benefitsFrame.BackgroundTransparency = 1
-	benefitsFrame.Parent = card
-	
-	local benefitsLayout = Instance.new("UIListLayout")
-	benefitsLayout.FillDirection = Enum.FillDirection.Vertical
-	benefitsLayout.Padding = UDim.new(0, 4)
-	benefitsLayout.Parent = benefitsFrame
-	
-	for _, benefit in ipairs(gamepass.benefits) do
-		local benefitLabel = Instance.new("TextLabel")
-		benefitLabel.Size = UDim2.new(1, 0, 0, 20)
-		benefitLabel.BackgroundTransparency = 1
-		benefitLabel.Text = "• " .. benefit
-		benefitLabel.TextColor3 = PALETTE.TextPrimary
-		benefitLabel.TextTransparency = 0.1
-		benefitLabel.Font = FONTS.Body
-		benefitLabel.TextSize = 16
-		benefitLabel.TextXAlignment = Enum.TextXAlignment.Left
-		benefitLabel.Parent = benefitsFrame
-	end
-	
-	-- Price and buy row
-	local buyRow = Instance.new("Frame")
-	buyRow.Size = UDim2.new(1, 0, 0, 48)
-	buyRow.BackgroundTransparency = 1
-	buyRow.Parent = card
-	
-	local buyLayout = Instance.new("UIListLayout")
-	buyLayout.FillDirection = Enum.FillDirection.Horizontal
-	buyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	buyLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	buyLayout.Padding = UDim.new(0, 16)
-	buyLayout.Parent = buyRow
-	
-	-- Price display
-	local priceFrame = Instance.new("Frame")
-	priceFrame.Size = UDim2.fromOffset(120, 48)
-	priceFrame.BackgroundTransparency = 1
-	priceFrame.Parent = buyRow
-	
-	local priceLabel = Instance.new("TextLabel")
-	priceLabel.Size = UDim2.fromScale(1, 1)
-	priceLabel.BackgroundTransparency = 1
-	priceLabel.Text = "Loading..."
-	priceLabel.TextColor3 = PALETTE.Success
-	priceLabel.Font = FONTS.Currency
-	priceLabel.TextSize = 28
-	priceLabel.Parent = priceFrame
-	
+
 	-- Buy button
 	local buyBtn = Instance.new("TextButton")
-	buyBtn.Size = UDim2.fromOffset(140, 48)
-	buyBtn.BackgroundColor3 = PALETTE.Success
-	buyBtn.Text = "Get Now!"
-	buyBtn.TextColor3 = PALETTE.White
-	buyBtn.Font = FONTS.Button
-	buyBtn.TextSize = 20
+	buyBtn.Size = UDim2.new(1, -16, 0, 36)
+	buyBtn.Position = UDim2.new(0, 8, 1, -44)
+	buyBtn.BackgroundColor3 = THEME.Palette.Accent
+	buyBtn.Text = "BUY"
+	buyBtn.TextColor3 = THEME.Palette.White
+	buyBtn.Font = THEME.Typography.Button
+	buyBtn.TextSize = 16
 	buyBtn.AutoButtonColor = false
-	buyBtn.Parent = buyRow
-	
+	buyBtn.ZIndex = 12
+	buyBtn.Parent = card
+
 	local buyCorner = Instance.new("UICorner")
-	buyCorner.CornerRadius = CORNER_RADIUS.Button
+	buyCorner.CornerRadius = UDim.new(0, 18)
 	buyCorner.Parent = buyBtn
-	
+
 	local buyStroke = Instance.new("UIStroke")
-	buyStroke.Thickness = 3
-	buyStroke.Color = PALETTE.Success:lerp(Color3.new(0, 0, 0), 0.2)
+	buyStroke.Thickness = 0
+	buyStroke.Color = THEME.Palette.AccentDark
 	buyStroke.Parent = buyBtn
+
+	-- Hover effects
+	local cardScale = Instance.new("UIScale")
+	cardScale.Scale = 1
+	cardScale.Parent = card
+
+	buyBtn.MouseEnter:Connect(function()
+		playSound("hover")
+		TweenService:Create(cardScale, TweenInfo.new(THEME.Motion.Quick), {Scale = 1.05}):Play()
+		TweenService:Create(cardStroke, TweenInfo.new(THEME.Motion.Quick), {
+			Color = THEME.Palette.Accent,
+			Thickness = 3
+		}):Play()
+		TweenService:Create(buyBtn, TweenInfo.new(THEME.Motion.Quick), {
+			BackgroundColor3 = THEME.Palette.AccentDark
+		}):Play()
+	end)
+
+	buyBtn.MouseLeave:Connect(function()
+		TweenService:Create(cardScale, TweenInfo.new(THEME.Motion.Quick), {Scale = 1}):Play()
+		TweenService:Create(cardStroke, TweenInfo.new(THEME.Motion.Quick), {
+			Color = THEME.Palette.AccentLight,
+			Thickness = 2
+		}):Play()
+		TweenService:Create(buyBtn, TweenInfo.new(THEME.Motion.Quick), {
+			BackgroundColor3 = THEME.Palette.Accent
+		}):Play()
+	end)
+
+	buyBtn.MouseButton1Click:Connect(function()
+		playSound("click")
+		MarketplaceService:PromptProductPurchase(player, product.id)
+	end)
+end
+
+-- Create gamepass cards
+for i, gamepass in ipairs(gamepasses) do
+	local card = Instance.new("Frame")
+	card.Name = "Gamepass" .. i
+	card.Size = UDim2.new(0.9, 0, 0, 100)
+	card.BackgroundColor3 = THEME.Palette.White
+	card.BackgroundTransparency = 0.05
+	card.BorderSizePixel = 0
+	card.LayoutOrder = i
+	card.ZIndex = 10
+	card.Parent = gamepassPage
+
+	local cardCorner = Instance.new("UICorner")
+	cardCorner.CornerRadius = UDim.new(0, 16)
+	cardCorner.Parent = card
+
+	local cardStroke = Instance.new("UIStroke")
+	cardStroke.Thickness = 2
+	cardStroke.Color = THEME.Palette.Gold
+	cardStroke.Transparency = 0.5
+	cardStroke.Parent = card
+
+	local cardGradient = Instance.new("UIGradient")
+	cardGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+		ColorSequenceKeypoint.new(1, THEME.Palette.Gold:Lerp(Color3.new(1, 1, 1), 0.9))
+	}
+	cardGradient.Rotation = 90
+	cardGradient.Parent = card
+
+	-- Icon
+	local iconBg = Instance.new("Frame")
+	iconBg.Size = UDim2.fromOffset(72, 72)
+	iconBg.Position = UDim2.new(0, 14, 0.5, 0)
+	iconBg.AnchorPoint = Vector2.new(0, 0.5)
+	iconBg.BackgroundColor3 = THEME.Palette.Gold
+	iconBg.ZIndex = 11
+	iconBg.Parent = card
+
+	local iconCorner = Instance.new("UICorner")
+	iconCorner.CornerRadius = UDim.new(0, 16)
+	iconCorner.Parent = iconBg
+
+	local gamepassIcon = Instance.new("TextLabel")
+	gamepassIcon.Size = UDim2.fromScale(1, 1)
+	gamepassIcon.BackgroundTransparency = 1
+	gamepassIcon.Text = gamepass.icon
+	gamepassIcon.TextScaled = true
+	gamepassIcon.Font = THEME.Typography.Header
+	gamepassIcon.ZIndex = 12
+	gamepassIcon.Parent = iconBg
+
+	-- Info
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(0.5, -100, 0, 24)
+	nameLabel.Position = UDim2.new(0, 100, 0, 16)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = gamepass.name
+	nameLabel.TextColor3 = THEME.Palette.NeutralDark
+	nameLabel.Font = THEME.Typography.Button
+	nameLabel.TextSize = 20
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.ZIndex = 11
+	nameLabel.Parent = card
+
+	local descLabel = Instance.new("TextLabel")
+	descLabel.Size = UDim2.new(0.5, -100, 0, 36)
+	descLabel.Position = UDim2.new(0, 100, 0, 44)
+	descLabel.BackgroundTransparency = 1
+	descLabel.Text = gamepass.description
+	descLabel.TextColor3 = THEME.Palette.NeutralDark
+	descLabel.TextTransparency = 0.2
+	descLabel.Font = THEME.Typography.Body
+	descLabel.TextSize = 14
+	descLabel.TextXAlignment = Enum.TextXAlignment.Left
+	descLabel.TextWrapped = true
+	descLabel.ZIndex = 11
+	descLabel.Parent = card
+
+	-- Price button
+	local priceBtn = Instance.new("TextButton")
+	priceBtn.Size = UDim2.fromOffset(120, 48)
+	priceBtn.Position = UDim2.new(1, -14, 0.5, 0)
+	priceBtn.AnchorPoint = Vector2.new(1, 0.5)
+	priceBtn.BackgroundColor3 = THEME.Palette.Success
+	priceBtn.Text = gamepass.price and ("R$" .. tostring(gamepass.price)) or "Loading..."
+	priceBtn.TextColor3 = THEME.Palette.White
+	priceBtn.Font = THEME.Typography.Price
+	priceBtn.TextSize = 20
+	priceBtn.AutoButtonColor = false
+	priceBtn.ZIndex = 12
+	priceBtn.Parent = card
 	
-	local buyScale = Instance.new("UIScale")
-	buyScale.Scale = 1
-	buyScale.Parent = buyBtn
+	-- Update price when loaded
+	if not gamepass.price then
+		spawn(function()
+			local price = fetchGamepassPrice(gamepass.id)
+			if price then
+				gamepass.price = price
+				priceBtn.Text = "R$" .. tostring(price)
+			else
+				priceBtn.Text = "Error"
+			end
+		end)
+	end
+
+	local priceCorner = Instance.new("UICorner")
+	priceCorner.CornerRadius = UDim.new(0, 24)
+	priceCorner.Parent = priceBtn
+
+	local priceStroke = Instance.new("UIStroke")
+	priceStroke.Thickness = 2
+	priceStroke.Color = THEME.Palette.Success:Lerp(Color3.new(0, 0, 0), 0.2)
+	priceStroke.Transparency = 0.5
+	priceStroke.Parent = priceBtn
+
+	-- Hover effects
+	local cardScale = Instance.new("UIScale")
+	cardScale.Scale = 1
+	cardScale.Parent = card
+
+	priceBtn.MouseEnter:Connect(function()
+		playSound("hover")
+		TweenService:Create(cardScale, TweenInfo.new(THEME.Motion.Quick), {Scale = 1.02}):Play()
+		TweenService:Create(priceBtn, TweenInfo.new(THEME.Motion.Quick), {
+			Size = UDim2.fromOffset(130, 52)
+		}):Play()
+	end)
+
+	priceBtn.MouseLeave:Connect(function()
+		TweenService:Create(cardScale, TweenInfo.new(THEME.Motion.Quick), {Scale = 1}):Play()
+		TweenService:Create(priceBtn, TweenInfo.new(THEME.Motion.Quick), {
+			Size = UDim2.fromOffset(120, 48)
+		}):Play()
+	end)
+
+	-- Check if player owns this gamepass
+	local ownsGamepass = false
+	local toggleState = false -- Track toggle state
 	
-	-- Fetch real-time gamepass info
 	spawn(function()
-		local info = fetchGamepassInfo(gamepass.id)
-		
-		if info.owned then
-			priceLabel.Text = "OWNED"
-			priceLabel.TextColor3 = PALETTE.Success
-			buyBtn.Text = "✓ Owned"
-			buyBtn.BackgroundColor3 = PALETTE.Success:lerp(Color3.new(0, 0, 0), 0.3)
-			buyBtn.Active = false
-		else
-			priceLabel.Text = "R$ " .. info.price
+		local success, result = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, gamepass.id)
+		end)
+		if success and result then
+			ownsGamepass = true
+			-- Update button appearance if they own it
+			priceBtn.BackgroundColor3 = THEME.Palette.AccentDark
+			priceBtn.Text = "Owned"
 			
-			-- Button interactions only if not owned
-			track(buyBtn.MouseEnter:Connect(function()
-				tween(buyScale, {Scale = 1.08}):Play()
-			end))
-			
-			track(buyBtn.MouseLeave:Connect(function()
-				tween(buyScale, {Scale = 1}):Play()
-			end))
-			
-			track(buyBtn.MouseButton1Click:Connect(function()
-				tween(buyScale, {Scale = 1.15}, MOTION.Elastic, Enum.EasingStyle.Elastic):Play()
+			-- Add toggle if this gamepass supports it
+			if gamepass.hasToggle then
+				-- Hide price button
+				priceBtn:Destroy()
 				
-				-- Prompt gamepass purchase
-				MarketplaceService:PromptGamePassPurchase(player, gamepass.id)
+				-- Create toggle container
+				local toggleContainer = Instance.new("Frame")
+				toggleContainer.Size = UDim2.fromOffset(140, 48)
+				toggleContainer.Position = UDim2.new(1, -14, 0.5, 0)
+				toggleContainer.AnchorPoint = Vector2.new(1, 0.5)
+				toggleContainer.BackgroundTransparency = 1
+				toggleContainer.ZIndex = 12
+				toggleContainer.Parent = card
 				
-				wait(0.5)
-				tween(buyScale, {Scale = 1}):Play()
-			end))
+				-- Toggle label
+				local toggleLabel = Instance.new("TextLabel")
+				toggleLabel.Size = UDim2.fromOffset(50, 48)
+				toggleLabel.Position = UDim2.fromOffset(0, 0)
+				toggleLabel.BackgroundTransparency = 1
+				toggleLabel.Text = "OFF"
+				toggleLabel.TextColor3 = THEME.Palette.AccentDark
+				toggleLabel.Font = THEME.Typography.Button
+				toggleLabel.TextSize = 14
+				toggleLabel.ZIndex = 13
+				toggleLabel.Parent = toggleContainer
+				
+				-- Toggle switch background
+				local toggleFrame = Instance.new("Frame")
+				toggleFrame.Size = UDim2.fromOffset(60, 30)
+				toggleFrame.Position = UDim2.fromOffset(60, 9)
+				toggleFrame.BackgroundColor3 = THEME.Palette.AccentLight
+				toggleFrame.BorderSizePixel = 0
+				toggleFrame.ZIndex = 12
+				toggleFrame.Parent = toggleContainer
+				
+				local toggleCorner = Instance.new("UICorner")
+				toggleCorner.CornerRadius = UDim.new(0.5, 0)
+				toggleCorner.Parent = toggleFrame
+				
+				local toggleStroke = Instance.new("UIStroke")
+				toggleStroke.Thickness = 2
+				toggleStroke.Color = THEME.Palette.AccentDark
+				toggleStroke.Transparency = 0.5
+				toggleStroke.Parent = toggleFrame
+				
+				-- Toggle button (the sliding part)
+				local toggleButton = Instance.new("TextButton")
+				toggleButton.Size = UDim2.fromOffset(26, 26)
+				toggleButton.Position = UDim2.fromOffset(2, 2)
+				toggleButton.BackgroundColor3 = THEME.Palette.White
+				toggleButton.Text = ""
+				toggleButton.AutoButtonColor = false
+				toggleButton.ZIndex = 13
+				toggleButton.Parent = toggleFrame
+				
+				local toggleButtonCorner = Instance.new("UICorner")
+				toggleButtonCorner.CornerRadius = UDim.new(0.5, 0)
+				toggleButtonCorner.Parent = toggleButton
+				
+				-- Get RemoteEvent for auto-collect toggle
+				local remoteFolder = ReplicatedStorage:WaitForChild("TycoonRemotes", 5)
+				local autoCollectRemote = remoteFolder and remoteFolder:FindFirstChild("AutoCollectToggle")
+				
+				-- Default to ON
+				toggleState = true
+				toggleLabel.Text = "ON"
+				toggleFrame.BackgroundColor3 = THEME.Palette.Success
+				toggleButton.Position = UDim2.fromOffset(32, 2)
+				
+				-- Toggle function
+				local function updateToggleVisual(enabled)
+					if enabled then
+						toggleLabel.Text = "ON"
+						toggleFrame.BackgroundColor3 = THEME.Palette.Success
+						TweenService:Create(toggleButton, TweenInfo.new(0.2), {
+							Position = UDim2.fromOffset(32, 2)
+						}):Play()
+					else
+						toggleLabel.Text = "OFF"
+						toggleFrame.BackgroundColor3 = THEME.Palette.AccentLight
+						TweenService:Create(toggleButton, TweenInfo.new(0.2), {
+							Position = UDim2.fromOffset(2, 2)
+						}):Play()
+					end
+				end
+				
+				-- Fire initial state to server
+				if autoCollectRemote then
+					autoCollectRemote:FireServer(true)
+				end
+				
+				-- Toggle click handler
+				toggleButton.MouseButton1Click:Connect(function()
+					playSound("click")
+					toggleState = not toggleState
+					updateToggleVisual(toggleState)
+					
+					-- Fire to server
+					if autoCollectRemote then
+						autoCollectRemote:FireServer(toggleState)
+					end
+				end)
+				
+				-- Hover effect on toggle
+				toggleButton.MouseEnter:Connect(function()
+					playSound("hover")
+					TweenService:Create(toggleButton, TweenInfo.new(0.1), {
+						Size = UDim2.fromOffset(28, 28)
+					}):Play()
+				end)
+				
+				toggleButton.MouseLeave:Connect(function()
+					TweenService:Create(toggleButton, TweenInfo.new(0.1), {
+						Size = UDim2.fromOffset(26, 26)
+					}):Play()
+				end)
+			end
+		end
+	end)
+	
+	priceBtn.MouseButton1Click:Connect(function()
+		if not ownsGamepass then
+			playSound("click")
+			MarketplaceService:PromptGamePassPurchase(player, gamepass.id)
 		end
 	end)
 end
 
--- Update gamepass canvas
-local function updateGamepassCanvas()
-	local contentSize = gamepassLayout.AbsoluteContentSize
-	gamepassPage.CanvasSize = UDim2.fromOffset(0, contentSize.Y + 24)
-end
-gamepassLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateGamepassCanvas)
-updateGamepassCanvas()
-
-pages["gamepasses"] = gamepassPage
-
--- ========================================
--- FEATURED PAGE
--- ========================================
-
-local featuredPage = Instance.new("Frame")
-featuredPage.Name = "FeaturedPage"
-featuredPage.Size = UDim2.fromScale(1, 1)
-featuredPage.BackgroundTransparency = 1
-featuredPage.Visible = false
-featuredPage.Parent = contentFrame
-
-local comingSoon = Instance.new("TextLabel")
-comingSoon.Size = UDim2.fromScale(1, 1)
-comingSoon.BackgroundTransparency = 1
-comingSoon.Text = "✨ Special offers coming soon! ✨\n\nCheck back for limited-time deals!"
-comingSoon.TextColor3 = PALETTE.TextPrimary
-comingSoon.Font = FONTS.Header
-comingSoon.TextSize = 28
-comingSoon.TextWrapped = true
-comingSoon.Parent = featuredPage
-
-pages["featured"] = featuredPage
-
--- ========================================
--- TAB SWITCHING
--- ========================================
-
-local function switchTab(tabId)
-	for id, tab in pairs(tabs) do
-		if id == tabId then
-			-- Active tab
-			tween(tab, {
-				BackgroundColor3 = PALETTE.Accent,
-				TextColor3 = PALETTE.White
-			}):Play()
-			currentTab = id
-		else
-			-- Inactive tab
-			tween(tab, {
-				BackgroundColor3 = PALETTE.PanelFill,
-				TextColor3 = PALETTE.TextPrimary
-			}):Play()
-		end
-	end
-	
-	-- Show/hide pages
-	for id, page in pairs(pages) do
-		if id == tabId then
-			page.Visible = true
-			page.Position = UDim2.fromScale(0, 0)
-			tween(page, {Position = UDim2.fromScale(0, 0)}, MOTION.Normal, Enum.EasingStyle.Quart):Play()
-		else
-			if page.Visible then
-				tween(page, {Position = UDim2.fromScale(-1, 0)}, MOTION.Quick, Enum.EasingStyle.Quart):Play()
-				task.wait(MOTION.Quick)
-				page.Visible = false
-			end
-		end
-	end
-end
-
--- Connect tab buttons
-for id, tab in pairs(tabs) do
-	track(tab.MouseButton1Click:Connect(function()
-		switchTab(id)
-	end))
-end
-
--- ========================================
--- TOGGLE BUTTON
--- ========================================
-
+-- Toggle button with pulse animation
 local toggleBtn = Instance.new("TextButton")
 toggleBtn.Name = "ToggleButton"
-toggleBtn.Size = UDim2.fromOffset(80, 80)
-toggleBtn.Position = UDim2.new(1, -100, 1, -100)
+toggleBtn.Size = UDim2.fromOffset(72, 72)
+toggleBtn.Position = UDim2.new(1, -20, 1, -20)
 toggleBtn.AnchorPoint = Vector2.new(1, 1)
-toggleBtn.BackgroundColor3 = PALETTE.Accent
-toggleBtn.Text = "💖"
-toggleBtn.TextSize = 36
-toggleBtn.Font = FONTS.Button
-toggleBtn.TextColor3 = PALETTE.White
+toggleBtn.BackgroundColor3 = THEME.Palette.Accent
+toggleBtn.Text = "💰"
+toggleBtn.TextScaled = true
+toggleBtn.Font = THEME.Typography.Header
 toggleBtn.AutoButtonColor = false
 toggleBtn.ZIndex = 15
-toggleBtn.Parent = gui
+toggleBtn.Parent = screenGui
 
 local toggleCorner = Instance.new("UICorner")
-toggleCorner.CornerRadius = CORNER_RADIUS.Round
+toggleCorner.CornerRadius = UDim.new(0.5, 0)
 toggleCorner.Parent = toggleBtn
 
 local toggleStroke = Instance.new("UIStroke")
 toggleStroke.Thickness = 3
-toggleStroke.Color = PALETTE.AccentDark
+toggleStroke.Color = THEME.Palette.AccentDark
 toggleStroke.Parent = toggleBtn
 
-local toggleScale = Instance.new("UIScale")
-toggleScale.Scale = 1
-toggleScale.Parent = toggleBtn
+-- Pulse effect
+local pulseFrame = Instance.new("Frame")
+pulseFrame.Size = UDim2.fromScale(1, 1)
+pulseFrame.BackgroundColor3 = THEME.Palette.Accent
+pulseFrame.BackgroundTransparency = 0.7
+pulseFrame.ZIndex = 14
+pulseFrame.Parent = toggleBtn
 
--- Floating animation
+local pulseCorner = Instance.new("UICorner")
+pulseCorner.CornerRadius = UDim.new(0.5, 0)
+pulseCorner.Parent = pulseFrame
+
+local pulseScale = Instance.new("UIScale")
+pulseScale.Scale = 1
+pulseScale.Parent = pulseFrame
+
+-- Continuous pulse animation
 spawn(function()
 	while true do
-		tween(toggleBtn, {Position = UDim2.new(1, -100, 1, -105)}, 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut):Play()
-		wait(2)
-		tween(toggleBtn, {Position = UDim2.new(1, -100, 1, -95)}, 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut):Play()
-		wait(2)
+		TweenService:Create(pulseScale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			Scale = 1.3
+		}):Play()
+		wait(1.5)
+		TweenService:Create(pulseScale, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			Scale = 1
+		}):Play()
+		wait(1.5)
 	end
 end)
 
--- ========================================
--- SHOW/HIDE ANIMATIONS
--- ========================================
+-- Show/Hide functions
+local isOpen = false
 
 local function showShop()
+	if isOpen then return end
+	isOpen = true
+
 	overlay.Visible = true
 	mainFrame.Visible = true
-	
-	-- Fade in overlay
-	tween(overlay, {BackgroundTransparency = 0.3}, MOTION.Normal):Play()
-	
-	-- Scale in main frame
+
+	-- Reset to first tab
+	switchTab("Cash")
+
+	-- Animate overlay
+	TweenService:Create(overlay, TweenInfo.new(THEME.Motion.Transition), {
+		BackgroundTransparency = 0.3
+	}):Play()
+
+	-- Animate main frame
 	local scale = mainFrame:FindFirstChild("UIScale") or Instance.new("UIScale")
 	scale.Scale = 0.8
 	scale.Parent = mainFrame
-	
-	tween(scale, {Scale = 1}, MOTION.Normal, Enum.EasingStyle.Back, Enum.EasingDirection.Out):Play()
-	
-	-- Default to currency tab
-	switchTab("currency")
+
+	TweenService:Create(scale, TweenInfo.new(THEME.Motion.Bounce, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1
+	}):Play()
+
+	-- Animate toggle button
+	TweenService:Create(toggleBtn, TweenInfo.new(THEME.Motion.Quick), {
+		Rotation = 360
+	}):Play()
 end
 
 local function hideShop()
-	-- Fade out overlay
-	tween(overlay, {BackgroundTransparency = 1}, MOTION.Quick):Play()
-	
-	-- Scale out main frame
+	if not isOpen then return end
+	isOpen = false
+
+	-- Animate overlay
+	TweenService:Create(overlay, TweenInfo.new(THEME.Motion.Quick), {
+		BackgroundTransparency = 1
+	}):Play()
+
+	-- Animate main frame
 	local scale = mainFrame:FindFirstChild("UIScale")
 	if scale then
-		tween(scale, {Scale = 0.9}, MOTION.Quick, Enum.EasingStyle.Back, Enum.EasingDirection.In):Play()
+		local tween = TweenService:Create(scale, TweenInfo.new(THEME.Motion.Quick, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			Scale = 0.8
+		})
+
+		tween.Completed:Connect(function()
+			mainFrame.Visible = false
+			overlay.Visible = false
+		end)
+
+		tween:Play()
 	end
-	
-	task.wait(MOTION.Quick)
-	overlay.Visible = false
-	mainFrame.Visible = false
+
+	-- Reset toggle rotation
+	TweenService:Create(toggleBtn, TweenInfo.new(THEME.Motion.Quick), {
+		Rotation = 0
+	}):Play()
 end
 
 -- Connect buttons
-track(toggleBtn.MouseButton1Click:Connect(showShop))
-track(closeBtn.MouseButton1Click:Connect(hideShop))
-track(overlay.MouseButton1Click:Connect(hideShop))
-
--- Toggle button hover
-track(toggleBtn.MouseEnter:Connect(function()
-	tween(toggleScale, {Scale = 1.1}):Play()
-end))
-
-track(toggleBtn.MouseLeave:Connect(function()
-	tween(toggleScale, {Scale = 1}):Play()
-end))
-
--- Close button hover
-track(closeBtn.MouseEnter:Connect(function()
-	tween(closeBtn, {BackgroundColor3 = PALETTE.Accent:lerp(PALETTE.White, 0.1)}):Play()
-end))
-
-track(closeBtn.MouseLeave:Connect(function()
-	tween(closeBtn, {BackgroundColor3 = PALETTE.Accent}):Play()
-end))
-
--- ========================================
--- CLEANUP
--- ========================================
-
-gui.Destroying:Connect(function()
-	for _, conn in ipairs(connections) do
-		pcall(function()
-			conn:Disconnect()
-		end)
+toggleBtn.MouseButton1Click:Connect(function()
+	playSound("click")
+	if isOpen then
+		hideShop()
+	else
+		showShop()
 	end
 end)
 
--- ========================================
--- AUTO-COLLECT SUPPORT
--- ========================================
+closeBtn.MouseButton1Click:Connect(function()
+	playSound("click")
+	hideShop()
+end)
 
--- Listen for auto-collect status from server
-local autoCollectRemote = ReplicatedStorage:WaitForChild("AutoCollectStatus", 5)
-if autoCollectRemote then
-	autoCollectRemote.OnClientEvent:Connect(function(enabled)
-		-- Update UI to show auto-collect status
-		if enabled then
-			print("Auto-collect is active!")
+overlay.MouseButton1Click:Connect(function()
+	hideShop()
+end)
+
+-- Toggle button hover
+toggleBtn.MouseEnter:Connect(function()
+	playSound("hover")
+	TweenService:Create(toggleBtn, TweenInfo.new(THEME.Motion.Quick), {
+		Size = UDim2.fromOffset(80, 80)
+	}):Play()
+end)
+
+toggleBtn.MouseLeave:Connect(function()
+	TweenService:Create(toggleBtn, TweenInfo.new(THEME.Motion.Quick), {
+		Size = UDim2.fromOffset(72, 72)
+	}):Play()
+end)
+
+-- Close button hover
+closeBtn.MouseEnter:Connect(function()
+	playSound("hover")
+	TweenService:Create(closeBtn, TweenInfo.new(THEME.Motion.Quick), {
+		BackgroundColor3 = THEME.Palette.AccentDark,
+		Size = UDim2.fromOffset(52, 52)
+	}):Play()
+end)
+
+closeBtn.MouseLeave:Connect(function()
+	TweenService:Create(closeBtn, TweenInfo.new(THEME.Motion.Quick), {
+		BackgroundColor3 = THEME.Palette.Accent,
+		Size = UDim2.fromOffset(48, 48)
+	}):Play()
+end)
+
+-- Purchase success handler
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(purchasePlayer, gamePassId, wasPurchased)
+	if wasPurchased and purchasePlayer == player then
+		playSound("purchase")
+		-- Refresh the shop to show owned status
+		hideShop()
+		wait(0.5)
+		showShop()
+	end
+end)
+
+MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, wasPurchased)
+	if wasPurchased and userId == player.UserId then
+		playSound("purchase")
+		-- You can add a success notification here
+	end
+end)
+
+-- Cleanup
+screenGui.AncestryChanged:Connect(function()
+	if not screenGui.Parent then
+		for _, sound in pairs(soundObjects) do
+			sound:Destroy()
 		end
-	end)
-end
+	end
+end)
 
-print("✨ Kawaii Money Shop Enhanced loaded! Theme:", CURRENT_THEME)
+print("✨ Enhanced Money Shop loaded with gamepasses!")
