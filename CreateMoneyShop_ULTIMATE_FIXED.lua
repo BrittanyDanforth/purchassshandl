@@ -910,9 +910,32 @@ MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, produc
 end)
 
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gamePassId, wasPurchased)
-	print("🎮 PromptGamePassPurchaseFinished fired:", userId, gamePassId, wasPurchased)
-	if userId ~= localPlayer.UserId then 
-		print("  ❌ Not for this player")
+	print("🎮 PromptGamePassPurchaseFinished fired - UserId:", userId, "GamePassId:", gamePassId, "Purchased:", wasPurchased)
+	print("  📝 LocalPlayer UserId:", localPlayer.UserId)
+	
+	-- More flexible userId check for Studio testing
+	local isForThisPlayer = (userId == localPlayer.UserId) or (tonumber(userId) == localPlayer.UserId)
+	
+	-- In Studio, sometimes the userId doesn't match perfectly
+	if game:GetService("RunService"):IsStudio() then
+		print("  🎮 Studio detected - being more lenient with userId check")
+		-- If this is one of our gamepasses and it was purchased, assume it's for us
+		local isOurGamepass = false
+		for _, pass in ipairs(ShopData.data.gamepasses) do
+			if pass.id == gamePassId then
+				isOurGamepass = true
+				break
+			end
+		end
+		
+		if isOurGamepass and wasPurchased then
+			print("  ✅ Our gamepass was purchased in Studio - assuming it's for this player")
+			isForThisPlayer = true
+		end
+	end
+	
+	if not isForThisPlayer then 
+		print("  ❌ Not for this player (", userId, "vs", localPlayer.UserId, ")")
 		return 
 	end
 	
