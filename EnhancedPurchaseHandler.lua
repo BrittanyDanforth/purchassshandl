@@ -317,8 +317,8 @@ local function update2xCashIndicator(giver, has2xCash)
 			local billboard2x = Instance.new("BillboardGui")
 			billboard2x.Name = "2xCashIndicator"
 			billboard2x.MaxDistance = 65
-			billboard2x.Size = UDim2.new(0, 60, 0, 24)
-			billboard2x.StudsOffset = Vector3.new(0, 5, 0)
+			billboard2x.Size = UDim2.new(0, 50, 0, 20)
+			billboard2x.StudsOffset = Vector3.new(30, 3.5, 0) -- Offset to the right
 			billboard2x.AlwaysOnTop = true
 			billboard2x.Parent = giver
 
@@ -399,7 +399,7 @@ local function performAutoCollect(player)
 		billboard.Name = "AutoCollectVFX"
 		billboard.Adornee = giver
 		billboard.MaxDistance = 65
-		billboard.Size = UDim2.new(0, 120, 0, 40)
+		billboard.Size = UDim2.new(0, 200, 0, 30)
 		billboard.StudsOffset = Vector3.new(0, 4, 0)
 		billboard.AlwaysOnTop = true
 		billboard.Parent = giver
@@ -410,7 +410,10 @@ local function performAutoCollect(player)
 		
 		-- Show 2x indicator if applicable
 		if has2x then
-			textLabel.Text = "+$" .. formatNumber(finalAmount) .. " (2X!)"
+			-- Show base amount + bonus amount for clarity
+			local baseAmount = moneyToCollect
+			local bonusAmount = finalAmount - baseAmount
+			textLabel.Text = "+$" .. formatNumber(baseAmount) .. " (+$" .. formatNumber(bonusAmount) .. " bonus)"
 			textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold for 2x
 		else
 			textLabel.Text = "+$" .. formatNumber(finalAmount)
@@ -452,13 +455,8 @@ local function setupAutoCollect(player)
 		autoCollectEnabled[player] = true
 	end
 
-	-- Update 2x Cash indicator
-	local giver = essentials:FindFirstChild("Giver")
-	if giver then
-		update2xCashIndicator(giver, check2xCashOwnership(player))
-	end
-
-	-- Smart connection - only fires when money value changes
+			-- Update 2x Cash indicator (moved to after auto-collect indicator)
+		-- Smart connection - only fires when money value changes
 	autoCollectConnections[player] = Money.Changed:Connect(function(newValue)
 		-- Double check owner hasn't changed
 		if script.Parent.Owner.Value ~= player then
@@ -491,29 +489,40 @@ local function setupAutoCollect(player)
 			oldIndicator:Destroy()
 		end
 
-		local autoIndicator = Instance.new("BillboardGui")
-		autoIndicator.Name = "AutoCollectIndicator"
-		autoIndicator.MaxDistance = 65 -- The sign will now disappear if you are further than 75 studs away.
-		autoIndicator.Size = UDim2.new(0, 60, 0, 24)
-		autoIndicator.StudsOffset = Vector3.new(0, 3.5, 0)
-		autoIndicator.AlwaysOnTop = true
-		autoIndicator.Parent = giver
+		-- Create a combined indicator for both AUTO and 2X
+		local statusIndicator = Instance.new("BillboardGui")
+		statusIndicator.Name = "StatusIndicator"
+		statusIndicator.MaxDistance = 65
+		statusIndicator.Size = UDim2.new(0, 120, 0, 24)
+		statusIndicator.StudsOffset = Vector3.new(0, 3.5, 0)
+		statusIndicator.AlwaysOnTop = true
+		statusIndicator.Parent = giver
 
 		local frame = Instance.new("Frame")
 		frame.Size = UDim2.new(1, 0, 1, 0)
 		frame.BackgroundColor3 = Color3.new(0, 0, 0)
 		frame.BackgroundTransparency = 0.3
 		frame.BorderSizePixel = 0
-		frame.Parent = autoIndicator
+		frame.Parent = statusIndicator
 
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0, 4)
 		corner.Parent = frame
 
+		-- Create text that shows both statuses
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
 		label.BackgroundTransparency = 1
-		label.Text = "AUTO"
+		
+		-- Check both auto-collect and 2x status
+		local has2x = check2xCashOwnership(player)
+		local statusText = "AUTO"
+		if has2x then
+			statusText = statusText .. " • 2X"
+			frame.BackgroundColor3 = Color3.fromRGB(50, 40, 0) -- Dark gold tint
+		end
+		
+		label.Text = statusText
 		label.TextScaled = true
 		label.TextColor3 = Color3.new(0, 1, 0)
 		label.Font = Enum.Font.SourceSansBold
@@ -521,8 +530,10 @@ local function setupAutoCollect(player)
 		label.TextStrokeColor3 = Color3.new(0, 0, 0)
 		label.Parent = frame
 
-		-- Store the label for toggle updates
-		autoIndicator:SetAttribute("TextLabel", label)
+		-- Store references for toggle updates
+		giver:SetAttribute("StatusIndicator", statusIndicator)
+		giver:SetAttribute("StatusLabel", label)
+		giver:SetAttribute("StatusFrame", frame)
 	end
 end
 
@@ -540,14 +551,23 @@ local function cleanupAutoCollect(player)
 	-- Remove indicator from collector
 	local giver = essentials:FindFirstChild("Giver")
 	if giver then
-		local indicator = giver:FindFirstChild("AutoCollectIndicator")
-		if indicator then
-			indicator:Destroy()
+		-- Remove old indicators
+		local oldAuto = giver:FindFirstChild("AutoCollectIndicator")
+		if oldAuto then oldAuto:Destroy() end
+		
+		local old2x = giver:FindFirstChild("2xCashIndicator")
+		if old2x then old2x:Destroy() end
+		
+		-- Remove combined indicator
+		local statusIndicator = giver:FindFirstChild("StatusIndicator")
+		if statusIndicator then
+			statusIndicator:Destroy()
 		end
-		local indicator2x = giver:FindFirstChild("2xCashIndicator")
-		if indicator2x then
-			indicator2x:Destroy()
-		end
+		
+		-- Clear attributes
+		giver:SetAttribute("StatusIndicator", nil)
+		giver:SetAttribute("StatusLabel", nil)
+		giver:SetAttribute("StatusFrame", nil)
 	end
 
 	print("🤖 Auto-Collect deactivated for", player and player.Name or "unknown")
@@ -569,17 +589,26 @@ if autoCollectToggle then
 		-- Update visual indicator
 		local giver = essentials:FindFirstChild("Giver")
 		if giver then
-			local indicator = giver:FindFirstChild("AutoCollectIndicator")
-			if indicator then
-				local frame = indicator:FindFirstChild("Frame")
+			local statusIndicator = giver:FindFirstChild("StatusIndicator")
+			if statusIndicator then
+				local frame = statusIndicator:FindFirstChild("Frame")
 				local label = frame and frame:FindFirstChild("TextLabel")
 				if label then
+					local has2x = check2xCashOwnership(player)
 					if enabled then
-						label.Text = "AUTO"
+						local statusText = "AUTO"
+						if has2x then
+							statusText = statusText .. " • 2X"
+						end
+						label.Text = statusText
 						label.TextColor3 = Color3.new(0, 1, 0)
-						frame.BackgroundColor3 = Color3.new(0, 0.2, 0)
+						frame.BackgroundColor3 = has2x and Color3.fromRGB(50, 40, 0) or Color3.new(0, 0.2, 0)
 					else
-						label.Text = "AUTO ✗"
+						local statusText = "AUTO ✗"
+						if has2x then
+							statusText = statusText .. " • 2X"
+						end
+						label.Text = statusText
 						label.TextColor3 = Color3.new(1, 0.3, 0.3)
 						frame.BackgroundColor3 = Color3.new(0.2, 0, 0)
 					end
@@ -651,7 +680,48 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gameP
 			if script.Parent.Owner.Value == player then
 				local giver = essentials:FindFirstChild("Giver")
 				if giver then
-					update2xCashIndicator(giver, true)
+					-- Update the combined indicator if auto-collect is active
+					local statusIndicator = giver:FindFirstChild("StatusIndicator")
+					if statusIndicator then
+						local frame = statusIndicator:FindFirstChild("Frame")
+						local label = frame and frame:FindFirstChild("TextLabel")
+						if label then
+							local statusText = autoCollectEnabled[player] ~= false and "AUTO • 2X" or "AUTO ✗ • 2X"
+							label.Text = statusText
+							frame.BackgroundColor3 = Color3.fromRGB(50, 40, 0) -- Gold tint
+						end
+					else
+						-- Create standalone 2x indicator if no auto-collect
+						local indicator2x = Instance.new("BillboardGui")
+						indicator2x.Name = "2xCashIndicator"
+						indicator2x.MaxDistance = 65
+						indicator2x.Size = UDim2.new(0, 50, 0, 20)
+						indicator2x.StudsOffset = Vector3.new(0, 3.5, 0)
+						indicator2x.AlwaysOnTop = true
+						indicator2x.Parent = giver
+
+						local frame = Instance.new("Frame")
+						frame.Size = UDim2.new(1, 0, 1, 0)
+						frame.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+						frame.BackgroundTransparency = 0.3
+						frame.BorderSizePixel = 0
+						frame.Parent = indicator2x
+
+						local corner = Instance.new("UICorner")
+						corner.CornerRadius = UDim.new(0, 4)
+						corner.Parent = frame
+
+						local label = Instance.new("TextLabel")
+						label.Size = UDim2.new(1, 0, 1, 0)
+						label.BackgroundTransparency = 1
+						label.Text = "2X"
+						label.TextScaled = true
+						label.TextColor3 = Color3.new(1, 1, 1)
+						label.Font = Enum.Font.SourceSansBold
+						label.TextStrokeTransparency = 0.5
+						label.TextStrokeColor3 = Color3.new(0, 0, 0)
+						label.Parent = frame
+					end
 				end
 				
 				-- Success notification
@@ -1288,17 +1358,26 @@ local function resetTycoonPurchases()
 	autoCollectConnections = {}
 	autoCollectEnabled = {}
 
-	-- Remove any auto-collect indicators
+	-- Remove any indicators
 	local giver = essentials:FindFirstChild("Giver")
 	if giver then
-		local indicator = giver:FindFirstChild("AutoCollectIndicator")
-		if indicator then
-			indicator:Destroy()
+		-- Remove old style indicators
+		local oldAuto = giver:FindFirstChild("AutoCollectIndicator")
+		if oldAuto then oldAuto:Destroy() end
+		
+		local old2x = giver:FindFirstChild("2xCashIndicator")
+		if old2x then old2x:Destroy() end
+		
+		-- Remove combined indicator
+		local statusIndicator = giver:FindFirstChild("StatusIndicator")
+		if statusIndicator then
+			statusIndicator:Destroy()
 		end
-		local indicator2x = giver:FindFirstChild("2xCashIndicator")
-		if indicator2x then
-			indicator2x:Destroy()
-		end
+		
+		-- Clear attributes
+		giver:SetAttribute("StatusIndicator", nil)
+		giver:SetAttribute("StatusLabel", nil)
+		giver:SetAttribute("StatusFrame", nil)
 	end
 
 	-- Clear player-specific data
@@ -1383,10 +1462,39 @@ connections.owner = tycoonOwner.Changed:Connect(function()
 		currentOwner = newOwner
 		print("👤 New owner:", currentOwner.Name)
 
-		-- Update 2x Cash indicator
+		-- Show 2x indicator if player has it but no auto-collect
 		local giver = essentials:FindFirstChild("Giver")
-		if giver then
-			update2xCashIndicator(giver, check2xCashOwnership(newOwner))
+		if giver and check2xCashOwnership(newOwner) and not checkAutoCollectOwnership(newOwner) then
+			-- Create standalone 2x indicator
+			local indicator2x = Instance.new("BillboardGui")
+			indicator2x.Name = "2xCashIndicator"
+			indicator2x.MaxDistance = 65
+			indicator2x.Size = UDim2.new(0, 50, 0, 20)
+			indicator2x.StudsOffset = Vector3.new(0, 3.5, 0)
+			indicator2x.AlwaysOnTop = true
+			indicator2x.Parent = giver
+
+			local frame = Instance.new("Frame")
+			frame.Size = UDim2.new(1, 0, 1, 0)
+			frame.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+			frame.BackgroundTransparency = 0.3
+			frame.BorderSizePixel = 0
+			frame.Parent = indicator2x
+
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 4)
+			corner.Parent = frame
+
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.new(1, 0, 1, 0)
+			label.BackgroundTransparency = 1
+			label.Text = "2X"
+			label.TextScaled = true
+			label.TextColor3 = Color3.new(1, 1, 1)
+			label.Font = Enum.Font.SourceSansBold
+			label.TextStrokeTransparency = 0.5
+			label.TextStrokeColor3 = Color3.new(0, 0, 0)
+			label.Parent = frame
 		end
 
 		-- Setup money listener
@@ -1515,7 +1623,7 @@ giver.Touched:Connect(function(hit)
 
 			-- Money popup with 2x indicator
 			local billboardGui = Instance.new("BillboardGui")
-			billboardGui.Size = UDim2.new(0, 80, 0, 40)
+			billboardGui.Size = UDim2.new(0, 200, 0, 30)
 			billboardGui.StudsOffset = Vector3.new(0, 3, 0)
 			billboardGui.Parent = giver
 
@@ -1524,7 +1632,10 @@ giver.Touched:Connect(function(hit)
 			textLabel.BackgroundTransparency = 1
 			
 			if has2x then
-				textLabel.Text = "+$" .. tostring(finalAmount) .. " (2X!)"
+				-- Show base amount + bonus amount for clarity
+				local baseAmount = moneyCollected
+				local bonusAmount = finalAmount - baseAmount
+				textLabel.Text = "+$" .. tostring(baseAmount) .. " (+$" .. tostring(bonusAmount) .. " bonus)"
 				textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
 			else
 				textLabel.Text = "+$" .. tostring(finalAmount)
