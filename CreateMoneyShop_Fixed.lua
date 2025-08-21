@@ -364,6 +364,14 @@ local function addHalo(parent: GuiObject, color: Color3, sizeOffset: number, tra
 end
 
 -- // Root GUI
+-- Check if shop already exists and remove it
+local existingShop = playerGui:FindFirstChild("SANRIO_SHOP_REBUILT")
+if existingShop then
+	print("Removing existing shop GUI...")
+	existingShop:Destroy()
+	wait(0.1)
+end
+
 local screen = Instance.new("ScreenGui")
 screen.Name = "SANRIO_SHOP_REBUILT"
 screen.ResetOnSpawn = false
@@ -840,17 +848,47 @@ end)
 local Shop = {open = false, anim = false}
 
 function Shop:open()
-	if self.open or self.anim then return end
-	self.anim = true; self.open = true
+	print("Shop:open called - current state: open=", self.open, " anim=", self.anim)
+	if self.open then 
+		print("Shop already open, returning")
+		return 
+	end
+	if self.anim then
+		print("Animation in progress, returning")
+		return
+	end
+	
+	self.anim = true
+	self.open = true
+	
+	print("Opening shop...")
 	preload()
-	dim.Visible = true; panel.Visible = true
-	dim.BackgroundTransparency = 1; panel.Position = UDim2.new(0.5,0,0.52,0); panel.Size = UDim2.new(0,1120,0,830); panel.BackgroundTransparency = 0.2
+	
+	-- Make sure GUI elements exist
+	if not dim or not panel then
+		warn("Shop GUI elements missing!")
+		self.anim = false
+		self.open = false
+		return
+	end
+	
+	dim.Visible = true
+	panel.Visible = true
+	dim.BackgroundTransparency = 1
+	panel.Position = UDim2.new(0.5,0,0.52,0)
+	panel.Size = UDim2.new(0,1120,0,830)
+	panel.BackgroundTransparency = 0.2
+	
 	Blur:show(10)
 	Utils.tween(dim, ANIM.MED, {BackgroundTransparency = 0.3})
 	Utils.tween(panel, ANIM.SLOW, {Position = UDim2.new(0.5,0,0.5,0), Size = UDim2.new(0,1140,0,860), BackgroundTransparency = 0})
 	Sfx:play("open")
 	Tabs:select("Home")
-	task.delay(0.35, function() self.anim = false end)
+	
+	task.delay(0.35, function() 
+		self.anim = false 
+		print("Shop open animation complete")
+	end)
 end
 
 function Shop:close()
@@ -866,7 +904,17 @@ function Shop:close()
 end
 
 function Shop:toggle()
+	print("Shop:toggle called - open=", self.open)
 	if self.open then self:close() else self:open() end
+end
+
+function Shop:reset()
+	print("Resetting shop state...")
+	self.open = false
+	self.anim = false
+	if dim then dim.Visible = false end
+	if panel then panel.Visible = false end
+	Blur:hide()
 end
 
 -- Build everything after metadata
@@ -888,6 +936,11 @@ passTab.MouseButton1Click:Connect(function() Tabs:select("Gamepasses") end)
 closeBtn.MouseButton1Click:Connect(function() Shop:close() end)
 toggle.MouseButton1Click:Connect(function() 
 	print("Shop button clicked!")
+	-- If shop seems stuck, reset it
+	if Shop.open and not panel.Visible then
+		print("Shop in stuck state, resetting...")
+		Shop:reset()
+	end
 	Shop:open() 
 end)
 
