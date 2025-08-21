@@ -533,7 +533,8 @@ local function createShopGUI()
 	local closeIcon = UI.image({Name = "X", Image = Asset.list.iconCloseX, ImageColor3 = Color3.new(1,1,1), Size = UDim2.fromOffset(20,20), Position = UDim2.new(0.5,0,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), ZIndex = 14})
 	closeIcon.Parent = closeBtn
 	
-	closeBtn.MouseButton1Click:Connect(function() Shop:close() end)
+	-- Store close button reference to connect later
+	screen.CloseBtn = closeBtn
 end
 
 -- Tab system
@@ -663,7 +664,9 @@ local function makeItemCard(item: {[string]: any}, kind: string, accent: Color3)
 	plate.Parent = inner
 	local iconId = (item.icon and Asset.valid(item.icon)) and item.icon or ((kind == "pass") and Asset.list.iconPass or Asset.list.iconCash)
 	local iconColor = (kind == "pass") and Color3.fromRGB(240,240,255) or Theme.c("text")
-	local icon = UI.image({Name = "Icon", Image = iconId, ImageColor3 = iconColor, Size = UDim2.fromOffset(48,48), Position = UDim2.new(0.5,0,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), ZIndex = 15})
+	-- Make gamepass icons larger (64x64 instead of 48x48)
+	local iconSize = (kind == "pass") and UDim2.fromOffset(64,64) or UDim2.fromOffset(48,48)
+	local icon = UI.image({Name = "Icon", Image = iconId, ImageColor3 = iconColor, Size = iconSize, Position = UDim2.new(0.5,0,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), ZIndex = 15})
 	icon.Parent = plate
 
 	-- Title & Desc
@@ -1091,6 +1094,13 @@ connectShopButton()
 
 -- Initialize shop
 initializeShop()
+
+-- Connect close button after Shop is defined
+if screen and screen.CloseBtn then
+	screen.CloseBtn.MouseButton1Click:Connect(function() 
+		Shop:close() 
+	end)
+end
 
 -- Input handling
 UserInputService.InputBegan:Connect(function(input, gp)
