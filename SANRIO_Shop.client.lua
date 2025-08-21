@@ -144,7 +144,7 @@ function UI.textLabel(props)
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
 	t.Font = Enum.Font.BuilderSansMedium
-	TextScaled = false
+	t.TextScaled = false
 	t.TextSize = props.TextSize or 18
 	t.TextColor3 = props.TextColor3 or Theme.c("text")
 	t.AutoLocalize = false
@@ -1008,14 +1008,6 @@ local function ensureShopButton()
 		setupShopButton(shopButton)
 	end
 end
-
--- Check for button periodically
-task.spawn(function()
-	while true do
-		task.wait(2)
-		ensureShopButton()
-	end
-end)
 
 -- Also check on character spawn
 localPlayer.CharacterAdded:Connect(function(character)
