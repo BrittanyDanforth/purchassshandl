@@ -508,8 +508,6 @@ local function setupAutoCollect(player)
 
 		local frame = Instance.new("Frame")
 		frame.Size = UDim2.new(1, 0, 1, 0)
-		frame.BackgroundColor3 = Color3.new(0, 0.7, 0.7) -- Cyan
-		frame.BackgroundTransparency = 0.2
 		frame.BorderSizePixel = 0
 		frame.Parent = autoIndicator
 
@@ -520,13 +518,26 @@ local function setupAutoCollect(player)
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
 		label.BackgroundTransparency = 1
-		label.Text = "AUTO"
 		label.TextScaled = true
-		label.TextColor3 = Color3.new(1, 1, 1)
 		label.Font = Enum.Font.SourceSansBold
 		label.TextStrokeTransparency = 0
 		label.TextStrokeColor3 = Color3.new(0, 0, 0)
 		label.Parent = frame
+		
+		-- FIXED: Show correct visual state based on actual enabled state
+		if autoCollectEnabled[player] ~= false then
+			-- Auto-collect is ON
+			frame.BackgroundColor3 = Color3.new(0, 0.7, 0.7) -- Cyan
+			frame.BackgroundTransparency = 0.2
+			label.Text = "AUTO"
+			label.TextColor3 = Color3.new(1, 1, 1)
+		else
+			-- Auto-collect is OFF
+			frame.BackgroundColor3 = Color3.new(0.5, 0, 0) -- Red
+			frame.BackgroundTransparency = 0.2
+			label.Text = "AUTO ✗"
+			label.TextColor3 = Color3.new(1, 0.3, 0.3)
+		end
 
 		-- Store the label for toggle updates
 		autoIndicator:SetAttribute("TextLabel", label)
