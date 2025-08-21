@@ -319,7 +319,7 @@ local function update2xCashIndicator(giver, has2xCash)
 			billboard2x.Name = "2xCashIndicator"
 			billboard2x.MaxDistance = 100
 			billboard2x.Size = UDim2.new(3, 0, 1, 0) -- Size in studs, not pixels
-			billboard2x.StudsOffsetWorldSpace = Vector3.new(0, 5, 0) -- Above the collector
+			billboard2x.StudsOffset = Vector3.new(0, 5, 0) -- Above the collector
 			billboard2x.AlwaysOnTop = true
 			billboard2x.Parent = giver
 
@@ -496,7 +496,7 @@ local function setupAutoCollect(player)
 		autoIndicator.Name = "AutoCollectIndicator"
 		autoIndicator.MaxDistance = 100
 		autoIndicator.Size = UDim2.new(3, 0, 0.8, 0) -- Fixed size in studs
-		autoIndicator.StudsOffsetWorldSpace = Vector3.new(0, 3.5, 0) -- Below 2x indicator
+		autoIndicator.StudsOffset = Vector3.new(0, 3.5, 0) -- Below 2x indicator
 		autoIndicator.AlwaysOnTop = true
 		autoIndicator.Parent = giver
 
@@ -1514,9 +1514,9 @@ giver.Touched:Connect(function(hit)
 			-- Play success sound
 			playSound(giver, "success", 0.3)
 
-			-- Money popup with 2x indicator
+			-- Money popup with 2x indicator - LONGER DISPLAY TIME
 			local billboardGui = Instance.new("BillboardGui")
-			billboardGui.Size = UDim2.new(0, 100, 0, 40)
+			billboardGui.Size = UDim2.new(0, 150, 0, 50)
 			billboardGui.StudsOffset = Vector3.new(0, 3, 0)
 			billboardGui.Parent = giver
 
@@ -1534,19 +1534,24 @@ giver.Touched:Connect(function(hit)
 
 			textLabel.TextScaled = true
 			textLabel.Font = Enum.Font.SourceSansBold
+			textLabel.TextStrokeTransparency = 0
+			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
 			textLabel.Parent = billboardGui
 
+			-- Slower animation for better visibility
 			TweenService:Create(billboardGui,
-				TweenInfo.new(0.8, Enum.EasingStyle.Linear),
-				{StudsOffset = Vector3.new(0, 6, 0)}
+				TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{StudsOffset = Vector3.new(0, 8, 0)}
 			):Play()
 
+			-- Delay before fading
+			task.wait(0.5)
 			TweenService:Create(textLabel,
-				TweenInfo.new(0.8, Enum.EasingStyle.Linear),
+				TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 				{TextTransparency = 1}
 			):Play()
 
-			Debris:AddItem(billboardGui, 0.8)
+			Debris:AddItem(billboardGui, 2.5)
 		end
 
 		task.wait(0.1)
