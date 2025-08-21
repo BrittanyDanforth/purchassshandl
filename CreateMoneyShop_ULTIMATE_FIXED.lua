@@ -772,12 +772,14 @@ local function makeItemCard(item: {[string]: any}, kind: string, accent: Color3)
 			cta.AutoButtonColor = false
 			
 			if kind == "pass" then
+				print("🛍️ Prompting gamepass purchase:", item.id, item.name)
 				Pending.pass[item.id] = {cta = cta, card = card, item = item}
 				
 				-- Add timeout failsafe
 				task.spawn(function()
 					task.wait(10) -- Wait 10 seconds
 					if Pending.pass[item.id] then
+						print("⏰ Timeout reached for gamepass:", item.id)
 						-- Still pending after 10 seconds, reset button
 						if cta and cta.Parent then
 							cta.Text = "Purchase"
@@ -908,7 +910,13 @@ MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, produc
 end)
 
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gamePassId, wasPurchased)
-	if userId ~= localPlayer.UserId then return end
+	print("🎮 PromptGamePassPurchaseFinished fired:", userId, gamePassId, wasPurchased)
+	if userId ~= localPlayer.UserId then 
+		print("  ❌ Not for this player")
+		return 
+	end
+	
+	print("  ✅ For this player! Pending data:", Pending.pass[gamePassId] ~= nil)
 	
 	local pendingData = Pending.pass[gamePassId]
 	if pendingData then
@@ -943,9 +951,23 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 				cta.AutoButtonColor = true
 			end
 		end
+		
+		Pending.pass[gamePassId] = nil
+	else
+		-- No pending data but purchase was successful - still refresh
+		if wasPurchased then
+			print("  🔄 No pending data but purchase successful - refreshing anyway")
+			
+			-- Play success sound
+			Sfx:play("success")
+			
+			-- Wait a bit for ownership to update
+			task.wait(1.5)
+			
+			-- Force refresh
+			refreshAllPages()
+		end
 	end
-	
-	Pending.pass[gamePassId] = nil
 end)
 
 -- // Build UI
