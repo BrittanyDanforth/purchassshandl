@@ -372,6 +372,14 @@ end
 
 -- Check if player owns auto-collect gamepass
 local function checkAutoCollectOwnership(player)
+	-- In Studio with userId -1, check if we've marked this as purchased
+	if game:GetService("RunService"):IsStudio() and player.UserId == -1 then
+		if _G.StudioGamepassPurchases and _G.StudioGamepassPurchases[CONFIG.AUTO_COLLECT_GAMEPASS_ID] then
+			print("  🎮 Studio: Player owns auto-collect via purchase tracking")
+			return true
+		end
+	end
+	
 	local success, hasPass = pcall(function()
 		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, CONFIG.AUTO_COLLECT_GAMEPASS_ID)
 	end)
@@ -619,6 +627,15 @@ end
 -- Listen for gamepass purchases
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, wasPurchased)
 	if wasPurchased then
+		-- Mark as purchased in Studio
+		if game:GetService("RunService"):IsStudio() then
+			if not _G.StudioGamepassPurchases then
+				_G.StudioGamepassPurchases = {}
+			end
+			_G.StudioGamepassPurchases[gamePassId] = true
+			print("📝 Server: Marked gamepass", gamePassId, "as purchased in Studio")
+		end
+		
 		-- Notify client about the purchase
 		local gamepassPurchaseRemote = remotesFolder:FindFirstChild("GamepassPurchased")
 		if gamepassPurchaseRemote then
@@ -1440,8 +1457,14 @@ connections.owner = tycoonOwner.Changed:Connect(function()
 		end
 
 		-- Check if new owner has auto-collect
-		if checkAutoCollectOwnership(newOwner) then
+		print("🔍 Checking if", newOwner.Name, "owns auto-collect gamepass...")
+		local ownsAutoCollect = checkAutoCollectOwnership(newOwner)
+		print("  Result:", ownsAutoCollect)
+		
+		if ownsAutoCollect then
 			setupAutoCollect(newOwner)
+		else
+			print("  ❌ Player doesn't own auto-collect gamepass")
 		end
 	end
 end)
