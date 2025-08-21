@@ -1189,6 +1189,46 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
+-- Listen for gamepass purchase notifications from server
+local gamepassPurchaseRemote = game:GetService("ReplicatedStorage"):WaitForChild("TycoonRemotes", 5)
+if gamepassPurchaseRemote then
+	gamepassPurchaseRemote = gamepassPurchaseRemote:WaitForChild("GamepassPurchased", 5)
+	if gamepassPurchaseRemote then
+		gamepassPurchaseRemote.OnClientEvent:Connect(function(gamePassId)
+			print("🎯 Received gamepass purchase notification from server:", gamePassId)
+			
+			-- Check if it's one of our gamepasses
+			local isOurGamepass = false
+			for _, pass in ipairs(ShopData.data.gamepasses) do
+				if pass.id == gamePassId then
+					isOurGamepass = true
+					break
+				end
+			end
+			
+			if isOurGamepass then
+				print("  ✅ Our gamepass! Refreshing shop...")
+				
+				-- Play success sound
+				Sfx:play("success")
+				
+				-- Clear any pending states
+				for id, _ in pairs(Pending.pass) do
+					if id == gamePassId then
+						Pending.pass[id] = nil
+					end
+				end
+				
+				-- Wait for ownership to update
+				task.wait(1.5)
+				
+				-- Force refresh
+				refreshAllPages()
+			end
+		end)
+	end
+end
+
 -- Simple selection image for gamepad focus
 local selectImg = Instance.new("ImageLabel")
 selectImg.Image = "rbxassetid://3570695787"

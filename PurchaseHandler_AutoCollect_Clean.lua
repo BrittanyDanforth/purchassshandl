@@ -192,6 +192,14 @@ local function setupDedicatedFolders()
 		autoCollectRemote.Name = "AutoCollectToggle"
 		autoCollectRemote.Parent = remotesFolder
 	end
+	
+	-- Create gamepass purchase notification remote
+	local gamepassPurchaseRemote = remotesFolder:FindFirstChild("GamepassPurchased")
+	if not gamepassPurchaseRemote then
+		gamepassPurchaseRemote = Instance.new("RemoteEvent")
+		gamepassPurchaseRemote.Name = "GamepassPurchased"
+		gamepassPurchaseRemote.Parent = remotesFolder
+	end
 
 	return cashFolder, remotesFolder
 end
@@ -611,6 +619,12 @@ end
 -- Listen for gamepass purchases
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, wasPurchased)
 	if wasPurchased then
+		-- Notify client about the purchase
+		local gamepassPurchaseRemote = remotesFolder:FindFirstChild("GamepassPurchased")
+		if gamepassPurchaseRemote then
+			gamepassPurchaseRemote:FireClient(player, gamePassId)
+		end
+		
 		if gamePassId == CONFIG.AUTO_COLLECT_GAMEPASS_ID then
 			-- Check if this player owns this tycoon
 			if script.Parent.Owner.Value == player then
