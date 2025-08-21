@@ -845,21 +845,21 @@ spawn(function()
 end)
 
 -- Shop Manager
-local Shop = {open = false, anim = false}
+local Shop = {isOpen = false, isAnimating = false}
 
 function Shop:open()
-	print("Shop:open called - current state: open=", self.open, " anim=", self.anim)
-	if self.open then 
+	print("Shop:open called - current state: isOpen=", self.isOpen, " isAnimating=", self.isAnimating)
+	if self.isOpen then 
 		print("Shop already open, returning")
 		return 
 	end
-	if self.anim then
+	if self.isAnimating then
 		print("Animation in progress, returning")
 		return
 	end
 	
-	self.anim = true
-	self.open = true
+	self.isAnimating = true
+	self.isOpen = true
 	
 	print("Opening shop...")
 	preload()
@@ -867,8 +867,8 @@ function Shop:open()
 	-- Make sure GUI elements exist
 	if not dim or not panel then
 		warn("Shop GUI elements missing!")
-		self.anim = false
-		self.open = false
+		self.isAnimating = false
+		self.isOpen = false
 		return
 	end
 	
@@ -886,32 +886,32 @@ function Shop:open()
 	Tabs:select("Home")
 	
 	task.delay(0.35, function() 
-		self.anim = false 
+		self.isAnimating = false 
 		print("Shop open animation complete")
 	end)
 end
 
 function Shop:close()
-	if not self.open or self.anim then return end
-	self.anim = true; self.open = false
+	if not self.isOpen or self.isAnimating then return end
+	self.isAnimating = true; self.isOpen = false
 	Blur:hide()
 	Utils.tween(dim, ANIM.FAST, {BackgroundTransparency = 1})
 	Utils.tween(panel, ANIM.FAST, {Position = UDim2.new(0.5,0,0.53,0), Size = UDim2.new(0,1120,0,830)})
 	Sfx:play("close")
 	task.delay(0.2, function()
-		dim.Visible = false; panel.Visible = false; self.anim = false
+		dim.Visible = false; panel.Visible = false; self.isAnimating = false
 	end)
 end
 
 function Shop:toggle()
-	print("Shop:toggle called - open=", self.open)
-	if self.open then self:close() else self:open() end
+	print("Shop:toggle called - isOpen=", self.isOpen)
+	if self.isOpen then self:close() else self:open() end
 end
 
 function Shop:reset()
 	print("Resetting shop state...")
-	self.open = false
-	self.anim = false
+	self.isOpen = false
+	self.isAnimating = false
 	if dim then dim.Visible = false end
 	if panel then panel.Visible = false end
 	Blur:hide()
@@ -936,18 +936,18 @@ passTab.MouseButton1Click:Connect(function() Tabs:select("Gamepasses") end)
 closeBtn.MouseButton1Click:Connect(function() Shop:close() end)
 toggle.MouseButton1Click:Connect(function() 
 	print("Shop button clicked!")
-	-- If shop seems stuck, reset it
-	if Shop.open and not panel.Visible then
+	-- Check if shop is in a bad state
+	if Shop.isOpen == true and (not panel or not panel.Visible) then
 		print("Shop in stuck state, resetting...")
 		Shop:reset()
 	end
-	Shop:open() 
+	Shop:toggle() 
 end)
 
 -- Add touch support for mobile
 toggle.TouchTap:Connect(function()
 	print("Shop button touched!")
-	Shop:open()
+	Shop:toggle()
 end)
 
 UserInputService.InputBegan:Connect(function(input, gp)
