@@ -535,12 +535,11 @@ local function setupAutoCollect(player)
 			-- Auto-collect is OFF
 			frame.BackgroundColor3 = Color3.new(0.5, 0, 0) -- Red
 			frame.BackgroundTransparency = 0.2
-			label.Text = "AUTO ✗"
+			label.Text = "AUTO X"
 			label.TextColor3 = Color3.new(1, 0.3, 0.3)
 		end
 
-		-- Store the label for toggle updates
-		autoIndicator:SetAttribute("TextLabel", label)
+		-- Don't store instance as attribute - not needed
 	end
 end
 
@@ -597,7 +596,7 @@ if autoCollectToggle then
 						label.TextColor3 = Color3.new(1, 1, 1)
 						frame.BackgroundColor3 = Color3.new(0, 0.7, 0.7)
 					else
-						label.Text = "AUTO ✗"
+						label.Text = "AUTO X"
 						label.TextColor3 = Color3.new(1, 0.3, 0.3)
 						frame.BackgroundColor3 = Color3.new(0.5, 0, 0)
 					end
