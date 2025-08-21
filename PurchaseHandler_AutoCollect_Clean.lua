@@ -82,8 +82,14 @@ local CONFIG = {
 -- AUTO-COLLECT SYSTEM
 -- ========================================
 local autoCollectConnections = {}
-local autoCollectEnabled = {} -- Track per-player toggle state
 local giverAnimating = false -- Prevent animation stacking
+
+-- FIXED: Store auto-collect preferences globally across all tycoons
+-- This uses _G to persist across all tycoon scripts
+if not _G.AutoCollectPreferences then
+	_G.AutoCollectPreferences = {}
+end
+local autoCollectEnabled = _G.AutoCollectPreferences -- Reference to global table
 
 -- Format numbers with commas (for auto-collect display)
 local function formatNumber(n)
@@ -558,14 +564,14 @@ end
 local autoCollectToggle = remotesFolder:FindFirstChild("AutoCollectToggle")
 if autoCollectToggle then
 	autoCollectToggle.OnServerEvent:Connect(function(player, enabled)
-		-- Verify player owns this tycoon
-		if script.Parent.Owner.Value ~= player then return end
-
 		-- Verify player owns the gamepass
 		if not checkAutoCollectOwnership(player) then return end
 
-		-- Update state
+		-- Update state (even if they don't own this tycoon yet)
 		autoCollectEnabled[player] = enabled
+		
+		-- Only update visual indicator if they own this tycoon
+		if script.Parent.Owner.Value ~= player then return end
 
 		-- Update visual indicator
 		local giver = essentials:FindFirstChild("Giver")
