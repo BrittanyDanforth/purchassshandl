@@ -365,10 +365,13 @@ local function setupAutoCollect(player)
 
 	print("🤖 Auto-Collect activated for", player.Name)
 
-	-- Default to enabled
+	-- FIXED: Don't reset the enabled state if it already exists
+	-- This preserves the player's previous toggle choice
 	if autoCollectEnabled[player] == nil then
 		autoCollectEnabled[player] = true
 	end
+	
+	print("  Current state:", autoCollectEnabled[player] and "enabled" or "disabled")
 
 	-- Smart connection - only fires when money value changes
 	autoCollectConnections[player] = Money.Changed:Connect(function(newValue)
@@ -424,9 +427,17 @@ local function setupAutoCollect(player)
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
 		label.BackgroundTransparency = 1
-		label.Text = "AUTO"
+		-- Show correct state based on player's preference
+		if autoCollectEnabled[player] ~= false then
+			label.Text = "AUTO"
+			label.TextColor3 = Color3.new(0, 1, 0)
+			frame.BackgroundColor3 = Color3.new(0, 0.2, 0)
+		else
+			label.Text = "AUTO ✗"
+			label.TextColor3 = Color3.new(1, 0.3, 0.3)
+			frame.BackgroundColor3 = Color3.new(0.2, 0, 0)
+		end
 		label.TextScaled = true
-		label.TextColor3 = Color3.new(0, 1, 0)
 		label.Font = Enum.Font.SourceSansBold
 		label.TextStrokeTransparency = 0.8
 		label.TextStrokeColor3 = Color3.new(0, 0, 0)
@@ -445,8 +456,8 @@ local function cleanupAutoCollect(player)
 		autoCollectConnections[player] = nil
 	end
 
-	-- Clear enabled state
-	autoCollectEnabled[player] = nil
+	-- FIXED: Don't clear enabled state - preserve player's preference
+	-- autoCollectEnabled[player] = nil  -- REMOVED
 
 	-- Remove indicator from collector
 	local giver = essentials:FindFirstChild("Giver")
@@ -1136,7 +1147,8 @@ local function resetTycoonPurchases()
 		end
 	end
 	autoCollectConnections = {}
-	autoCollectEnabled = {}
+	-- FIXED: Don't clear autoCollectEnabled - preserve player preferences
+	-- autoCollectEnabled = {}  -- REMOVED
 
 	-- Remove any auto-collect indicators
 	local giver = essentials:FindFirstChild("Giver")
