@@ -202,6 +202,7 @@ end
 -- Clear ownership cache
 function ShopData.clearOwnershipCache()
 	ownershipCache = {}
+	print("🗑️ Cleared entire ownership cache")
 end
 
 -- Hydrate icons/prices properly
@@ -980,6 +981,11 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 				end
 				_G.StudioGamepassPurchases[gamePassId] = true
 				print("  📝 Marked gamepass", gamePassId, "as purchased in Studio")
+				
+				-- Clear the ownership cache for this gamepass
+				local cacheKey = localPlayer.UserId .. "_" .. gamePassId
+				ownershipCache[cacheKey] = nil
+				print("  🗑️ Cleared ownership cache for", gamePassId)
 			end
 			
 			-- Update CTA immediately
@@ -997,6 +1003,9 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 			
 			-- Wait for Roblox to update ownership
 			task.wait(2)
+			
+			-- Clear cache before refresh
+			ShopData.clearOwnershipCache()
 			
 			-- Force refresh all pages
 			refreshAllPages()
@@ -1020,6 +1029,9 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 			
 			-- Wait a bit for ownership to update
 			task.wait(1.5)
+			
+			-- Clear cache before refresh
+			ShopData.clearOwnershipCache()
 			
 			-- Force refresh
 			refreshAllPages()
@@ -1250,6 +1262,11 @@ if gamepassPurchaseRemote then
 					end
 					_G.StudioGamepassPurchases[gamePassId] = true
 					print("  📝 Marked gamepass", gamePassId, "as purchased in Studio (via server notification)")
+					
+					-- Clear the ownership cache for this gamepass
+					local cacheKey = localPlayer.UserId .. "_" .. gamePassId
+					ownershipCache[cacheKey] = nil
+					print("  🗑️ Cleared ownership cache for", gamePassId)
 				end
 				
 				-- Play success sound
@@ -1264,6 +1281,9 @@ if gamepassPurchaseRemote then
 				
 				-- Wait for ownership to update
 				task.wait(1.5)
+				
+				-- Clear cache before refresh
+				ShopData.clearOwnershipCache()
 				
 				-- Force refresh
 				refreshAllPages()
