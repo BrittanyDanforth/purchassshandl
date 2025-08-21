@@ -522,6 +522,26 @@ end
 -- Purchase state registry
 local Pending = {product = {}, pass = {}}
 
+-- Owned state function (moved before makeItemCard)
+local function setOwnedState(card: Frame, item: {[string]: any})
+	local inner = card:FindFirstChild("Inner")
+	local cta = inner and inner:FindFirstChild("CTA")
+	if cta and cta:IsA("TextButton") then
+		cta.Text = "Owned"
+		cta.Active = false
+		cta.AutoButtonColor = false
+		cta.BackgroundColor3 = Utils.blend(Theme.c("success"), Color3.new(1,1,1), 0.9)
+		cta.TextColor3 = Theme.c("success")
+	end
+	local outline = card:FindFirstChildOfClass("UIStroke")
+	if outline then outline.Color = Theme.c("success") end
+	local chip = inner and inner:FindFirstChild("Chip")
+	if chip and chip:IsA("Frame") then
+		local s = chip:FindFirstChildOfClass("UIStroke"); if s then s.Color = Theme.c("success") end
+		local t = chip:FindFirstChildOfClass("TextLabel"); if t then t.Text = "Permanent"; t.TextColor3 = Theme.c("success") end
+	end
+end
+
 -- Card factory
 local function makeItemCard(item: {[string]: any}, kind: string, accent: Color3)
 	local card = UI.frame({Name = "ItemCard", Size = UDim2.new(0, 520, 0, 300), BackgroundColor3 = Theme.c("surface"), CornerRadius = UDim.new(0,20), Stroke = {Color = Theme.c("stroke"), Transparency = 0.30}, ZIndex = 12})
@@ -644,26 +664,6 @@ local function makeItemCard(item: {[string]: any}, kind: string, accent: Color3)
 	end)
 
 	return card
-end
-
--- Owned state
-local function setOwnedState(card: Frame, item: {[string]: any})
-	local inner = card:FindFirstChild("Inner")
-	local cta = inner and inner:FindFirstChild("CTA")
-	if cta and cta:IsA("TextButton") then
-		cta.Text = "Owned"
-		cta.Active = false
-		cta.AutoButtonColor = false
-		cta.BackgroundColor3 = Utils.blend(Theme.c("success"), Color3.new(1,1,1), 0.9)
-		cta.TextColor3 = Theme.c("success")
-	end
-	local outline = card:FindFirstChildOfClass("UIStroke")
-	if outline then outline.Color = Theme.c("success") end
-	local chip = inner and inner:FindFirstChild("Chip")
-	if chip and chip:IsA("Frame") then
-		local s = chip:FindFirstChildOfClass("UIStroke"); if s then s.Color = Theme.c("success") end
-		local t = chip:FindFirstChildOfClass("TextLabel"); if t then t.Text = "Permanent"; t.TextColor3 = Theme.c("success") end
-	end
 end
 
 -- // Build Pages
