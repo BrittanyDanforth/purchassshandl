@@ -773,6 +773,21 @@ local function makeItemCard(item: {[string]: any}, kind: string, accent: Color3)
 			
 			if kind == "pass" then
 				Pending.pass[item.id] = {cta = cta, card = card, item = item}
+				
+				-- Add timeout failsafe
+				task.spawn(function()
+					task.wait(10) -- Wait 10 seconds
+					if Pending.pass[item.id] then
+						-- Still pending after 10 seconds, reset button
+						if cta and cta.Parent then
+							cta.Text = "Purchase"
+							cta.Active = true
+							cta.AutoButtonColor = true
+						end
+						Pending.pass[item.id] = nil
+					end
+				end)
+				
 				Utils.safe(function() MarketplaceService:PromptGamePassPurchase(localPlayer, item.id) end)
 			else
 				Pending.product[item.id] = cta
@@ -911,6 +926,9 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 			
 			-- Play success sound
 			Sfx:play("success")
+			
+			-- Clear pending state immediately
+			Pending.pass[gamePassId] = nil
 			
 			-- Wait for Roblox to update ownership
 			task.wait(2)
