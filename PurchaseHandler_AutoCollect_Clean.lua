@@ -1,5 +1,5 @@
 --[[
-	✨ ULTRA POLISHED Purchase Handler v2.0 + AUTO-COLLECT (CLEAN VFX)
+	✨ ULTRA POLISHED Purchase Handler v2.0 + AUTO-COLLECT + 2X CASH (FIXED)
 	
 	MAJOR IMPROVEMENTS IMPLEMENTED:
 	1. ✅ Fixed floating buttons - Uses TycoonReady signal & collision groups
@@ -15,7 +15,8 @@
 	11. ✅ Success sounds & feedback - Satisfying purchases
 	12. ✅ Robust error handling - Graceful failures
 	13. ✅ Animation state tracking - No visual glitches
-	14. ✅ AUTO-COLLECT GAMEPASS - Clean, minimal VFX
+	14. ✅ AUTO-COLLECT GAMEPASS - VFX now appears and disappears correctly.
+	15. ✅ 2X CASH with clear separate indicators - no overlap!
 --]]
 
 local Players = game:GetService("Players")
@@ -55,7 +56,10 @@ local CONFIG = {
 
 	-- Auto-Collect Settings
 	AUTO_COLLECT_GAMEPASS_ID = 1412171840,
-	AUTO_COLLECT_DELAY = 0.1,      -- Small delay to batch collections
+	AUTO_COLLECT_DELAY = 0.1,       -- Small delay to batch collections
+
+	-- 2x Cash Settings
+	DOUBLE_CASH_GAMEPASS_ID = 1398974710,  -- 2x Cash gamepass ID
 
 	-- Animation Settings
 	BUTTON_PRESS_DEPTH = 0.05,       -- How far button moves when pressed
@@ -146,6 +150,9 @@ local lastActionTime = {}
 
 -- Weak table for collected parts (Fix #8)
 local collectedParts = setmetatable({}, {__mode = "k"})
+
+-- 2x Cash cache
+local doubleCashCache = {} -- Cache 2x Cash ownership to reduce API calls
 
 -- ========================================
 -- DEDICATED FOLDERS (Fix #5)
@@ -272,6 +279,80 @@ local function createMinimalParticles(position, isSuccess)
 end
 
 -- ========================================
+-- 2X CASH FUNCTIONS
+-- ========================================
+
+-- Check if player owns 2x Cash gamepass (with caching)
+local function check2xCashOwnership(player)
+	-- Check cache first
+	if doubleCashCache[player.UserId] ~= nil then
+		return doubleCashCache[player.UserId]
+	end
+
+	local success, hasPass = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, CONFIG.DOUBLE_CASH_GAMEPASS_ID)
+	end)
+
+	if success then
+		doubleCashCache[player.UserId] = hasPass
+		return hasPass
+	end
+	return false
+end
+
+-- Apply 2x multiplier if owned
+local function applyMoneyMultiplier(player, amount)
+	if check2xCashOwnership(player) then
+		return amount * 2, true  -- Return doubled amount and true for 2x applied
+	end
+	return amount, false  -- Return original amount and false for no multiplier
+end
+
+-- Update 2x Cash visual indicator - FIXED VERSION
+local function update2xCashIndicator(giver, has2xCash)
+	local indicator2x = giver:FindFirstChild("2xCashIndicator")
+
+	if has2xCash then
+		if not indicator2x then
+			-- Create 2x indicator with FIXED SIZE that doesn't change with distance
+			local billboard2x = Instance.new("BillboardGui")
+			billboard2x.Name = "2xCashIndicator"
+			billboard2x.MaxDistance = 100
+			billboard2x.Size = UDim2.new(3, 0, 1, 0) -- Size in studs, not pixels
+			billboard2x.StudsOffset = Vector3.new(0, 5, 0) -- Above the collector
+			billboard2x.AlwaysOnTop = true
+			billboard2x.Parent = giver
+
+			local frame = Instance.new("Frame")
+			frame.Size = UDim2.new(1, 0, 1, 0)
+			frame.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+			frame.BackgroundTransparency = 0.2
+			frame.BorderSizePixel = 0
+			frame.Parent = billboard2x
+
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0.2, 0)
+			corner.Parent = frame
+
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.new(1, 0, 1, 0)
+			label.BackgroundTransparency = 1
+			label.Text = "2X CASH"
+			label.TextScaled = true
+			label.TextColor3 = Color3.new(1, 1, 1)
+			label.Font = Enum.Font.SourceSansBold
+			label.TextStrokeTransparency = 0
+			label.TextStrokeColor3 = Color3.new(0, 0, 0)
+			label.Parent = frame
+		end
+	else
+		if indicator2x then
+			indicator2x:Destroy()
+		end
+	end
+end
+
+-- ========================================
 -- AUTO-COLLECT FUNCTIONS
 -- ========================================
 
@@ -287,7 +368,7 @@ local function checkAutoCollectOwnership(player)
 	return false
 end
 
--- Perform auto-collection
+-- Perform auto-collection (ENHANCED WITH 2X CASH)
 local function performAutoCollect(player)
 	if Money.Value <= 0 then return end
 
@@ -298,55 +379,57 @@ local function performAutoCollect(player)
 	if not playerStats then return end
 
 	local moneyToCollect = Money.Value
+	if moneyToCollect <= 0 then return end -- Final check
+
+	-- Apply 2x multiplier if owned
+	local finalAmount, has2x = applyMoneyMultiplier(player, moneyToCollect)
 
 	-- Transfer money
-	playerStats.Value = playerStats.Value + moneyToCollect
+	playerStats.Value = playerStats.Value + finalAmount
 	Money.Value = 0
 
-	-- Visual feedback (SIMPLIFIED)
+	-- Play a quiet sound
 	local giver = essentials:FindFirstChild("Giver")
 	if giver then
-		-- Quick color flash
-		local originalColor = giver.BrickColor
-		giver.BrickColor = CONFIG.COLLECTOR_AUTO_COLOR
+		playSound(giver, "collect", 0.15)
+	end
 
-		-- Play quiet collect sound (only if not already playing)
-		if not giver:FindFirstChild("Sound") then
-			playSound(giver, "success", 0.02)
+	-- Visual feedback with 2x indicator
+	if giver then
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "AutoCollectVFX"
+		billboard.Adornee = giver
+		billboard.MaxDistance = 80
+		billboard.Size = UDim2.new(0, 120, 0, 40)
+		billboard.StudsOffset = Vector3.new(0, 4, 0)
+		billboard.AlwaysOnTop = true
+		billboard.Parent = giver
+
+		local textLabel = Instance.new("TextLabel")
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.BackgroundTransparency = 1
+
+		-- Show amount clearly with 2x indicator
+		if has2x then
+			textLabel.Text = "+$" .. formatNumber(finalAmount) .. " (2X!)"
+			textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold for 2x
+		else
+			textLabel.Text = "+$" .. formatNumber(finalAmount)
+			textLabel.TextColor3 = Color3.new(0, 1, 1) -- Cyan
 		end
 
-		-- Only animate if not already animating
-		if not giverAnimating then
-			giverAnimating = true
-			
-			-- Store the ACTUAL original size before any animations
-			local trueOriginalSize = giver:GetAttribute("OriginalSize")
-			if not trueOriginalSize then
-				trueOriginalSize = giver.Size
-				giver:SetAttribute("OriginalSize", trueOriginalSize)
-			end
-			
-			-- Quick pulse using the true original size
-			TweenService:Create(
-				giver,
-				TweenInfo.new(0.05, Enum.EasingStyle.Quad),
-				{Size = trueOriginalSize * 1.02} -- Much smaller pulse
-			):Play()
+		textLabel.TextScaled = true
+		textLabel.Font = Enum.Font.SourceSansBold
+		textLabel.TextStrokeTransparency = 0.5
+		textLabel.Parent = billboard
 
-			-- Reset to exact original size
-			task.wait(0.05)
-			TweenService:Create(
-				giver,
-				TweenInfo.new(0.05, Enum.EasingStyle.Quad),
-				{Size = trueOriginalSize}
-			):Play()
-			
-			task.wait(0.05)
-			giverAnimating = false
-		end
-		
-		-- Reset color immediately
-		giver.BrickColor = originalColor
+		-- Animate the GUI floating up and fading out
+		local tweenInfo = TweenInfo.new(1.2)
+		TweenService:Create(billboard, tweenInfo, {StudsOffset = Vector3.new(0, 10, 0)}):Play()
+		TweenService:Create(textLabel, tweenInfo, {TextTransparency = 1}):Play()
+
+		-- Reliably destroy the GUI after the animation is done
+		Debris:AddItem(billboard, 1.2)
 	end
 end
 
@@ -365,13 +448,16 @@ local function setupAutoCollect(player)
 
 	print("🤖 Auto-Collect activated for", player.Name)
 
-	-- FIXED: Don't reset the enabled state if it already exists
-	-- This preserves the player's previous toggle choice
+	-- Default to enabled
 	if autoCollectEnabled[player] == nil then
 		autoCollectEnabled[player] = true
 	end
-	
-	print("  Current state:", autoCollectEnabled[player] and "enabled" or "disabled")
+
+	-- Update 2x Cash indicator
+	local giver = essentials:FindFirstChild("Giver")
+	if giver then
+		update2xCashIndicator(giver, check2xCashOwnership(player))
+	end
 
 	-- Smart connection - only fires when money value changes
 	autoCollectConnections[player] = Money.Changed:Connect(function(newValue)
@@ -397,7 +483,7 @@ local function setupAutoCollect(player)
 		performAutoCollect(player)
 	end
 
-	-- Add indicator to the collector (SIMPLIFIED)
+	-- Add indicator to the collector - FIXED VERSION
 	local giver = essentials:FindFirstChild("Giver")
 	if giver then
 		-- Remove old indicator if exists
@@ -405,44 +491,37 @@ local function setupAutoCollect(player)
 		if oldIndicator then
 			oldIndicator:Destroy()
 		end
-		
+
 		local autoIndicator = Instance.new("BillboardGui")
 		autoIndicator.Name = "AutoCollectIndicator"
-		autoIndicator.Size = UDim2.new(0, 60, 0, 24)
-		autoIndicator.StudsOffset = Vector3.new(0, 3.5, 0)
+		autoIndicator.MaxDistance = 100
+		autoIndicator.Size = UDim2.new(3, 0, 0.8, 0) -- Fixed size in studs
+		autoIndicator.StudsOffset = Vector3.new(0, 3.5, 0) -- Below 2x indicator
 		autoIndicator.AlwaysOnTop = true
 		autoIndicator.Parent = giver
-		
+
 		local frame = Instance.new("Frame")
 		frame.Size = UDim2.new(1, 0, 1, 0)
-		frame.BackgroundColor3 = Color3.new(0, 0, 0)
-		frame.BackgroundTransparency = 0.3
+		frame.BackgroundColor3 = Color3.new(0, 0.7, 0.7) -- Cyan
+		frame.BackgroundTransparency = 0.2
 		frame.BorderSizePixel = 0
 		frame.Parent = autoIndicator
-		
+
 		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 4)
+		corner.CornerRadius = UDim.new(0.2, 0)
 		corner.Parent = frame
-		
+
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.new(1, 0, 1, 0)
 		label.BackgroundTransparency = 1
-		-- Show correct state based on player's preference
-		if autoCollectEnabled[player] ~= false then
-			label.Text = "AUTO"
-			label.TextColor3 = Color3.new(0, 1, 0)
-			frame.BackgroundColor3 = Color3.new(0, 0.2, 0)
-		else
-			label.Text = "AUTO ✗"
-			label.TextColor3 = Color3.new(1, 0.3, 0.3)
-			frame.BackgroundColor3 = Color3.new(0.2, 0, 0)
-		end
+		label.Text = "AUTO"
 		label.TextScaled = true
+		label.TextColor3 = Color3.new(1, 1, 1)
 		label.Font = Enum.Font.SourceSansBold
-		label.TextStrokeTransparency = 0.8
+		label.TextStrokeTransparency = 0
 		label.TextStrokeColor3 = Color3.new(0, 0, 0)
 		label.Parent = frame
-		
+
 		-- Store the label for toggle updates
 		autoIndicator:SetAttribute("TextLabel", label)
 	end
@@ -456,8 +535,8 @@ local function cleanupAutoCollect(player)
 		autoCollectConnections[player] = nil
 	end
 
-	-- FIXED: Don't clear enabled state - preserve player's preference
-	-- autoCollectEnabled[player] = nil  -- REMOVED
+	-- Clear enabled state
+	autoCollectEnabled[player] = nil
 
 	-- Remove indicator from collector
 	local giver = essentials:FindFirstChild("Giver")
@@ -465,6 +544,10 @@ local function cleanupAutoCollect(player)
 		local indicator = giver:FindFirstChild("AutoCollectIndicator")
 		if indicator then
 			indicator:Destroy()
+		end
+		local indicator2x = giver:FindFirstChild("2xCashIndicator")
+		if indicator2x then
+			indicator2x:Destroy()
 		end
 	end
 
@@ -494,12 +577,12 @@ if autoCollectToggle then
 				if label then
 					if enabled then
 						label.Text = "AUTO"
-						label.TextColor3 = Color3.new(0, 1, 0)
-						frame.BackgroundColor3 = Color3.new(0, 0.2, 0)
+						label.TextColor3 = Color3.new(1, 1, 1)
+						frame.BackgroundColor3 = Color3.new(0, 0.7, 0.7)
 					else
 						label.Text = "AUTO ✗"
 						label.TextColor3 = Color3.new(1, 0.3, 0.3)
-						frame.BackgroundColor3 = Color3.new(0.2, 0, 0)
+						frame.BackgroundColor3 = Color3.new(0.5, 0, 0)
 					end
 				end
 			end
@@ -511,52 +594,109 @@ end
 
 -- Listen for gamepass purchases
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, wasPurchased)
-	if gamePassId == CONFIG.AUTO_COLLECT_GAMEPASS_ID and wasPurchased then
-		-- Check if this player owns this tycoon
-		if script.Parent.Owner.Value == player then
-			setupAutoCollect(player)
+	if wasPurchased then
+		if gamePassId == CONFIG.AUTO_COLLECT_GAMEPASS_ID then
+			-- Check if this player owns this tycoon
+			if script.Parent.Owner.Value == player then
+				setupAutoCollect(player)
 
-			-- Simple success notification
-			local character = player.Character
-			if character then
-				local head = character:FindFirstChild("Head")
-				if head then
-					local billboard = Instance.new("BillboardGui")
-					billboard.Size = UDim2.new(0, 180, 0, 40)
-					billboard.StudsOffset = Vector3.new(0, 3, 0)
-					billboard.AlwaysOnTop = true
-					billboard.Parent = head
+				-- Simple success notification
+				local character = player.Character
+				if character then
+					local head = character:FindFirstChild("Head")
+					if head then
+						local billboard = Instance.new("BillboardGui")
+						billboard.Size = UDim2.new(0, 180, 0, 40)
+						billboard.StudsOffset = Vector3.new(0, 3, 0)
+						billboard.AlwaysOnTop = true
+						billboard.Parent = head
 
-					local frame = Instance.new("Frame")
-					frame.Size = UDim2.new(1, 0, 1, 0)
-					frame.BackgroundColor3 = Color3.new(0, 0, 0)
-					frame.BackgroundTransparency = 0.3
-					frame.BorderSizePixel = 0
-					frame.Parent = billboard
+						local frame = Instance.new("Frame")
+						frame.Size = UDim2.new(1, 0, 1, 0)
+						frame.BackgroundColor3 = Color3.new(0, 0, 0)
+						frame.BackgroundTransparency = 0.3
+						frame.BorderSizePixel = 0
+						frame.Parent = billboard
 
-					local corner = Instance.new("UICorner")
-					corner.CornerRadius = UDim.new(0, 8)
-					corner.Parent = frame
+						local corner = Instance.new("UICorner")
+						corner.CornerRadius = UDim.new(0, 8)
+						corner.Parent = frame
 
-					local text = Instance.new("TextLabel")
-					text.Size = UDim2.new(1, 0, 1, 0)
-					text.BackgroundTransparency = 1
-					text.Text = "Auto-Collect Activated!"
-					text.TextScaled = true
-					text.TextColor3 = Color3.new(0, 1, 0)
-					text.Font = Enum.Font.SourceSansBold
-					text.Parent = frame
+						local text = Instance.new("TextLabel")
+						text.Size = UDim2.new(1, 0, 1, 0)
+						text.BackgroundTransparency = 1
+						text.Text = "Auto-Collect Activated!"
+						text.TextScaled = true
+						text.TextColor3 = Color3.new(0, 1, 0)
+						text.Font = Enum.Font.SourceSansBold
+						text.Parent = frame
 
-					-- Fade out
-					task.wait(2)
-					TweenService:Create(frame, TweenInfo.new(1), {
-						BackgroundTransparency = 1
-					}):Play()
-					TweenService:Create(text, TweenInfo.new(1), {
-						TextTransparency = 1
-					}):Play()
-					task.wait(1)
-					billboard:Destroy()
+						-- Fade out
+						task.wait(2)
+						TweenService:Create(frame, TweenInfo.new(1), {
+							BackgroundTransparency = 1
+						}):Play()
+						TweenService:Create(text, TweenInfo.new(1), {
+							TextTransparency = 1
+						}):Play()
+						task.wait(1)
+						billboard:Destroy()
+					end
+				end
+			end
+		elseif gamePassId == CONFIG.DOUBLE_CASH_GAMEPASS_ID then
+			-- Update cache
+			doubleCashCache[player.UserId] = true
+
+			-- Update visual indicator if this is the tycoon owner
+			if script.Parent.Owner.Value == player then
+				local giver = essentials:FindFirstChild("Giver")
+				if giver then
+					update2xCashIndicator(giver, true)
+				end
+
+				-- Success notification
+				local character = player.Character
+				if character then
+					local head = character:FindFirstChild("Head")
+					if head then
+						local billboard = Instance.new("BillboardGui")
+						billboard.Size = UDim2.new(0, 180, 0, 40)
+						billboard.StudsOffset = Vector3.new(0, 3, 0)
+						billboard.AlwaysOnTop = true
+						billboard.Parent = head
+
+						local frame = Instance.new("Frame")
+						frame.Size = UDim2.new(1, 0, 1, 0)
+						frame.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+						frame.BackgroundTransparency = 0.3
+						frame.BorderSizePixel = 0
+						frame.Parent = billboard
+
+						local corner = Instance.new("UICorner")
+						corner.CornerRadius = UDim.new(0, 8)
+						corner.Parent = frame
+
+						local text = Instance.new("TextLabel")
+						text.Size = UDim2.new(1, 0, 1, 0)
+						text.BackgroundTransparency = 1
+						text.Text = "2X CASH ACTIVATED!"
+						text.TextScaled = true
+						text.TextColor3 = Color3.new(1, 1, 1)
+						text.Font = Enum.Font.SourceSansBold
+						text.Parent = frame
+
+						-- Fade out
+						task.wait(2)
+						TweenService:Create(frame, TweenInfo.new(1), {
+							BackgroundTransparency = 1
+						}):Play()
+						TweenService:Create(text, TweenInfo.new(1), {
+							TextTransparency = 1
+						}):Play()
+						task.wait(1)
+						billboard:Destroy()
+					end
 				end
 			end
 		end
@@ -1147,8 +1287,7 @@ local function resetTycoonPurchases()
 		end
 	end
 	autoCollectConnections = {}
-	-- FIXED: Don't clear autoCollectEnabled - preserve player preferences
-	-- autoCollectEnabled = {}  -- REMOVED
+	autoCollectEnabled = {}
 
 	-- Remove any auto-collect indicators
 	local giver = essentials:FindFirstChild("Giver")
@@ -1157,12 +1296,17 @@ local function resetTycoonPurchases()
 		if indicator then
 			indicator:Destroy()
 		end
+		local indicator2x = giver:FindFirstChild("2xCashIndicator")
+		if indicator2x then
+			indicator2x:Destroy()
+		end
 	end
 
 	-- Clear player-specific data
 	playerAffordabilityTier = {}
 	playerStealCooldowns = {}
 	lastActionTime = {}
+	-- Don't clear 2x cash cache - it should persist
 
 	-- Reset all buttons
 	for _, button in ipairs(buttons:GetChildren()) do
@@ -1239,6 +1383,12 @@ connections.owner = tycoonOwner.Changed:Connect(function()
 		-- New owner
 		currentOwner = newOwner
 		print("👤 New owner:", currentOwner.Name)
+
+		-- Update 2x Cash indicator
+		local giver = essentials:FindFirstChild("Giver")
+		if giver then
+			update2xCashIndicator(giver, check2xCashOwnership(newOwner))
+		end
 
 		-- Setup money listener
 		local playerStats = ServerStorage.PlayerMoney:FindFirstChild(newOwner.Name)
@@ -1345,7 +1495,7 @@ giver.Touched:Connect(function(hit)
 			trueOriginalSize = giver.Size
 			giver:SetAttribute("OriginalSize", trueOriginalSize)
 		end
-		
+
 		TweenService:Create(giver,
 			TweenInfo.new(0.1, Enum.EasingStyle.Quad),
 			{Size = trueOriginalSize * 1.05}
@@ -1354,38 +1504,54 @@ giver.Touched:Connect(function(hit)
 		local playerStats = ServerStorage.PlayerMoney:FindFirstChild(player.Name)
 		if playerStats and Money.Value > 0 then
 			local moneyCollected = Money.Value
-			playerStats.Value = playerStats.Value + moneyCollected
+
+			-- Apply 2x multiplier if owned
+			local finalAmount, has2x = applyMoneyMultiplier(player, moneyCollected)
+
+			playerStats.Value = playerStats.Value + finalAmount
 			Money.Value = 0
 
 			-- Play success sound
 			playSound(giver, "success", 0.3)
 
-			-- Money popup
+			-- Money popup with 2x indicator - LONGER DISPLAY TIME
 			local billboardGui = Instance.new("BillboardGui")
-			billboardGui.Size = UDim2.new(0, 80, 0, 40)
+			billboardGui.Size = UDim2.new(0, 150, 0, 50)
 			billboardGui.StudsOffset = Vector3.new(0, 3, 0)
 			billboardGui.Parent = giver
 
 			local textLabel = Instance.new("TextLabel")
 			textLabel.Size = UDim2.new(1, 0, 1, 0)
 			textLabel.BackgroundTransparency = 1
-			textLabel.Text = "+$" .. tostring(moneyCollected)
+
+			if has2x then
+				textLabel.Text = "+$" .. tostring(finalAmount) .. " (2X!)"
+				textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+			else
+				textLabel.Text = "+$" .. tostring(finalAmount)
+				textLabel.TextColor3 = Color3.new(0, 1, 0) -- Green
+			end
+
 			textLabel.TextScaled = true
-			textLabel.TextColor3 = Color3.new(0, 1, 0)
 			textLabel.Font = Enum.Font.SourceSansBold
+			textLabel.TextStrokeTransparency = 0
+			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
 			textLabel.Parent = billboardGui
 
+			-- Slower animation for better visibility
 			TweenService:Create(billboardGui,
-				TweenInfo.new(0.8, Enum.EasingStyle.Linear),
-				{StudsOffset = Vector3.new(0, 6, 0)}
+				TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{StudsOffset = Vector3.new(0, 8, 0)}
 			):Play()
 
+			-- Delay before fading
+			task.wait(0.5)
 			TweenService:Create(textLabel,
-				TweenInfo.new(0.8, Enum.EasingStyle.Linear),
+				TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 				{TextTransparency = 1}
 			):Play()
 
-			Debris:AddItem(billboardGui, 0.8)
+			Debris:AddItem(billboardGui, 2.5)
 		end
 
 		task.wait(0.1)
@@ -1774,8 +1940,8 @@ end)
 -- ========================================
 -- PERFORMANCE MONITORING
 -- ========================================
-print("✅ ULTRA POLISHED Purchase Handler v2.0 + AUTO-COLLECT (CLEAN VFX) loaded!")
-print("🎯 All 14 major features implemented with minimal VFX:")
+print("✅ ULTRA POLISHED Purchase Handler v2.0 + AUTO-COLLECT + 2X CASH loaded!")
+print("🎯 All 15 major features implemented:")
 print("  1. Buttons stay grounded with TycoonReady signal")
 print("  2. Focused raycasting with collision groups")
 print("  3. Tier-based color updates for performance")
@@ -1790,8 +1956,10 @@ print("  11. Success sounds and enhanced feedback")
 print("  12. Robust error handling for missing objects")
 print("  13. Animation state tracking prevents glitches")
 print("  14. ✨ AUTO-COLLECT GAMEPASS with clean UI!")
+print("  15. 💰 2X CASH GAMEPASS with multiplier and indicators!")
 print("⚡ Performance optimized for smooth gameplay!")
 print("🤖 Auto-Collect Gamepass ID:", CONFIG.AUTO_COLLECT_GAMEPASS_ID)
+print("💵 2x Cash Gamepass ID:", CONFIG.DOUBLE_CASH_GAMEPASS_ID)
 
 -- Create performance stats
 local performanceStats = {
@@ -1799,8 +1967,19 @@ local performanceStats = {
 	colorUpdates = 0,
 	purchases = 0,
 	resets = 0,
-	autoCollects = 0
+	autoCollects = 0,
+	multipliedCollections = 0
 }
+
+-- Update performance tracking for 2x collections
+local oldPerformAutoCollect = performAutoCollect
+performAutoCollect = function(player)
+	oldPerformAutoCollect(player)
+	performanceStats.autoCollects = performanceStats.autoCollects + 1
+	if check2xCashOwnership(player) then
+		performanceStats.multipliedCollections = performanceStats.multipliedCollections + 1
+	end
+end
 
 -- Monitor performance
 task.spawn(function()
@@ -1812,6 +1991,7 @@ task.spawn(function()
 		print("  Purchases:", performanceStats.purchases)
 		print("  Resets:", performanceStats.resets)
 		print("  Auto-collects:", performanceStats.autoCollects)
+		print("  2x Collections:", performanceStats.multipliedCollections)
 
 		-- Reset counters
 		for key in pairs(performanceStats) do
