@@ -533,8 +533,8 @@ local function createShopGUI()
 	local closeIcon = UI.image({Name = "X", Image = Asset.list.iconCloseX, ImageColor3 = Color3.new(1,1,1), Size = UDim2.fromOffset(20,20), Position = UDim2.new(0.5,0,0.5,0), AnchorPoint = Vector2.new(0.5,0.5), ZIndex = 14})
 	closeIcon.Parent = closeBtn
 	
-	-- Store close button reference to connect later
-	screen.CloseBtn = closeBtn
+	-- Store close button reference to connect later after Shop is defined
+	closeBtn:SetAttribute("NeedsConnection", true)
 end
 
 -- Tab system
@@ -1096,10 +1096,20 @@ connectShopButton()
 initializeShop()
 
 -- Connect close button after Shop is defined
-if screen and screen.CloseBtn then
-	screen.CloseBtn.MouseButton1Click:Connect(function() 
-		Shop:close() 
-	end)
+if screen then
+	local panel = screen:FindFirstChild("Panel")
+	if panel then
+		local header = panel:FindFirstChild("Header")
+		if header then
+			local closeBtn = header:FindFirstChild("Close")
+			if closeBtn and closeBtn:GetAttribute("NeedsConnection") then
+				closeBtn.MouseButton1Click:Connect(function() 
+					Shop:close() 
+				end)
+				closeBtn:SetAttribute("NeedsConnection", false)
+			end
+		end
+	end
 end
 
 -- Input handling
