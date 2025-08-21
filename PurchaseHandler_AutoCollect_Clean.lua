@@ -79,6 +79,7 @@ local CONFIG = {
 -- ========================================
 local autoCollectConnections = {}
 local autoCollectEnabled = {} -- Track per-player toggle state
+local giverAnimating = false -- Prevent animation stacking
 
 -- Format numbers with commas (for auto-collect display)
 local function formatNumber(n)
@@ -309,24 +310,42 @@ local function performAutoCollect(player)
 		local originalColor = giver.BrickColor
 		giver.BrickColor = CONFIG.COLLECTOR_AUTO_COLOR
 
-		-- Play quiet collect sound
-		playSound(giver, "success", 0.05)
+		-- Play quiet collect sound (only if not already playing)
+		if not giver:FindFirstChild("Sound") then
+			playSound(giver, "success", 0.02)
+		end
 
-		-- Small pulse animation on the giver
-		local originalSize = giver.Size
-		TweenService:Create(
-			giver,
-			TweenInfo.new(0.1, Enum.EasingStyle.Quad),
-			{Size = originalSize * 1.05}
-		):Play()
+		-- Only animate if not already animating
+		if not giverAnimating then
+			giverAnimating = true
+			
+			-- Store the ACTUAL original size before any animations
+			local trueOriginalSize = giver:GetAttribute("OriginalSize")
+			if not trueOriginalSize then
+				trueOriginalSize = giver.Size
+				giver:SetAttribute("OriginalSize", trueOriginalSize)
+			end
+			
+			-- Quick pulse using the true original size
+			TweenService:Create(
+				giver,
+				TweenInfo.new(0.05, Enum.EasingStyle.Quad),
+				{Size = trueOriginalSize * 1.02} -- Much smaller pulse
+			):Play()
 
-		-- Reset after short delay
-		task.wait(0.1)
-		TweenService:Create(
-			giver,
-			TweenInfo.new(0.1, Enum.EasingStyle.Quad),
-			{Size = originalSize}
-		):Play()
+			-- Reset to exact original size
+			task.wait(0.05)
+			TweenService:Create(
+				giver,
+				TweenInfo.new(0.05, Enum.EasingStyle.Quad),
+				{Size = trueOriginalSize}
+			):Play()
+			
+			task.wait(0.05)
+			giverAnimating = false
+		end
+		
+		-- Reset color immediately
 		giver.BrickColor = originalColor
 	end
 end
@@ -1308,10 +1327,16 @@ giver.Touched:Connect(function(hit)
 		local originalColor = giver.BrickColor
 		giver.BrickColor = CONFIG.COLLECTOR_ACTIVE_COLOR
 
-		local originalSize = giver.Size
+		-- Get the true original size
+		local trueOriginalSize = giver:GetAttribute("OriginalSize")
+		if not trueOriginalSize then
+			trueOriginalSize = giver.Size
+			giver:SetAttribute("OriginalSize", trueOriginalSize)
+		end
+		
 		TweenService:Create(giver,
 			TweenInfo.new(0.1, Enum.EasingStyle.Quad),
-			{Size = originalSize * 1.05}
+			{Size = trueOriginalSize * 1.05}
 		):Play()
 
 		local playerStats = ServerStorage.PlayerMoney:FindFirstChild(player.Name)
@@ -1354,7 +1379,7 @@ giver.Touched:Connect(function(hit)
 		task.wait(0.1)
 		TweenService:Create(giver,
 			TweenInfo.new(0.2, Enum.EasingStyle.Quad),
-			{Size = originalSize}
+			{Size = trueOriginalSize}
 		):Play()
 
 		task.wait(0.4)
