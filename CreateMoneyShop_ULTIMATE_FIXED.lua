@@ -166,7 +166,23 @@ function ShopData.userOwnsPass(userId: number, passId: number)
 	-- Check cache first
 	local cacheKey = userId .. "_" .. passId
 	if ownershipCache[cacheKey] ~= nil then
+		print("  📦 Using cached ownership for", passId, ":", ownershipCache[cacheKey])
 		return ownershipCache[cacheKey]
+	end
+	
+	-- In Studio with userId -1, check if we've marked this as purchased
+	if game:GetService("RunService"):IsStudio() and userId == -1 then
+		-- Check if this gamepass was recently purchased
+		if not _G.StudioGamepassPurchases then
+			_G.StudioGamepassPurchases = {}
+		end
+		
+		local recentPurchase = _G.StudioGamepassPurchases[passId]
+		if recentPurchase then
+			print("  🎮 Studio: Using recent purchase status for", passId)
+			ownershipCache[cacheKey] = true
+			return true
+		end
 	end
 	
 	local ok, owns = pcall(function()
@@ -175,6 +191,9 @@ function ShopData.userOwnsPass(userId: number, passId: number)
 	
 	if ok then
 		ownershipCache[cacheKey] = owns
+		print("  ✅ API ownership check for", passId, ":", owns)
+	else
+		print("  ❌ API ownership check failed for", passId)
 	end
 	
 	return ok and owns or false
@@ -686,7 +705,13 @@ local function makeItemCard(item: {[string]: any}, kind: string, accent: Color3)
 	cta.Parent = inner
 
 	-- Check if owned (for gamepasses)
-	if kind == "pass" and ShopData.userOwnsPass(localPlayer.UserId, item.id) then
+	local isOwned = false
+	if kind == "pass" then
+		isOwned = ShopData.userOwnsPass(localPlayer.UserId, item.id)
+		print("🎮 Gamepass ownership check:", item.name, "ID:", item.id, "Owned:", isOwned)
+	end
+	
+	if isOwned then
 		if item.hasToggle then
 			-- Create toggle for auto-collect
 			cta.Text = "Toggle"
@@ -948,6 +973,15 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 		local item = pendingData.item
 		
 		if wasPurchased then
+			-- Mark as purchased in Studio
+			if game:GetService("RunService"):IsStudio() then
+				if not _G.StudioGamepassPurchases then
+					_G.StudioGamepassPurchases = {}
+				end
+				_G.StudioGamepassPurchases[gamePassId] = true
+				print("  📝 Marked gamepass", gamePassId, "as purchased in Studio")
+			end
+			
 			-- Update CTA immediately
 			if cta and cta.Parent then
 				cta.Text = "Updating..."
@@ -1208,6 +1242,15 @@ if gamepassPurchaseRemote then
 			
 			if isOurGamepass then
 				print("  ✅ Our gamepass! Refreshing shop...")
+				
+				-- Mark as purchased in Studio
+				if game:GetService("RunService"):IsStudio() then
+					if not _G.StudioGamepassPurchases then
+						_G.StudioGamepassPurchases = {}
+					end
+					_G.StudioGamepassPurchases[gamePassId] = true
+					print("  📝 Marked gamepass", gamePassId, "as purchased in Studio (via server notification)")
+				end
 				
 				-- Play success sound
 				Sfx:play("success")
