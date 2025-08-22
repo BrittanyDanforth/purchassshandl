@@ -85,13 +85,29 @@ while true do
 
 	-- 3. Set physical properties and collision for ALL parts
 	-- CRITICAL: Add Cash value to EVERY BasePart so collector can find it
+	local primaryPart = newDrop.PrimaryPart
 	for _, part in ipairs(newDrop:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Anchored = false
-			part.CanCollide = true
 			part.CanTouch = true  -- Important for touch detection
 			part.CanQuery = true
-			part.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.5, 0.1, 1, 1)
+			
+			-- Only primary part should have collision (prevents bouncing)
+			if part == primaryPart then
+				part.CanCollide = true
+				-- Softer physics to prevent bouncing
+				part.CustomPhysicalProperties = PhysicalProperties.new(
+					0.7,  -- Density (lower = lighter)
+					0.3,  -- Friction  
+					0.05, -- Elasticity (VERY LOW to prevent bouncing)
+					1,    -- ElasticityWeight
+					1     -- FrictionWeight
+				)
+			else
+				-- Other parts don't collide (prevents weird physics)
+				part.CanCollide = false
+			end
+			
 			pcall(function() part.CollisionGroup = DROP_GROUP end)
 			
 			-- ADD CASH TO EVERY PART (like your working dropper)
@@ -125,8 +141,8 @@ while true do
 		dropPart.CFrame * CFrame.new(offsetX, -2, offsetZ)
 	)
 
-	-- Give downward velocity
-	newDrop.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0, -12, 0)
+	-- Give GENTLE downward velocity (not too fast)
+	newDrop.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0, -8, 0)
 
 	-- 5. Set spawn time attribute (some collectors use this)
 	newDrop.PrimaryPart:SetAttribute("SpawnTime", tick())
