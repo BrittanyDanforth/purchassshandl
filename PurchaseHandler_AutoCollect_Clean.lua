@@ -242,6 +242,55 @@ end
 local cashPartsFolder, remotesFolder = setupDedicatedFolders()
 
 -- ========================================
+-- DATASTORE FOR AUTO-COLLECT PERSISTENCE
+-- ========================================
+local AUTO_COLLECT_STORE_NAME = "SanrioAutoCollect_v1"
+local autoCollectStore
+
+-- Safely get DataStore
+local datastoreSuccess, datastoreError = pcall(function()
+	autoCollectStore = DataStoreService:GetDataStore(AUTO_COLLECT_STORE_NAME)
+end)
+
+if not datastoreSuccess then
+	warn("DataStore unavailable:", datastoreError)
+end
+
+-- DataStore helpers
+local function saveAutoCollectPreference(player, enabled)
+	if not autoCollectStore then return false end
+	
+	local key = "Player_" .. tostring(player.UserId)
+	local success, err = pcall(function()
+		autoCollectStore:SetAsync(key, {
+			enabled = enabled,
+			timestamp = os.time()
+		})
+	end)
+	
+	if not success then
+		warn("Failed to save auto-collect preference:", err)
+	end
+	
+	return success
+end
+
+local function loadAutoCollectPreference(player)
+	if not autoCollectStore then return nil end
+	
+	local key = "Player_" .. tostring(player.UserId)
+	local success, data = pcall(function()
+		return autoCollectStore:GetAsync(key)
+	end)
+	
+	if success and data and type(data.enabled) == "boolean" then
+		return data.enabled
+	end
+	
+	return nil -- Return nil if no saved preference
+end
+
+-- ========================================
 -- TYCOON READY SIGNAL (Fix #1)
 -- ========================================
 local tycoonReadySignal = script.Parent:FindFirstChild("TycoonReady") or Instance.new("BindableEvent")
@@ -1947,55 +1996,6 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 	end
 
 	return Enum.ProductPurchaseDecision.NotProcessedYet
-end
-
--- ========================================
--- DATASTORE FOR AUTO-COLLECT PERSISTENCE
--- ========================================
-local AUTO_COLLECT_STORE_NAME = "SanrioAutoCollect_v1"
-local autoCollectStore
-
--- Safely get DataStore
-local datastoreSuccess, datastoreError = pcall(function()
-	autoCollectStore = DataStoreService:GetDataStore(AUTO_COLLECT_STORE_NAME)
-end)
-
-if not datastoreSuccess then
-	warn("DataStore unavailable:", datastoreError)
-end
-
--- DataStore helpers
-local function saveAutoCollectPreference(player, enabled)
-	if not autoCollectStore then return false end
-	
-	local key = "Player_" .. tostring(player.UserId)
-	local success, err = pcall(function()
-		autoCollectStore:SetAsync(key, {
-			enabled = enabled,
-			timestamp = os.time()
-		})
-	end)
-	
-	if not success then
-		warn("Failed to save auto-collect preference:", err)
-	end
-	
-	return success
-end
-
-local function loadAutoCollectPreference(player)
-	if not autoCollectStore then return nil end
-	
-	local key = "Player_" .. tostring(player.UserId)
-	local success, data = pcall(function()
-		return autoCollectStore:GetAsync(key)
-	end)
-	
-	if success and data and type(data.enabled) == "boolean" then
-		return data.enabled
-	end
-	
-	return nil -- Return nil if no saved preference
 end
 
 -- ========================================
