@@ -28,6 +28,7 @@ local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PhysicsService = game:GetService("PhysicsService")
+local DataStoreService = game:GetService("DataStoreService")
 
 -- ========================================
 -- CONFIGURATION SYSTEM (Fix #10)
@@ -157,8 +158,34 @@ local lastActionTime = {}
 -- Weak table for collected parts (Fix #8)
 local collectedParts = setmetatable({}, {__mode = "k"})
 
--- 2x Cash cache
-local doubleCashCache = {} -- Cache 2x Cash ownership to reduce API calls
+-- Ownership cache to reduce API calls
+local ownershipCache = {} -- { ["userId_passId"] = {value = bool, timestamp = tick()} }
+local OWNERSHIP_CACHE_TTL = 45 -- seconds to treat cached ownership as fresh
+
+local function getCacheKey(userId, passId)
+	return tostring(userId) .. "_" .. tostring(passId)
+end
+
+local function setOwnershipCache(userId, passId, value)
+	ownershipCache[getCacheKey(userId, passId)] = {
+		value = value,
+		timestamp = tick()
+	}
+end
+
+local function getOwnershipCache(userId, passId)
+	local key = getCacheKey(userId, passId)
+	local cached = ownershipCache[key]
+	if not cached then return nil end
+	
+	-- Check if cache is still fresh
+	if tick() - cached.timestamp > OWNERSHIP_CACHE_TTL then
+		ownershipCache[key] = nil
+		return nil
+	end
+	
+	return cached.value
+end
 
 -- ========================================
 -- DEDICATED FOLDERS (Fix #5)
@@ -304,7 +331,7 @@ end
 -- 2X CASH FUNCTIONS
 -- ========================================
 
--- Check if player owns 2x Cash gamepass (with caching)
+-- Check if player owns 2x Cash gamepass (with improved caching)
 local function check2xCashOwnership(player)
 	-- In Studio, check if we've marked this as purchased
 	if game:GetService("RunService"):IsStudio() then
@@ -317,10 +344,11 @@ local function check2xCashOwnership(player)
 			end
 		end
 	end
-	
+
 	-- Check cache first
-	if doubleCashCache[player.UserId] ~= nil then
-		return doubleCashCache[player.UserId]
+	local cached = getOwnershipCache(player.UserId, CONFIG.DOUBLE_CASH_GAMEPASS_ID)
+	if cached ~= nil then
+		return cached
 	end
 
 	local success, hasPass = pcall(function()
@@ -328,7 +356,7 @@ local function check2xCashOwnership(player)
 	end)
 
 	if success then
-		doubleCashCache[player.UserId] = hasPass
+		setOwnershipCache(player.UserId, CONFIG.DOUBLE_CASH_GAMEPASS_ID, hasPass)
 		return hasPass
 	end
 	return false
@@ -390,7 +418,7 @@ end
 -- AUTO-COLLECT FUNCTIONS
 -- ========================================
 
--- Check if player owns auto-collect gamepass
+-- Check if player owns auto-collect gamepass (with improved caching)
 local function checkAutoCollectOwnership(player)
 	-- In Studio, check if we've marked this as purchased
 	if game:GetService("RunService"):IsStudio() then
@@ -403,13 +431,20 @@ local function checkAutoCollectOwnership(player)
 			end
 		end
 	end
-	
+
+	-- Check cache first
+	local cached = getOwnershipCache(player.UserId, CONFIG.AUTO_COLLECT_GAMEPASS_ID)
+	if cached ~= nil then
+		return cached
+	end
+
 	local success, hasPass = pcall(function()
 		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, CONFIG.AUTO_COLLECT_GAMEPASS_ID)
 	end)
 
-	if success and hasPass then
-		return true
+	if success then
+		setOwnershipCache(player.UserId, CONFIG.AUTO_COLLECT_GAMEPASS_ID, hasPass)
+		return hasPass
 	end
 	return false
 end
@@ -462,9 +497,16 @@ local function setupAutoCollect(player)
 
 	print("🤖 Auto-Collect activated for", player.Name)
 
-	-- Default to enabled
+	-- Load saved preference or default to enabled
 	if autoCollectEnabled[player] == nil then
-		autoCollectEnabled[player] = true
+		local savedPref = loadAutoCollectPreference(player)
+		if savedPref ~= nil then
+			autoCollectEnabled[player] = savedPref
+			print("  📁 Loaded saved preference:", savedPref)
+		else
+			autoCollectEnabled[player] = true
+			print("  ✨ New player, defaulting to enabled")
+		end
 	end
 
 	-- Update 2x Cash indicator
@@ -585,9 +627,14 @@ if autoCollectToggle then
 		-- Verify player owns the gamepass
 		if not checkAutoCollectOwnership(player) then return end
 
-		-- Update state (even if they don't own this tycoon yet)
+				-- Update state (even if they don't own this tycoon yet)
 		autoCollectEnabled[player] = enabled
 		
+		-- Save preference to DataStore
+		task.spawn(function()
+			saveAutoCollectPreference(player, enabled)
+		end)
+
 		-- Only update visual indicator if they own this tycoon
 		if script.Parent.Owner.Value ~= player then return end
 
@@ -687,7 +734,7 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gameP
 			end
 		elseif gamePassId == CONFIG.DOUBLE_CASH_GAMEPASS_ID then
 			-- Update cache
-			doubleCashCache[player.UserId] = true
+			setOwnershipCache(player.UserId, CONFIG.DOUBLE_CASH_GAMEPASS_ID, true)
 
 			-- Update visual indicator if this is the tycoon owner
 			if script.Parent.Owner.Value == player then
@@ -1903,9 +1950,115 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 end
 
 -- ========================================
+-- DATASTORE FOR AUTO-COLLECT PERSISTENCE
+-- ========================================
+local AUTO_COLLECT_STORE_NAME = "SanrioAutoCollect_v1"
+local autoCollectStore
+
+-- Safely get DataStore
+local datastoreSuccess, datastoreError = pcall(function()
+	autoCollectStore = DataStoreService:GetDataStore(AUTO_COLLECT_STORE_NAME)
+end)
+
+if not datastoreSuccess then
+	warn("DataStore unavailable:", datastoreError)
+end
+
+-- DataStore helpers
+local function saveAutoCollectPreference(player, enabled)
+	if not autoCollectStore then return false end
+	
+	local key = "Player_" .. tostring(player.UserId)
+	local success, err = pcall(function()
+		autoCollectStore:SetAsync(key, {
+			enabled = enabled,
+			timestamp = os.time()
+		})
+	end)
+	
+	if not success then
+		warn("Failed to save auto-collect preference:", err)
+	end
+	
+	return success
+end
+
+local function loadAutoCollectPreference(player)
+	if not autoCollectStore then return nil end
+	
+	local key = "Player_" .. tostring(player.UserId)
+	local success, data = pcall(function()
+		return autoCollectStore:GetAsync(key)
+	end)
+	
+	if success and data and type(data.enabled) == "boolean" then
+		return data.enabled
+	end
+	
+	return nil -- Return nil if no saved preference
+end
+
+-- ========================================
+-- VALIDATION & ERROR HANDLING
+-- ========================================
+local function validateTycoonSetup()
+	local errors = {}
+	local warnings = {}
+	
+	-- Check critical components
+	if not buttons then
+		table.insert(errors, "Buttons folder missing")
+	end
+	
+	if not purchasedObjects then
+		table.insert(errors, "PurchasedObjects folder missing")
+	end
+	
+	if not essentials then
+		table.insert(errors, "Essentials folder missing")
+	end
+	
+	if essentials and not essentials:FindFirstChild("Giver") then
+		table.insert(warnings, "Giver part missing in Essentials")
+	end
+	
+	if essentials and not essentials:FindFirstChild("PartCollector") then
+		table.insert(warnings, "PartCollector missing in Essentials")
+	end
+	
+	-- Check gamepass IDs
+	if CONFIG.AUTO_COLLECT_GAMEPASS_ID <= 0 then
+		table.insert(errors, "Invalid Auto-Collect gamepass ID")
+	end
+	
+	if CONFIG.DOUBLE_CASH_GAMEPASS_ID <= 0 then
+		table.insert(errors, "Invalid 2x Cash gamepass ID")
+	end
+	
+	return errors, warnings
+end
+
+-- ========================================
 -- INITIALIZATION
 -- ========================================
 task.defer(function()
+	-- Validate setup first
+	local errors, warnings = validateTycoonSetup()
+	
+	if #errors > 0 then
+		warn("❌ CRITICAL ERRORS in Purchase Handler setup:")
+		for _, err in ipairs(errors) do
+			warn("  -", err)
+		end
+		return -- Don't continue if critical errors
+	end
+	
+	if #warnings > 0 then
+		warn("⚠️ Warnings in Purchase Handler setup:")
+		for _, warn in ipairs(warnings) do
+			warn("  -", warn)
+		end
+	end
 	-- Determine if the tycoon is pre-built and needs to be cleared.
 	local needsReset = false
 	if purchasedObjects and #purchasedObjects:GetChildren() > 0 then
@@ -2013,3 +2166,68 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- ========================================
+-- PUBLIC API FOR OTHER SCRIPTS
+-- ========================================
+-- Expose useful functions for other server scripts to use
+if not _G.TycoonAPI then _G.TycoonAPI = {} end
+
+local tycoonId = script.Parent.Name or "Unknown"
+_G.TycoonAPI[tycoonId] = {
+	-- Get current owner
+	GetOwner = function()
+		return currentOwner
+	end,
+	
+	-- Check if player owns a gamepass (cached)
+	CheckGamepass = function(player, passId)
+		if passId == CONFIG.AUTO_COLLECT_GAMEPASS_ID then
+			return checkAutoCollectOwnership(player)
+		elseif passId == CONFIG.DOUBLE_CASH_GAMEPASS_ID then
+			return check2xCashOwnership(player)
+		end
+		return false
+	end,
+	
+	-- Set auto-collect state
+	SetAutoCollect = function(player, enabled)
+		if currentOwner == player then
+			autoCollectEnabled[player] = enabled
+			saveAutoCollectPreference(player, enabled)
+			
+			-- Update visual
+			local giver = essentials:FindFirstChild("Giver")
+			if giver then
+				local indicator = giver:FindFirstChild("AutoCollectIndicator")
+				if indicator then
+					local frame = indicator:FindFirstChild("Frame")
+					local label = frame and frame:FindFirstChild("TextLabel")
+					if label then
+						if enabled then
+							label.Text = "AUTO"
+							label.TextColor3 = Color3.new(1, 1, 1)
+							frame.BackgroundColor3 = Color3.new(0, 0.7, 0.7)
+						else
+							label.Text = "AUTO X"
+							label.TextColor3 = Color3.new(1, 0.3, 0.3)
+							frame.BackgroundColor3 = Color3.new(0.5, 0, 0)
+						end
+					end
+				end
+			end
+		end
+	end,
+	
+	-- Get current money value
+	GetMoney = function()
+		return Money.Value
+	end,
+	
+	-- Force reset (admin use)
+	ForceReset = function()
+		resetTycoonPurchases()
+	end
+}
+
+print("🔌 Tycoon API exposed at _G.TycoonAPI['" .. tycoonId .. "']")
