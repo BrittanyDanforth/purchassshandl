@@ -546,16 +546,30 @@ local function setupAutoCollect(player)
 
 	print("🤖 Auto-Collect activated for", player.Name)
 
-	-- Load saved preference or default to enabled
+	-- Load saved preference or check global preference
 	if autoCollectEnabled[player] == nil then
-		local savedPref = loadAutoCollectPreference(player)
-		if savedPref ~= nil then
-			autoCollectEnabled[player] = savedPref
-			print("  📁 Loaded saved preference:", savedPref)
+		-- First check if player has a global preference set
+		if _G.AutoCollectPreferences and _G.AutoCollectPreferences[player.UserId] ~= nil then
+			autoCollectEnabled[player] = _G.AutoCollectPreferences[player.UserId]
+			print("  🌍 Using global preference:", autoCollectEnabled[player])
 		else
-			autoCollectEnabled[player] = true
-			print("  ✨ New player, defaulting to enabled")
+			-- Try to load from DataStore
+			local savedPref = loadAutoCollectPreference(player)
+			if savedPref ~= nil then
+				autoCollectEnabled[player] = savedPref
+				print("  📁 Loaded saved preference:", savedPref)
+			else
+				-- Default to DISABLED for new players
+				autoCollectEnabled[player] = false
+				print("  ✨ New player, defaulting to disabled")
+			end
 		end
+		
+		-- Save to global preferences
+		if not _G.AutoCollectPreferences then
+			_G.AutoCollectPreferences = {}
+		end
+		_G.AutoCollectPreferences[player.UserId] = autoCollectEnabled[player]
 	end
 
 	-- Update 2x Cash indicator
@@ -577,14 +591,16 @@ local function setupAutoCollect(player)
 
 		-- Only collect if there's actually money and auto-collect is enabled
 		if newValue > 0 and autoCollectEnabled[player] ~= false then
+			print("  🔍 Auto-collect check: enabled =", autoCollectEnabled[player], "for", player.Name)
 			-- Small delay to batch multiple cash parts
 			task.wait(CONFIG.AUTO_COLLECT_DELAY)
 			performAutoCollect(player)
 		end
 	end)
 
-	-- Collect any existing money immediately
-	if Money.Value > 0 then
+	-- Collect any existing money immediately (but respect enabled state)
+	if Money.Value > 0 and autoCollectEnabled[player] ~= false then
+		print("  🔍 Initial collection: enabled =", autoCollectEnabled[player], "for", player.Name)
 		performAutoCollect(player)
 	end
 
@@ -678,6 +694,12 @@ if autoCollectToggle then
 
 				-- Update state (even if they don't own this tycoon yet)
 		autoCollectEnabled[player] = enabled
+		
+		-- Save to global preferences
+		if not _G.AutoCollectPreferences then
+			_G.AutoCollectPreferences = {}
+		end
+		_G.AutoCollectPreferences[player.UserId] = enabled
 		
 		-- Save preference to DataStore
 		task.spawn(function()
