@@ -440,16 +440,15 @@ local function performAutoCollect(player)
 		playSound(giver, "collect", 0.15)
 	end
 
-	-- Visual feedback with proper constraints
+	-- Visual feedback
 	if giver then
 		local billboard = Instance.new("BillboardGui")
 		billboard.Name = "AutoCollectVFX"
 		billboard.Adornee = giver
-		billboard.MaxDistance = 100 -- Only visible within 100 studs
-		billboard.Size = UDim2.new(4, 0, 1, 0) -- Fixed size in studs
-		billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
-		billboard.AlwaysOnTop = false -- Don't show through walls
-		billboard.LightInfluence = 0
+		billboard.MaxDistance = 80
+		billboard.Size = UDim2.new(0, 120, 0, 40)
+		billboard.StudsOffset = Vector3.new(0, 4, 0)
+		billboard.AlwaysOnTop = true
 		billboard.Parent = giver
 
 		local textLabel = Instance.new("TextLabel")
@@ -465,22 +464,15 @@ local function performAutoCollect(player)
 			textLabel.TextColor3 = Color3.new(0, 1, 1) -- Cyan
 		end
 
+		textLabel.TextScaled = true
 		textLabel.Font = Enum.Font.SourceSansBold
 		textLabel.TextStrokeTransparency = 0.5
-		textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-		
-		-- Use TextScaled with size constraint
-		textLabel.TextScaled = true
-		local sizeConstraint = Instance.new("UITextSizeConstraint")
-		sizeConstraint.MaxTextSize = 24
-		sizeConstraint.Parent = textLabel
-		
 		textLabel.Parent = billboard
 
 		-- Animate the GUI floating up and fading out
 		local tweenInfo = TweenInfo.new(1.2)
-		TweenService:Create(billboard, tweenInfo, {StudsOffsetWorldSpace = Vector3.new(0, 10, 0)}):Play()
-		TweenService:Create(textLabel, tweenInfo, {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+		TweenService:Create(billboard, tweenInfo, {StudsOffset = Vector3.new(0, 10, 0)}):Play()
+		TweenService:Create(textLabel, tweenInfo, {TextTransparency = 1}):Play()
 
 		-- Reliably destroy the GUI after the animation is done
 		Debris:AddItem(billboard, 1.2)
@@ -1601,15 +1593,10 @@ giver.Touched:Connect(function(hit)
 			-- Play success sound
 			playSound(giver, "success", 0.3)
 
-			-- Visual feedback with proper constraints
+			-- Money popup with 2x indicator - LONGER DISPLAY TIME
 			local billboardGui = Instance.new("BillboardGui")
-			billboardGui.Name = "CollectVFX"
-			billboardGui.Adornee = giver
-			billboardGui.MaxDistance = 120 -- Slightly larger distance for manual
-			billboardGui.Size = UDim2.new(5, 0, 1.25, 0) -- Fixed size in studs
-			billboardGui.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
-			billboardGui.AlwaysOnTop = false -- Don't show through walls
-			billboardGui.LightInfluence = 0
+			billboardGui.Size = UDim2.new(0, 150, 0, 50)
+			billboardGui.StudsOffset = Vector3.new(0, 3, 0)
 			billboardGui.Parent = giver
 
 			local textLabel = Instance.new("TextLabel")
@@ -1624,29 +1611,23 @@ giver.Touched:Connect(function(hit)
 				textLabel.TextColor3 = Color3.new(0, 1, 0) -- Green
 			end
 
+			textLabel.TextScaled = true
 			textLabel.Font = Enum.Font.SourceSansBold
 			textLabel.TextStrokeTransparency = 0
 			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-			
-			-- Use TextScaled with size constraint
-			textLabel.TextScaled = true
-			local sizeConstraint = Instance.new("UITextSizeConstraint")
-			sizeConstraint.MaxTextSize = 28
-			sizeConstraint.Parent = textLabel
-			
 			textLabel.Parent = billboardGui
 
 			-- Slower animation for better visibility
 			TweenService:Create(billboardGui,
 				TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-				{StudsOffsetWorldSpace = Vector3.new(0, 8, 0)}
+				{StudsOffset = Vector3.new(0, 8, 0)}
 			):Play()
 
 			-- Delay before fading
 			task.wait(0.5)
 			TweenService:Create(textLabel,
 				TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-				{TextTransparency = 1, TextStrokeTransparency = 1}
+				{TextTransparency = 1}
 			):Play()
 
 			Debris:AddItem(billboardGui, 2.5)
