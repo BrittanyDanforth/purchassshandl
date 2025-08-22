@@ -75,8 +75,8 @@ local function weldAllParts(model, primaryPart)
 	end
 end
 
--- Wait a bit before starting to ensure everything is loaded
-task.wait(3)
+-- Short wait to ensure physics are ready
+task.wait(1)
 
 -- =================================================================
 -- MAIN DROPPER LOOP
@@ -145,10 +145,10 @@ while true do
 		end
 	end
 	
-		-- Position below dropper with proper orientation
-	-- Add 180 degree rotation to flip it right-side up (like your working dropper)
+		-- Position INSIDE the dropper (not above) with proper orientation
+	-- Add 180 degree rotation to flip it right-side up
 	newDrop:SetPrimaryPartCFrame(
-		dropPart.CFrame * CFrame.new(offsetX, -2, offsetZ) * CFrame.Angles(math.rad(180), 0, 0)
+		dropPart.CFrame * CFrame.new(offsetX, -0.5, offsetZ) * CFrame.Angles(math.rad(180), 0, 0)
 	)
 	
 	-- Better drop control using AlignOrientation to prevent flipping
