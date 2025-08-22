@@ -1351,3 +1351,113 @@ print("  ✅ Processing updates properly after purchase")
 print("  ✅ Shop button persists after reset")
 print("  ✅ Toggle appears immediately after gamepass purchase")
 print("  ✅ Press 'M' or click the Shop button to open")
+
+-- ========================================
+-- CLIENT-SIDE MONEY COLLECTION EFFECTS
+-- ========================================
+
+-- Format numbers for money display
+local function formatMoney(n)
+	local formatted = tostring(n)
+	while true do
+		local newFormatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+		formatted = newFormatted
+		if k == 0 then break end
+	end
+	return formatted
+end
+
+-- Setup money collection visual effects (client-side only)
+local function setupMoneyEffects()
+	local remotesFolder = ReplicatedStorage:WaitForChild("TycoonRemotes", 5)
+	if not remotesFolder then return end
+	
+	local moneyCollectRemote = remotesFolder:WaitForChild("MoneyCollected", 5)
+	if not moneyCollectRemote then return end
+	
+	-- Handle money collection effects
+	moneyCollectRemote.OnClientEvent:Connect(function(collectorPart, amount, has2x, isAutoCollect)
+		-- Only show effects for valid collector parts
+		if not collectorPart or not collectorPart.Parent then return end
+		
+		-- Create the visual effect
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "MoneyCollectEffect"
+		billboard.Adornee = collectorPart
+		billboard.Size = UDim2.new(0, 120, 0, 40)
+		billboard.StudsOffset = Vector3.new(0, 4, 0)
+		billboard.AlwaysOnTop = true
+		billboard.LightInfluence = 0
+		billboard.MaxDistance = 150 -- Limit visibility distance
+		billboard.Parent = localPlayer.PlayerGui
+		
+		local frame = UI.frame({
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Parent = billboard
+		})
+		
+		local textLabel = UI.text({
+			Text = "",
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Font = Enum.Font.SourceSansBold,
+			TextScaled = true,
+			Parent = frame
+		})
+		
+		-- Set text and color based on type
+		if isAutoCollect then
+			-- Auto-collect style
+			if has2x then
+				textLabel.Text = "+$" .. formatMoney(amount) .. " (2X!)"
+				textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold for 2x
+			else
+				textLabel.Text = "+$" .. formatMoney(amount)
+				textLabel.TextColor3 = Color3.new(0, 1, 1) -- Cyan for auto
+			end
+			textLabel.TextStrokeTransparency = 0.5
+			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+		else
+			-- Manual collect style
+			if has2x then
+				textLabel.Text = "+$" .. formatMoney(amount) .. " (2X!)"
+				textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+			else
+				textLabel.Text = "+$" .. formatMoney(amount)
+				textLabel.TextColor3 = Color3.new(0, 1, 0) -- Green
+			end
+			textLabel.TextStrokeTransparency = 0
+			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+			
+			-- Scale constraint to prevent huge text
+			local textConstraint = Instance.new("UITextSizeConstraint")
+			textConstraint.MaxTextSize = 28
+			textConstraint.Parent = textLabel
+		end
+		
+		-- Animate based on type
+		local animDuration = isAutoCollect and 1.2 or 2
+		local targetOffset = Vector3.new(0, isAutoCollect and 10 or 8, 0)
+		
+		Utils.tween(billboard, TweenInfo.new(animDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			StudsOffset = targetOffset
+		})
+		
+		-- Fade out after delay
+		task.wait(isAutoCollect and 0 or 0.5)
+		
+		Utils.tween(textLabel, TweenInfo.new(isAutoCollect and 1.2 or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+			TextStrokeTransparency = 1
+		})
+		
+		-- Clean up
+		Debris:AddItem(billboard, isAutoCollect and 1.2 or 2.5)
+	end)
+	
+	print("💰 Money collection effects loaded (client-side only)")
+end
+
+-- Initialize money effects
+task.spawn(setupMoneyEffects)
