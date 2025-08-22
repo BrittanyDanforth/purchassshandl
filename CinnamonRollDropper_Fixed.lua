@@ -102,10 +102,25 @@ while true do
 		end
 	end
 
-	-- 4. Position the model
+	-- 4. Position and scale the model
 	local offsetX = (math.random(-2, 2) * 0.1)
 	local offsetZ = (math.random(-2, 2) * 0.1)
-	-- Position below dropper
+	
+	-- Scale up the model a bit (1.2x bigger)
+	local scaleFactor = 1.2
+	for _, part in ipairs(newDrop:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Size = part.Size * scaleFactor
+			if part:FindFirstChild("Mesh") then
+				part.Mesh.Scale = part.Mesh.Scale * scaleFactor
+			end
+		elseif part:IsA("SpecialMesh") then
+			part.Scale = part.Scale * scaleFactor
+		end
+	end
+	
+	-- Position below dropper and flip right-side up
+	-- Remove the 180 degree rotations that were making it upside down
 	newDrop:SetPrimaryPartCFrame(
 		dropPart.CFrame * CFrame.new(offsetX, -2, offsetZ)
 	)
