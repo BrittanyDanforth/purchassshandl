@@ -19,6 +19,7 @@ local SoundService = game:GetService("SoundService")
 local GuiService = game:GetService("GuiService")
 local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
@@ -1391,20 +1392,18 @@ local function setupMoneyEffects()
 		billboard.MaxDistance = 100 -- Limit visibility distance
 		billboard.Parent = localPlayer.PlayerGui
 		
-		local frame = UI.frame({
-			Size = UDim2.new(1, 0, 1, 0),
-			BackgroundTransparency = 1,
-			Parent = billboard
-		})
+		local frame = Instance.new("Frame")
+		frame.Size = UDim2.new(1, 0, 1, 0)
+		frame.BackgroundTransparency = 1
+		frame.Parent = billboard
 		
-		local textLabel = UI.text({
-			Text = "",
-			Size = UDim2.new(1, 0, 1, 0),
-			BackgroundTransparency = 1,
-			Font = Enum.Font.SourceSansBold,
-			TextScaled = true,
-			Parent = frame
-		})
+		local textLabel = Instance.new("TextLabel")
+		textLabel.Text = ""
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.BackgroundTransparency = 1
+		textLabel.Font = Enum.Font.SourceSansBold
+		textLabel.TextScaled = true
+		textLabel.Parent = frame
 		
 		-- Set text and color based on type
 		if isAutoCollect then
@@ -1440,17 +1439,18 @@ local function setupMoneyEffects()
 		local animDuration = isAutoCollect and 1.2 or 2
 		local targetOffset = Vector3.new(0, isAutoCollect and 10 or 8, 0)
 		
-		Utils.tween(billboard, TweenInfo.new(animDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			StudsOffsetWorldSpace = targetOffset
-		})
+		TweenService:Create(billboard, 
+			TweenInfo.new(animDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+			{StudsOffsetWorldSpace = targetOffset}
+		):Play()
 		
 		-- Fade out after delay
 		task.wait(isAutoCollect and 0 or 0.5)
 		
-		Utils.tween(textLabel, TweenInfo.new(isAutoCollect and 1.2 or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			TextTransparency = 1,
-			TextStrokeTransparency = 1
-		})
+		TweenService:Create(textLabel, 
+			TweenInfo.new(isAutoCollect and 1.2 or 1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), 
+			{TextTransparency = 1, TextStrokeTransparency = 1}
+		):Play()
 		
 		-- Clean up
 		Debris:AddItem(billboard, isAutoCollect and 1.2 or 2.5)
