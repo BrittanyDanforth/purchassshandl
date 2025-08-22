@@ -1385,8 +1385,8 @@ local function setupMoneyEffects()
 		local billboard = Instance.new("BillboardGui")
 		billboard.Name = "MoneyCollectEffect"
 		billboard.Adornee = collectorPart
-		billboard.Size = UDim2.new(4, 0, 1, 0) -- Fixed size in studs to prevent scaling
-		billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0) -- Use world space offset
+		billboard.Size = UDim2.new(0, 120, 0, 40) -- Match the working version
+		billboard.StudsOffset = Vector3.new(0, 4, 0) -- Use regular StudsOffset, higher position
 		billboard.AlwaysOnTop = true
 		billboard.LightInfluence = 0
 		billboard.MaxDistance = 100 -- Limit visibility distance
@@ -1433,6 +1433,7 @@ local function setupMoneyEffects()
 		-- Always add scale constraint to prevent huge text
 		local textConstraint = Instance.new("UITextSizeConstraint")
 		textConstraint.MaxTextSize = 24
+		textConstraint.MinTextSize = 10
 		textConstraint.Parent = textLabel
 		
 		-- Animate based on type
@@ -1441,7 +1442,7 @@ local function setupMoneyEffects()
 		
 		TweenService:Create(billboard, 
 			TweenInfo.new(animDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-			{StudsOffsetWorldSpace = targetOffset}
+			{StudsOffset = targetOffset}
 		):Play()
 		
 		-- Fade out after delay
