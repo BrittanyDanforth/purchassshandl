@@ -440,42 +440,10 @@ local function performAutoCollect(player)
 		playSound(giver, "collect", 0.15)
 	end
 
-	-- Visual feedback
-	if giver then
-		local billboard = Instance.new("BillboardGui")
-		billboard.Name = "AutoCollectVFX"
-		billboard.Adornee = giver
-		billboard.MaxDistance = 80
-		billboard.Size = UDim2.new(0, 120, 0, 40)
-		billboard.StudsOffset = Vector3.new(0, 4, 0)
-		billboard.AlwaysOnTop = true
-		billboard.Parent = giver
-
-		local textLabel = Instance.new("TextLabel")
-		textLabel.Size = UDim2.new(1, 0, 1, 0)
-		textLabel.BackgroundTransparency = 1
-
-		-- Show amount clearly with 2x indicator
-		if has2x then
-			textLabel.Text = "+$" .. formatNumber(finalAmount) .. " (2X!)"
-			textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold for 2x
-		else
-			textLabel.Text = "+$" .. formatNumber(finalAmount)
-			textLabel.TextColor3 = Color3.new(0, 1, 1) -- Cyan
-		end
-
-		textLabel.TextScaled = true
-		textLabel.Font = Enum.Font.SourceSansBold
-		textLabel.TextStrokeTransparency = 0.5
-		textLabel.Parent = billboard
-
-		-- Animate the GUI floating up and fading out
-		local tweenInfo = TweenInfo.new(1.2)
-		TweenService:Create(billboard, tweenInfo, {StudsOffset = Vector3.new(0, 10, 0)}):Play()
-		TweenService:Create(textLabel, tweenInfo, {TextTransparency = 1}):Play()
-
-		-- Reliably destroy the GUI after the animation is done
-		Debris:AddItem(billboard, 1.2)
+	-- Send visual feedback to client
+	local moneyCollectRemote = remotesFolder:FindFirstChild("MoneyCollected")
+	if moneyCollectRemote and giver then
+		moneyCollectRemote:FireClient(player, giver, finalAmount, has2x, true) -- true = auto-collect
 	end
 end
 
@@ -1593,44 +1561,11 @@ giver.Touched:Connect(function(hit)
 			-- Play success sound
 			playSound(giver, "success", 0.3)
 
-			-- Money popup with 2x indicator - LONGER DISPLAY TIME
-			local billboardGui = Instance.new("BillboardGui")
-			billboardGui.Size = UDim2.new(0, 150, 0, 50)
-			billboardGui.StudsOffset = Vector3.new(0, 3, 0)
-			billboardGui.Parent = giver
-
-			local textLabel = Instance.new("TextLabel")
-			textLabel.Size = UDim2.new(1, 0, 1, 0)
-			textLabel.BackgroundTransparency = 1
-
-			if has2x then
-				textLabel.Text = "+$" .. tostring(finalAmount) .. " (2X!)"
-				textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
-			else
-				textLabel.Text = "+$" .. tostring(finalAmount)
-				textLabel.TextColor3 = Color3.new(0, 1, 0) -- Green
+			-- Send visual feedback to client
+			local moneyCollectRemote = remotesFolder:FindFirstChild("MoneyCollected")
+			if moneyCollectRemote then
+				moneyCollectRemote:FireClient(player, giver, finalAmount, has2x, false) -- false = manual collect
 			end
-
-			textLabel.TextScaled = true
-			textLabel.Font = Enum.Font.SourceSansBold
-			textLabel.TextStrokeTransparency = 0
-			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-			textLabel.Parent = billboardGui
-
-			-- Slower animation for better visibility
-			TweenService:Create(billboardGui,
-				TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-				{StudsOffset = Vector3.new(0, 8, 0)}
-			):Play()
-
-			-- Delay before fading
-			task.wait(0.5)
-			TweenService:Create(textLabel,
-				TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-				{TextTransparency = 1}
-			):Play()
-
-			Debris:AddItem(billboardGui, 2.5)
 		end
 
 		task.wait(0.1)

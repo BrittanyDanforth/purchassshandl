@@ -1377,23 +1377,18 @@ local function setupMoneyEffects()
 	
 	-- Handle money collection effects
 	moneyCollectRemote.OnClientEvent:Connect(function(collectorPart, amount, has2x, isAutoCollect)
-		print("📥 Received money collect effect:", "Amount:", amount, "Has2x:", has2x, "IsAuto:", isAutoCollect)
-		
 		-- Only show effects for valid collector parts
-		if not collectorPart or not collectorPart.Parent then 
-			warn("❌ Invalid collector part!")
-			return 
-		end
+		if not collectorPart or not collectorPart.Parent then return end
 		
 		-- Create the visual effect
 		local billboard = Instance.new("BillboardGui")
 		billboard.Name = "MoneyCollectEffect"
 		billboard.Adornee = collectorPart
-		billboard.Size = UDim2.new(0, 120, 0, 40)
-		billboard.StudsOffset = Vector3.new(0, 4, 0)
+		billboard.Size = UDim2.new(4, 0, 1, 0) -- Fixed size in studs to prevent scaling
+		billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0) -- Use world space offset
 		billboard.AlwaysOnTop = true
 		billboard.LightInfluence = 0
-		billboard.MaxDistance = 150 -- Limit visibility distance
+		billboard.MaxDistance = 100 -- Limit visibility distance
 		billboard.Parent = localPlayer.PlayerGui
 		
 		local frame = UI.frame({
@@ -1434,19 +1429,19 @@ local function setupMoneyEffects()
 			end
 			textLabel.TextStrokeTransparency = 0
 			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-			
-			-- Scale constraint to prevent huge text
-			local textConstraint = Instance.new("UITextSizeConstraint")
-			textConstraint.MaxTextSize = 28
-			textConstraint.Parent = textLabel
 		end
+		
+		-- Always add scale constraint to prevent huge text
+		local textConstraint = Instance.new("UITextSizeConstraint")
+		textConstraint.MaxTextSize = 24
+		textConstraint.Parent = textLabel
 		
 		-- Animate based on type
 		local animDuration = isAutoCollect and 1.2 or 2
 		local targetOffset = Vector3.new(0, isAutoCollect and 10 or 8, 0)
 		
 		Utils.tween(billboard, TweenInfo.new(animDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			StudsOffset = targetOffset
+			StudsOffsetWorldSpace = targetOffset
 		})
 		
 		-- Fade out after delay
