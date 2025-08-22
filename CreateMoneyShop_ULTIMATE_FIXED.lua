@@ -170,16 +170,18 @@ function ShopData.userOwnsPass(userId: number, passId: number)
 		return ownershipCache[cacheKey]
 	end
 	
-	-- In Studio with userId -1, check if we've marked this as purchased
-	if game:GetService("RunService"):IsStudio() and userId == -1 then
+	-- In Studio, check if we've marked this as purchased
+	if game:GetService("RunService"):IsStudio() then
 		-- Check if this gamepass was recently purchased
 		if not _G.StudioGamepassPurchases then
 			_G.StudioGamepassPurchases = {}
 		end
 		
-		local recentPurchase = _G.StudioGamepassPurchases[passId]
+		-- Use a player-specific key for Studio purchases
+		local studioKey = tostring(userId) .. "_" .. tostring(passId)
+		local recentPurchase = _G.StudioGamepassPurchases[studioKey]
 		if recentPurchase then
-			print("  🎮 Studio: Using recent purchase status for", passId)
+			print("  🎮 Studio: Using recent purchase status for", passId, "userId:", userId)
 			ownershipCache[cacheKey] = true
 			return true
 		end
@@ -979,8 +981,10 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(userId, gameP
 				if not _G.StudioGamepassPurchases then
 					_G.StudioGamepassPurchases = {}
 				end
-				_G.StudioGamepassPurchases[gamePassId] = true
-				print("  📝 Marked gamepass", gamePassId, "as purchased in Studio")
+				-- Use player-specific key
+				local studioKey = tostring(localPlayer.UserId) .. "_" .. tostring(gamePassId)
+				_G.StudioGamepassPurchases[studioKey] = true
+				print("  📝 Marked gamepass", gamePassId, "as purchased in Studio for userId:", localPlayer.UserId)
 				
 				-- Clear the ownership cache for this gamepass
 				local cacheKey = localPlayer.UserId .. "_" .. gamePassId
@@ -1260,8 +1264,10 @@ if gamepassPurchaseRemote then
 					if not _G.StudioGamepassPurchases then
 						_G.StudioGamepassPurchases = {}
 					end
-					_G.StudioGamepassPurchases[gamePassId] = true
-					print("  📝 Marked gamepass", gamePassId, "as purchased in Studio (via server notification)")
+					-- Use player-specific key
+					local studioKey = tostring(localPlayer.UserId) .. "_" .. tostring(gamePassId)
+					_G.StudioGamepassPurchases[studioKey] = true
+					print("  📝 Marked gamepass", gamePassId, "as purchased in Studio (via server notification) for userId:", localPlayer.UserId)
 					
 					-- Clear the ownership cache for this gamepass
 					local cacheKey = localPlayer.UserId .. "_" .. gamePassId

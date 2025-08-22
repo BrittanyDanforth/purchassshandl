@@ -298,6 +298,18 @@ end
 
 -- Check if player owns 2x Cash gamepass (with caching)
 local function check2xCashOwnership(player)
+	-- In Studio, check if we've marked this as purchased
+	if game:GetService("RunService"):IsStudio() then
+		if _G.StudioGamepassPurchases then
+			-- Use player-specific key
+			local studioKey = tostring(player.UserId) .. "_" .. tostring(CONFIG.DOUBLE_CASH_GAMEPASS_ID)
+			if _G.StudioGamepassPurchases[studioKey] then
+				print("  🎮 Studio: Player owns 2x cash via purchase tracking for userId:", player.UserId)
+				return true
+			end
+		end
+	end
+	
 	-- Check cache first
 	if doubleCashCache[player.UserId] ~= nil then
 		return doubleCashCache[player.UserId]
@@ -372,11 +384,15 @@ end
 
 -- Check if player owns auto-collect gamepass
 local function checkAutoCollectOwnership(player)
-	-- In Studio with userId -1, check if we've marked this as purchased
-	if game:GetService("RunService"):IsStudio() and player.UserId == -1 then
-		if _G.StudioGamepassPurchases and _G.StudioGamepassPurchases[CONFIG.AUTO_COLLECT_GAMEPASS_ID] then
-			print("  🎮 Studio: Player owns auto-collect via purchase tracking")
-			return true
+	-- In Studio, check if we've marked this as purchased
+	if game:GetService("RunService"):IsStudio() then
+		if _G.StudioGamepassPurchases then
+			-- Use player-specific key
+			local studioKey = tostring(player.UserId) .. "_" .. tostring(CONFIG.AUTO_COLLECT_GAMEPASS_ID)
+			if _G.StudioGamepassPurchases[studioKey] then
+				print("  🎮 Studio: Player owns auto-collect via purchase tracking for userId:", player.UserId)
+				return true
+			end
 		end
 	end
 	
@@ -632,8 +648,10 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gameP
 			if not _G.StudioGamepassPurchases then
 				_G.StudioGamepassPurchases = {}
 			end
-			_G.StudioGamepassPurchases[gamePassId] = true
-			print("📝 Server: Marked gamepass", gamePassId, "as purchased in Studio")
+			-- Use player-specific key
+			local studioKey = tostring(player.UserId) .. "_" .. tostring(gamePassId)
+			_G.StudioGamepassPurchases[studioKey] = true
+			print("📝 Server: Marked gamepass", gamePassId, "as purchased in Studio for userId:", player.UserId)
 		end
 		
 		-- Notify client about the purchase
