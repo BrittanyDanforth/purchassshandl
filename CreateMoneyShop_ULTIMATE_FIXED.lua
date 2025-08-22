@@ -1377,8 +1377,13 @@ local function setupMoneyEffects()
 	
 	-- Handle money collection effects
 	moneyCollectRemote.OnClientEvent:Connect(function(collectorPart, amount, has2x, isAutoCollect)
+		print("📥 Received money collect effect:", "Amount:", amount, "Has2x:", has2x, "IsAuto:", isAutoCollect)
+		
 		-- Only show effects for valid collector parts
-		if not collectorPart or not collectorPart.Parent then return end
+		if not collectorPart or not collectorPart.Parent then 
+			warn("❌ Invalid collector part!")
+			return 
+		end
 		
 		-- Create the visual effect
 		local billboard = Instance.new("BillboardGui")

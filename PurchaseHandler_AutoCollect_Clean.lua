@@ -440,10 +440,50 @@ local function performAutoCollect(player)
 		playSound(giver, "collect", 0.15)
 	end
 
-	-- Send visual feedback to client
-	local moneyCollectRemote = remotesFolder:FindFirstChild("MoneyCollected")
-	if moneyCollectRemote and giver then
-		moneyCollectRemote:FireClient(player, giver, finalAmount, has2x, true) -- true = auto-collect
+	-- Visual feedback with proper constraints
+	if giver then
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "AutoCollectVFX"
+		billboard.Adornee = giver
+		billboard.MaxDistance = 100 -- Only visible within 100 studs
+		billboard.Size = UDim2.new(4, 0, 1, 0) -- Fixed size in studs
+		billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+		billboard.AlwaysOnTop = false -- Don't show through walls
+		billboard.LightInfluence = 0
+		billboard.Parent = giver
+
+		local textLabel = Instance.new("TextLabel")
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.BackgroundTransparency = 1
+
+		-- Show amount clearly with 2x indicator
+		if has2x then
+			textLabel.Text = "+$" .. formatNumber(finalAmount) .. " (2X!)"
+			textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold for 2x
+		else
+			textLabel.Text = "+$" .. formatNumber(finalAmount)
+			textLabel.TextColor3 = Color3.new(0, 1, 1) -- Cyan
+		end
+
+		textLabel.Font = Enum.Font.SourceSansBold
+		textLabel.TextStrokeTransparency = 0.5
+		textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+		
+		-- Use TextScaled with size constraint
+		textLabel.TextScaled = true
+		local sizeConstraint = Instance.new("UITextSizeConstraint")
+		sizeConstraint.MaxTextSize = 24
+		sizeConstraint.Parent = textLabel
+		
+		textLabel.Parent = billboard
+
+		-- Animate the GUI floating up and fading out
+		local tweenInfo = TweenInfo.new(1.2)
+		TweenService:Create(billboard, tweenInfo, {StudsOffsetWorldSpace = Vector3.new(0, 10, 0)}):Play()
+		TweenService:Create(textLabel, tweenInfo, {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+
+		-- Reliably destroy the GUI after the animation is done
+		Debris:AddItem(billboard, 1.2)
 	end
 end
 
@@ -1561,11 +1601,55 @@ giver.Touched:Connect(function(hit)
 			-- Play success sound
 			playSound(giver, "success", 0.3)
 
-			-- Send visual feedback to client
-			local moneyCollectRemote = remotesFolder:FindFirstChild("MoneyCollected")
-			if moneyCollectRemote then
-				moneyCollectRemote:FireClient(player, giver, finalAmount, has2x, false) -- false = manual collect
+			-- Visual feedback with proper constraints
+			local billboardGui = Instance.new("BillboardGui")
+			billboardGui.Name = "CollectVFX"
+			billboardGui.Adornee = giver
+			billboardGui.MaxDistance = 120 -- Slightly larger distance for manual
+			billboardGui.Size = UDim2.new(5, 0, 1.25, 0) -- Fixed size in studs
+			billboardGui.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
+			billboardGui.AlwaysOnTop = false -- Don't show through walls
+			billboardGui.LightInfluence = 0
+			billboardGui.Parent = giver
+
+			local textLabel = Instance.new("TextLabel")
+			textLabel.Size = UDim2.new(1, 0, 1, 0)
+			textLabel.BackgroundTransparency = 1
+
+			if has2x then
+				textLabel.Text = "+$" .. tostring(finalAmount) .. " (2X!)"
+				textLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+			else
+				textLabel.Text = "+$" .. tostring(finalAmount)
+				textLabel.TextColor3 = Color3.new(0, 1, 0) -- Green
 			end
+
+			textLabel.Font = Enum.Font.SourceSansBold
+			textLabel.TextStrokeTransparency = 0
+			textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+			
+			-- Use TextScaled with size constraint
+			textLabel.TextScaled = true
+			local sizeConstraint = Instance.new("UITextSizeConstraint")
+			sizeConstraint.MaxTextSize = 28
+			sizeConstraint.Parent = textLabel
+			
+			textLabel.Parent = billboardGui
+
+			-- Slower animation for better visibility
+			TweenService:Create(billboardGui,
+				TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{StudsOffsetWorldSpace = Vector3.new(0, 8, 0)}
+			):Play()
+
+			-- Delay before fading
+			task.wait(0.5)
+			TweenService:Create(textLabel,
+				TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{TextTransparency = 1, TextStrokeTransparency = 1}
+			):Play()
+
+			Debris:AddItem(billboardGui, 2.5)
 		end
 
 		task.wait(0.1)
