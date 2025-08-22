@@ -23,14 +23,21 @@ local LIFETIME = 20
 -- =================================================================
 -- COLLISION GROUPS (matching your working script)
 -- =================================================================
-local DROP_GROUP = "DropperModelDrops"
+local DROP_GROUP = "CinnamonRollDrops"  -- Unique group name
 local PLAYER_GROUP = "Players"
 
 pcall(function()
 	PhysicsService:RegisterCollisionGroup(DROP_GROUP)
 	PhysicsService:RegisterCollisionGroup(PLAYER_GROUP)
+	-- Drops don't collide with players
 	PhysicsService:CollisionGroupSetCollidable(DROP_GROUP, PLAYER_GROUP, false)
+	-- Drops don't collide with EACH OTHER (prevents bouncing off each other)
 	PhysicsService:CollisionGroupSetCollidable(DROP_GROUP, DROP_GROUP, false)
+	
+	-- Also make sure they don't collide with ice cream drops
+	pcall(function()
+		PhysicsService:CollisionGroupSetCollidable(DROP_GROUP, "Dropper5Orbs", false)
+	end)
 end)
 
 local function setupPlayerCollision(character)
@@ -135,14 +142,26 @@ while true do
 		end
 	end
 	
-	-- Position below dropper and flip right-side up
-	-- Remove the 180 degree rotations that were making it upside down
+		-- Position below dropper with proper orientation
+	-- Add 180 degree rotation to flip it right-side up (like your working dropper)
 	newDrop:SetPrimaryPartCFrame(
-		dropPart.CFrame * CFrame.new(offsetX, -2, offsetZ)
+		dropPart.CFrame * CFrame.new(offsetX, -2, offsetZ) * CFrame.Angles(math.rad(180), 0, 0)
 	)
-
-	-- Give GENTLE downward velocity (not too fast)
-	newDrop.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0, -8, 0)
+	
+	-- IMPORTANT: Prevent rotation/tumbling
+	local bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
+	bodyVelocity.Velocity = Vector3.new(0, -12, 0)
+	bodyVelocity.Parent = newDrop.PrimaryPart
+	
+	local bodyPosition = Instance.new("BodyPosition")
+	bodyPosition.MaxForce = Vector3.new(4000, 0, 4000) -- Only stabilize X/Z, not Y
+	bodyPosition.Position = newDrop.PrimaryPart.Position
+	bodyPosition.Parent = newDrop.PrimaryPart
+	
+	-- Remove body movers after drop stabilizes
+	Debris:AddItem(bodyVelocity, 0.5)
+	Debris:AddItem(bodyPosition, 0.5)
 
 	-- 5. Set spawn time attribute (some collectors use this)
 	newDrop.PrimaryPart:SetAttribute("SpawnTime", tick())
