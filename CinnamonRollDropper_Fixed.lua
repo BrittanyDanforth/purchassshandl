@@ -75,6 +75,9 @@ local function weldAllParts(model, primaryPart)
 	end
 end
 
+-- Wait a bit before starting to ensure everything is loaded
+task.wait(3)
+
 -- =================================================================
 -- MAIN DROPPER LOOP
 -- =================================================================
@@ -148,20 +151,37 @@ while true do
 		dropPart.CFrame * CFrame.new(offsetX, -2, offsetZ) * CFrame.Angles(math.rad(180), 0, 0)
 	)
 	
-	-- IMPORTANT: Prevent rotation/tumbling
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
-	bodyVelocity.Velocity = Vector3.new(0, -12, 0)
-	bodyVelocity.Parent = newDrop.PrimaryPart
+	-- Better drop control using AlignOrientation to prevent flipping
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = newDrop.PrimaryPart
 	
-	local bodyPosition = Instance.new("BodyPosition")
-	bodyPosition.MaxForce = Vector3.new(4000, 0, 4000) -- Only stabilize X/Z, not Y
-	bodyPosition.Position = newDrop.PrimaryPart.Position
-	bodyPosition.Parent = newDrop.PrimaryPart
+	-- Keep it oriented properly (no spinning/flipping)
+	local alignOrientation = Instance.new("AlignOrientation")
+	alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	alignOrientation.Attachment0 = attachment
+	alignOrientation.MaxTorque = 10000
+	alignOrientation.Responsiveness = 10
+	alignOrientation.CFrame = newDrop.PrimaryPart.CFrame
+	alignOrientation.Parent = newDrop.PrimaryPart
 	
-	-- Remove body movers after drop stabilizes
-	Debris:AddItem(bodyVelocity, 0.5)
-	Debris:AddItem(bodyPosition, 0.5)
+	-- Controlled descent (not too fast)
+	local vectorForce = Instance.new("VectorForce")
+	vectorForce.Attachment0 = attachment
+	vectorForce.Force = Vector3.new(0, workspace.Gravity * newDrop.PrimaryPart.AssemblyMass * 0.8, 0) -- Counteract some gravity
+	vectorForce.Parent = newDrop.PrimaryPart
+	
+	-- Give initial downward push
+	newDrop.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0, -10, 0)
+	
+	-- Remove controls after a short time
+	task.delay(0.8, function()
+		if alignOrientation and alignOrientation.Parent then
+			alignOrientation:Destroy()
+		end
+		if vectorForce and vectorForce.Parent then
+			vectorForce:Destroy()
+		end
+	end)
 
 	-- 5. Set spawn time attribute (some collectors use this)
 	newDrop.PrimaryPart:SetAttribute("SpawnTime", tick())
