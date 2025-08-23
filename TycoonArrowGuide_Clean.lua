@@ -16,11 +16,20 @@ local ARROW_COLOR = Color3.fromRGB(100, 255, 170)
 local ARROW_SIZE = Vector3.new(2, 2, 2) -- Small arrow
 local ARROW_HEIGHT = 6 -- Height above player
 local MIN_DISTANCE = 20 -- Hide arrow when close
-local CHECK_INTERVAL = 0.5 -- How often to update
+local CHECK_INTERVAL = 0.1 -- More frequent updates for smoothness
+local TWEEN_TIME = 0.3 -- How fast arrow moves
+
+-- Tween settings
+local tweenInfo = TweenInfo.new(
+	TWEEN_TIME,
+	Enum.EasingStyle.Quad,
+	Enum.EasingDirection.Out
+)
 
 -- Track player arrows and ownership
 local playerArrows = {}
 local playerOwnership = {}
+local activeTweens = {}
 
 -- Find all tycoon gates
 local function findTycoonGates()
@@ -102,12 +111,43 @@ local function createArrow()
 	return model
 end
 
+-- Smooth arrow movement
+local function smoothMoveArrow(arrow, targetCFrame)
+	local arrowPart = arrow.PrimaryPart
+	if not arrowPart then return end
+	
+	-- Cancel existing tween
+	if activeTweens[arrow] then
+		activeTweens[arrow]:Cancel()
+	end
+	
+	-- Create smooth tween
+	local tween = TweenService:Create(
+		arrowPart,
+		tweenInfo,
+		{CFrame = targetCFrame}
+	)
+	
+	activeTweens[arrow] = tween
+	tween:Play()
+	
+	-- Clean up when done
+	tween.Completed:Connect(function()
+		if activeTweens[arrow] == tween then
+			activeTweens[arrow] = nil
+		end
+	end)
+end
+
 -- Update arrow for player
 local function updatePlayerArrow(player)
 	local character = player.Character
 	if not character then
 		-- Remove arrow if no character
 		if playerArrows[player] then
+			if activeTweens[playerArrows[player]] then
+				activeTweens[playerArrows[player]]:Cancel()
+			end
 			playerArrows[player]:Destroy()
 			playerArrows[player] = nil
 		end
@@ -131,6 +171,9 @@ local function updatePlayerArrow(player)
 	-- Remove arrow if player owns a tycoon
 	if ownsATycoon then
 		if playerArrows[player] then
+			if activeTweens[playerArrows[player]] then
+				activeTweens[playerArrows[player]]:Cancel()
+			end
 			playerArrows[player]:Destroy()
 			playerArrows[player] = nil
 		end
@@ -155,6 +198,9 @@ local function updatePlayerArrow(player)
 	-- No unclaimed tycoons
 	if not nearestGate then
 		if playerArrows[player] then
+			if activeTweens[playerArrows[player]] then
+				activeTweens[playerArrows[player]]:Cancel()
+			end
 			playerArrows[player]:Destroy()
 			playerArrows[player] = nil
 		end
@@ -164,7 +210,11 @@ local function updatePlayerArrow(player)
 	-- Hide arrow if too close
 	if nearestDistance < MIN_DISTANCE then
 		if playerArrows[player] then
-			playerArrows[player].Parent = nil
+			-- Fade out smoothly
+			local arrowPart = playerArrows[player].PrimaryPart
+			if arrowPart then
+				TweenService:Create(arrowPart, TweenInfo.new(0.2), {Transparency = 1}):Play()
+			end
 		end
 		return
 	end
@@ -173,21 +223,36 @@ local function updatePlayerArrow(player)
 	if not playerArrows[player] then
 		playerArrows[player] = createArrow()
 		playerArrows[player].Parent = workspace
+		
+		-- Start with initial position
+		local arrowPos = humanoidRoot.Position + Vector3.new(0, ARROW_HEIGHT, 0)
+		local direction = (nearestGate.position - humanoidRoot.Position).Unit
+		local lookAt = CFrame.lookAt(arrowPos, arrowPos + direction)
+		playerArrows[player]:SetPrimaryPartCFrame(lookAt * CFrame.Angles(0, math.rad(90), 0))
 	else
+		-- Fade in if hidden
+		local arrowPart = playerArrows[player].PrimaryPart
+		if arrowPart and arrowPart.Transparency > 0 then
+			TweenService:Create(arrowPart, TweenInfo.new(0.2), {Transparency = 0}):Play()
+		end
 		playerArrows[player].Parent = workspace
 	end
 	
 	local arrow = playerArrows[player]
 	
-	-- Position arrow above player
+	-- Calculate target position smoothly
 	local arrowPos = humanoidRoot.Position + Vector3.new(0, ARROW_HEIGHT, 0)
+	
+	-- Add slight float animation
+	local floatOffset = math.sin(tick() * 2) * 0.5
+	arrowPos = arrowPos + Vector3.new(0, floatOffset, 0)
 	
 	-- Point arrow toward tycoon
 	local direction = (nearestGate.position - humanoidRoot.Position).Unit
-	local lookAt = CFrame.lookAt(arrowPos, arrowPos + direction)
+	local targetCFrame = CFrame.lookAt(arrowPos, arrowPos + direction) * CFrame.Angles(0, math.rad(90), 0)
 	
-	-- Rotate to point forward
-	arrow:SetPrimaryPartCFrame(lookAt * CFrame.Angles(0, math.rad(90), 0))
+	-- Smooth movement
+	smoothMoveArrow(arrow, targetCFrame)
 	
 	-- Update distance text
 	local distanceDisplay = arrow:FindFirstChild("Arrow"):FindFirstChild("DistanceDisplay")
@@ -206,15 +271,16 @@ local function updatePlayerArrow(player)
 			end
 		end
 	end
+	
+	-- Pulse the glow smoothly
+	local pointLight = arrow:FindFirstChild("Arrow"):FindFirstChild("PointLight")
+	if pointLight then
+		pointLight.Brightness = 2 + math.sin(tick() * 3) * 0.5
+	end
 end
 
--- Main update loop
-local lastUpdate = 0
+-- Main update loop - now runs every frame for smoothness
 RunService.Heartbeat:Connect(function()
-	local now = tick()
-	if now - lastUpdate < CHECK_INTERVAL then return end
-	lastUpdate = now
-	
 	for _, player in pairs(Players:GetPlayers()) do
 		updatePlayerArrow(player)
 	end
@@ -223,10 +289,14 @@ end)
 -- Clean up on player leaving
 Players.PlayerRemoving:Connect(function(player)
 	if playerArrows[player] then
+		if activeTweens[playerArrows[player]] then
+			activeTweens[playerArrows[player]]:Cancel()
+		end
 		playerArrows[player]:Destroy()
 		playerArrows[player] = nil
 	end
 	playerOwnership[player] = nil
+	activeTweens[player] = nil
 end)
 
 -- Handle player spawning
@@ -239,5 +309,5 @@ end)
 
 print("✅ Clean Tycoon Arrow Guide loaded!")
 print("🏹 Using arrow mesh:", ARROW_MESH_ID)
-print("📍 No FindFirstDescendant errors!")
+print("📍 SMOOTH movement with TweenService!")
 print("✨ Tracks ownership properly")
