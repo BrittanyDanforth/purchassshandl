@@ -25,73 +25,98 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 10
 screenGui.Parent = playerGui
 
--- Main frame (positioned top-right, mobile-friendly)
+-- Main frame (positioned bottom-right but not fully at bottom)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "CashFrame"
-mainFrame.Size = UDim2.new(0, 250, 0, 70)
-mainFrame.Position = UDim2.new(1, -10, 0, 10) -- Top-right with padding
-mainFrame.AnchorPoint = Vector2.new(1, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-mainFrame.BackgroundTransparency = 0.1
+mainFrame.Size = UDim2.new(0, 280, 0, 80)
+mainFrame.Position = UDim2.new(1, -20, 1, -120) -- Bottom-right, above chat
+mainFrame.AnchorPoint = Vector2.new(1, 1)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainFrame.BackgroundTransparency = 0.2
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 
 -- Rounded corners
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
+corner.CornerRadius = UDim.new(0, 16)
 corner.Parent = mainFrame
 
--- Gradient background
+-- Modern gradient background
 local gradient = Instance.new("UIGradient")
 gradient.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 30)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 20))
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 30)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 20, 25)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 20))
 })
-gradient.Rotation = 90
+gradient.Rotation = 45
 gradient.Parent = mainFrame
 
--- Add subtle border glow
+-- Add modern neon border
 local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(255, 215, 0) -- Gold color
-stroke.Transparency = 0.7
-stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(100, 255, 150) -- Modern green glow
+stroke.Transparency = 0.5
+stroke.Thickness = 3
 stroke.Parent = mainFrame
 
--- Cash icon
+-- Add shadow for depth
+local shadow = Instance.new("Frame")
+shadow.Name = "Shadow"
+shadow.Size = UDim2.new(1, 8, 1, 8)
+shadow.Position = UDim2.new(0, -4, 0, -4)
+shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+shadow.BackgroundTransparency = 0.7
+shadow.ZIndex = 0
+shadow.Parent = mainFrame
+local shadowCorner = Instance.new("UICorner")
+shadowCorner.CornerRadius = UDim.new(0, 18)
+shadowCorner.Parent = shadow
+
+-- Cash icon with modern design
 local iconFrame = Instance.new("Frame")
 iconFrame.Name = "IconFrame"
-iconFrame.Size = UDim2.new(0, 50, 0, 50)
-iconFrame.Position = UDim2.new(0, 10, 0.5, 0)
+iconFrame.Size = UDim2.new(0, 55, 0, 55)
+iconFrame.Position = UDim2.new(0, 15, 0.5, 0)
 iconFrame.AnchorPoint = Vector2.new(0, 0.5)
-iconFrame.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+iconFrame.BackgroundColor3 = Color3.fromRGB(50, 255, 120)
 iconFrame.BorderSizePixel = 0
+iconFrame.ZIndex = 2
 iconFrame.Parent = mainFrame
 
 local iconCorner = Instance.new("UICorner")
-iconCorner.CornerRadius = UDim.new(0, 10)
+iconCorner.CornerRadius = UDim.new(0.5, 0) -- Fully round
 iconCorner.Parent = iconFrame
+
+-- Icon gradient
+local iconGradient = Instance.new("UIGradient")
+iconGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 255, 150)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 200, 100))
+})
+iconGradient.Rotation = -45
+iconGradient.Parent = iconFrame
 
 local iconLabel = Instance.new("TextLabel")
 iconLabel.Size = UDim2.new(1, 0, 1, 0)
 iconLabel.BackgroundTransparency = 1
-iconLabel.Text = "💰"
+iconLabel.Text = "$"
 iconLabel.TextScaled = true
 iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-iconLabel.Font = Enum.Font.SourceSansBold
+iconLabel.Font = Enum.Font.Gotham
 iconLabel.Parent = iconFrame
 
--- Cash amount label
+-- Cash amount label with modern styling
 local cashLabel = Instance.new("TextLabel")
 cashLabel.Name = "CashAmount"
-cashLabel.Size = UDim2.new(1, -70, 0, 30)
-cashLabel.Position = UDim2.new(0, 70, 0.5, 0)
+cashLabel.Size = UDim2.new(1, -85, 0, 35)
+cashLabel.Position = UDim2.new(0, 80, 0.5, 0)
 cashLabel.AnchorPoint = Vector2.new(0, 0.5)
 cashLabel.BackgroundTransparency = 1
 cashLabel.Text = "$0"
 cashLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 cashLabel.TextScaled = true
-cashLabel.Font = Enum.Font.SourceSansBold
+cashLabel.Font = Enum.Font.GothamBold
 cashLabel.TextXAlignment = Enum.TextXAlignment.Left
+cashLabel.ZIndex = 2
 cashLabel.Parent = mainFrame
 
 -- Add text stroke for better readability
@@ -161,17 +186,20 @@ local function animateCashChange(oldValue, newValue)
 		changeLabel.Position = UDim2.new(0, 70, 1, -5)
 	end)
 	
-	-- Pulse effect on main frame
+	-- Pulse effect on main frame with color change
+	local pulseColor = difference > 0 and Color3.fromRGB(50, 255, 100) or Color3.fromRGB(255, 50, 100)
 	local pulse = TweenService:Create(stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-		Transparency = 0.3,
-		Thickness = 4
+		Color = pulseColor,
+		Transparency = 0.2,
+		Thickness = 5
 	})
 	pulse:Play()
 	
 	pulse.Completed:Connect(function()
-		local unpulse = TweenService:Create(stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-			Transparency = 0.7,
-			Thickness = 2
+		local unpulse = TweenService:Create(stroke, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {
+			Color = Color3.fromRGB(100, 255, 150),
+			Transparency = 0.5,
+			Thickness = 3
 		})
 		unpulse:Play()
 	end)
@@ -252,13 +280,20 @@ if cashUpdateRemote then
 	end)
 end
 
--- Mobile optimization: Make UI slightly larger on mobile
+-- Mobile optimization: Adjust position for different devices
 local function optimizeForDevice()
-	local isSmallScreen = workspace.CurrentCamera.ViewportSize.Y < 600
+	local viewport = workspace.CurrentCamera.ViewportSize
+	local isSmallScreen = viewport.Y < 600
+	local isMobile = viewport.X < 800
 	
-	if isSmallScreen then
-		mainFrame.Size = UDim2.new(0, 220, 0, 60)
-		cashLabel.TextScaled = true
+	if isSmallScreen or isMobile then
+		-- Move it up a bit more on mobile to avoid buttons
+		mainFrame.Position = UDim2.new(1, -15, 1, -150)
+		mainFrame.Size = UDim2.new(0, 260, 0, 75)
+	else
+		-- Desktop position
+		mainFrame.Position = UDim2.new(1, -20, 1, -120)
+		mainFrame.Size = UDim2.new(0, 280, 0, 80)
 	end
 end
 
