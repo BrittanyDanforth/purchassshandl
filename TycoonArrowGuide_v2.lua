@@ -24,8 +24,8 @@ local function findAllTycoonGates()
 	
 	-- Search common tycoon locations
 	for _, obj in ipairs(workspace:GetDescendants()) do
-		-- Look for gate models with "Touch to claim!" script
-		if obj:IsA("Model") and obj.Name:lower():find("gate") then
+		-- Look for gate models - your gates are named "Touch to claim!"
+		if obj:IsA("Model") and (obj.Name == "Touch to claim!" or obj.Name:lower():find("gate") or obj.Name:lower():find("claim")) then
 			-- Check if it has the touch part setup
 			local touchPart = obj:FindFirstChild("Head")
 			if touchPart and obj.Parent and obj.Parent.Parent then
