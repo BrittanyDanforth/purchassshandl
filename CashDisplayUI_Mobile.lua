@@ -160,8 +160,18 @@ end
 -- =================================================================================
 -- DATA HANDLING
 -- =================================================================================
-local remotesFolder = ReplicatedStorage:WaitForChild("CashSystemRemotes")
+local remotesFolder = ReplicatedStorage:WaitForChild("CashUIRemotes")
 local cashUpdateEvent = remotesFolder:WaitForChild("CashUpdated")
+local getCashRemote = remotesFolder:WaitForChild("GetPlayerCash")
+
+-- Get initial cash value
+local success, initialCash = pcall(function()
+	return getCashRemote:InvokeServer()
+end)
+if success and initialCash then
+	currentCash = initialCash
+	updateDisplay(currentCash)
+end
 
 cashUpdateEvent.OnClientEvent:Connect(function(newCash)
 	if tonumber(newCash) then
