@@ -250,10 +250,20 @@ local function updatePath()
 		-- Apply fade to LocalTransparencyModifier
 		segment:SetAttribute("FadeFactor", fadeFactor)
 		
-		local light = segment:FindFirstChild("PointLight")
-		if light then
-			light.Enabled = true
-			light.Range = 8 * scale * (1 - fadeFactor) -- Dim light for faded segments
+		-- ACTUALLY HIDE SEGMENTS THAT ARE TOO BUNCHED
+		if fadeFactor > 0.5 then
+			segment.LocalTransparencyModifier = 0 -- Make invisible when too bunched
+			local light = segment:FindFirstChild("PointLight")
+			if light then
+				light.Enabled = false
+			end
+		else
+			segment.LocalTransparencyModifier = -1 -- Visible when properly spaced
+			local light = segment:FindFirstChild("PointLight")
+			if light then
+				light.Enabled = true
+				light.Range = 8 * scale
+			end
 		end
 	end
 
@@ -306,9 +316,14 @@ RunService.RenderStepped:Connect(function(deltaTime)
 					segment.Color = PATH_COLOR
 				end
 
-				-- Apply fade to the transparency wave
+				-- This is the transparency wave for the main part, which we can keep subtle
 				local wave = math.sin(animTime * FLOW_SPEED - segNum * 0.5) * 0.05
-				segment.LocalTransparencyModifier = -1 + wave + fadeFactor
+				
+				-- Don't try to fade LocalTransparencyModifier - it's already handled in updatePath
+				-- Just apply the wave effect if segment is visible
+				if segment.LocalTransparencyModifier == -1 then
+					segment.LocalTransparencyModifier = -1 + wave
+				end
 			end
 		end
 	end
