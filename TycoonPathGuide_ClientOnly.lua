@@ -132,153 +132,149 @@ end
 
 -- Update path for local player only
 local function updatePath()
-    local character = player.Character
-    if not character then
-        if pathModel then
-            pathModel:Destroy()
-            pathModel = nil
-        end
-        return
-    end
+	local character = player.Character
+	if not character then
+		if pathModel then
+			pathModel:Destroy()
+			pathModel = nil
+		end
+		return
+	end
 
-    local humanoidRoot = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRoot then return end
+	local humanoidRoot = character:FindFirstChild("HumanoidRootPart")
+	if not humanoidRoot then return end
 
-    -- Check if player owns a tycoon
-    local gates = findTycoonGates()
-    local ownsATycoon = false
-    local nearestGate = nil
-    local nearestDistance = math.huge
+	local gates = findTycoonGates()
+	local ownsATycoon = false
+	local nearestGate = nil
+	local nearestDistance = math.huge
 
-    for _, gateData in pairs(gates) do
-        if gateData.owner.Value == player then
-            ownsATycoon = true
-            break
-        elseif not gateData.owner.Value then
-            local distance = (gateData.position - humanoidRoot.Position).Magnitude
-            if distance < nearestDistance then
-                nearestDistance = distance
-                nearestGate = gateData
-            end
-        end
-    end
+	for _, gateData in pairs(gates) do
+		if gateData.owner.Value == player then
+			ownsATycoon = true
+			break
+		elseif not gateData.owner.Value then
+			local distance = (gateData.position - humanoidRoot.Position).Magnitude
+			if distance < nearestDistance then
+				nearestDistance = distance
+				nearestGate = gateData
+			end
+		end
+	end
 
-    -- Remove path if owns tycoon or no unclaimed tycoons
-    if ownsATycoon or not nearestGate then
-        if pathModel then
-            -- Fade out smoothly
-            for _, segment in pairs(pathModel:GetChildren()) do
-                if segment:IsA("Part") then
-                    TweenService:Create(segment, TweenInfo.new(FADE_TIME), {
-                        Transparency = 1
-                    }):Play()
-                end
-            end
-            Debris:AddItem(pathModel, FADE_TIME)
-            pathModel = nil
-        end
-        return
-    end
+	if ownsATycoon or not nearestGate then
+		if pathModel then
+			for _, segment in pairs(pathModel:GetChildren()) do
+				if segment:IsA("Part") then
+					TweenService:Create(segment, TweenInfo.new(FADE_TIME), {
+						Transparency = 1
+					}):Play()
+				end
+			end
+			Debris:AddItem(pathModel, FADE_TIME)
+			pathModel = nil
+		end
+		return
+	end
 
-    -- Hide path if too close or too far
-    if nearestDistance < MIN_DISTANCE or nearestDistance > MAX_DISTANCE then
-        if pathModel then
-            for _, segment in pairs(pathModel:GetChildren()) do
-                if segment:IsA("Part") then
-                    segment.Transparency = 1
-                    local light = segment:FindFirstChild("PointLight")
-                    if light then light.Enabled = false end
-                end
-            end
-        end
-        return
-    end
+	if nearestDistance < MIN_DISTANCE or nearestDistance > MAX_DISTANCE then
+		if pathModel then
+			for _, segment in pairs(pathModel:GetChildren()) do
+				if segment:IsA("Part") then
+					segment.Transparency = 1
+					local light = segment:FindFirstChild("PointLight")
+					if light then light.Enabled = false end
+				end
+			end
+		end
+		return
+	end
 
-    -- Create or get path model - Now truly client-only!
-    if not pathModel or not pathModel.Parent then
-        pathModel = Instance.new("Model")
-        pathModel.Name = "LocalTycoonPath"
-        pathModel.Parent = workspace -- Parts render in workspace but are invisible to others
-    end
+	if not pathModel or not pathModel.Parent then
+		pathModel = Instance.new("Model")
+		pathModel.Name = "LocalTycoonPath"
+		pathModel.Parent = workspace
+	end
 
-    -- Calculate path
-    local startPos = humanoidRoot.Position
-    local endPos = nearestGate.position
-    local direction = (endPos - startPos).Unit
-    local distance = math.min(nearestDistance, MAX_DISTANCE)
+	local startPos = humanoidRoot.Position
+	local endPos = nearestGate.position
+	local direction = (endPos - startPos).Unit
+	local distance = math.min(nearestDistance, MAX_DISTANCE)
+	
+	-- DYNAMIC SEGMENT COUNT AND SPACING TO PREVENT BUNCHING
+	-- Reduce segments when close to prevent ugly bunching
+	local distanceFactor = math.clamp(distance / 100, 0.3, 1) -- Scale down when close
+	local dynamicSpacing = SEGMENT_SPACING * (1 + (1 - distanceFactor) * 2) -- Increase spacing when close
+	
+	-- Calculate segment count with dynamic spacing
+	local segmentCount = math.floor(distance / dynamicSpacing)
+	segmentCount = math.clamp(segmentCount, 3, MAX_SEGMENTS) -- At least 3 segments, max 25
+	
+	-- Further reduce segments when very close
+	if distance < 30 then
+		segmentCount = math.min(segmentCount, 5)
+	elseif distance < 50 then
+		segmentCount = math.min(segmentCount, 10)
+	end
+	
+	local ignoreList = {character, pathModel}
 
-    -- Calculate number of segments
-    local segmentCount = math.min(math.floor(distance / SEGMENT_SPACING), MAX_SEGMENTS)
+	for i = 1, segmentCount do
+		local segment = pathModel:FindFirstChild("Segment" .. i)
+		if not segment then
+			segment = createSegment()
+			segment.Name = "Segment" .. i
+			segment.Parent = pathModel
+		end
 
-    -- Update or create segments
-    local ignoreList = {character, pathModel}
+		-- START CLOSER TO PLAYER when near target to prevent bunching at feet
+		local startOffset = 0.15 + (0.25 * (1 - distanceFactor)) -- Start further from player when close
+		local endOffset = 0.85 - (0.15 * (1 - distanceFactor)) -- End further from target when close
+		
+		local t = startOffset + (i - 1) / (segmentCount - 1) * (endOffset - startOffset)
+		local pathPos = startPos + direction * (distance * t)
 
-    for i = 1, segmentCount do
-        local segment = pathModel:FindFirstChild("Segment" .. i)
-        if not segment then
-            segment = createSegment()
-            segment.Name = "Segment" .. i
-            segment.Parent = pathModel
-        end
+		local groundPos, groundNormal = getGroundPosition(pathPos, ignoreList)
 
-        -- Calculate position along path
-        local t = i / (segmentCount + 1)
-        local pathPos = startPos + direction * (distance * t)
+		local lookDirection = direction
+		local rightVector = lookDirection:Cross(groundNormal)
+		if rightVector.Magnitude > 0.01 then
+			rightVector = rightVector.Unit
+			local upVector = rightVector:Cross(lookDirection).Unit
+			local targetCFrame = CFrame.fromMatrix(groundPos, rightVector, upVector, -lookDirection)
 
-        -- Get ground position (skip every other segment for performance)
-        local groundPos, groundNormal
-        if i % 2 == 1 then
-            groundPos, groundNormal = getGroundPosition(pathPos, ignoreList)
-        else
-            -- Interpolate from previous segment for even segments
-            groundPos = pathPos
-            groundNormal = Vector3.new(0, 1, 0)
-        end
+			if segment.CFrame then
+				segment.CFrame = segment.CFrame:Lerp(targetCFrame, POSITION_SMOOTHING)
+			else
+				segment.CFrame = targetCFrame
+			end
+		else
+			segment.CFrame = CFrame.lookAt(groundPos, groundPos + direction)
+		end
 
-        -- Calculate rotation to align with ground
-        local lookDirection = direction
-        local rightVector = lookDirection:Cross(groundNormal)
-        if rightVector.Magnitude > 0 then
-            rightVector = rightVector.Unit
-            local upVector = rightVector:Cross(lookDirection).Unit
+		-- SCALE SEGMENTS MORE AGGRESSIVELY WHEN CLOSE
+		local scale = 1 - (t * 0.3)
+		-- Additional scaling based on distance
+		scale = scale * (0.7 + 0.3 * distanceFactor)
+		
+		segment.Size = SEGMENT_SIZE * scale
+		segment.Transparency = 1
+		segment.LocalTransparencyModifier = -1
+		local light = segment:FindFirstChild("PointLight")
+		if light then
+			light.Enabled = true
+			light.Range = 8 * scale
+		end
+	end
 
-            -- Create CFrame aligned with ground
-            local targetCFrame = CFrame.fromMatrix(groundPos, rightVector, upVector, -lookDirection)
-
-            -- Smooth movement
-            if segment.CFrame then
-                segment.CFrame = segment.CFrame:Lerp(targetCFrame, POSITION_SMOOTHING)
-            else
-                segment.CFrame = targetCFrame
-            end
-        else
-            -- Fallback for vertical surfaces
-            segment.CFrame = CFrame.lookAt(groundPos, groundPos + direction)
-        end
-
-        -- Scale segments (smaller as they get further)
-        local scale = 1 - (t * 0.3)
-        segment.Size = SEGMENT_SIZE * scale
-
-        -- Make visible to local player only
-        segment.Transparency = 1 -- Keep it invisible to others
-        segment.LocalTransparencyModifier = -1 -- But visible to us!
-        local light = segment:FindFirstChild("PointLight")
-        if light then 
-            light.Enabled = true
-            light.Range = 8 * scale
-        end
-    end
-
-    -- Hide unused segments
-    for i = segmentCount + 1, MAX_SEGMENTS do
-        local segment = pathModel:FindFirstChild("Segment" .. i)
-        if segment then
-            segment.Transparency = 1
-            local light = segment:FindFirstChild("PointLight")
-            if light then light.Enabled = false end
-        end
-    end
+	for i = segmentCount + 1, MAX_SEGMENTS do
+		local segment = pathModel:FindFirstChild("Segment" .. i)
+		if segment then
+			segment.Transparency = 1
+			local light = segment:FindFirstChild("PointLight")
+			if light then light.Enabled = false end
+		end
+	end
 end
 
 -- Animation loop with frame limiting
