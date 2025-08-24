@@ -12,7 +12,6 @@ local Debris = game:GetService("Debris")
 
 -- Wait for local player
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 
 -- Configuration
 local PATH_COLOR = Color3.fromRGB(100, 255, 170) -- Mint green
@@ -40,7 +39,7 @@ raycastParams.IgnoreWater = true
 -- Track path model
 local pathModel = nil
 
--- Create a single path segment
+-- Create a single path segment (CLIENT-ONLY using LocalTransparencyModifier)
 local function createSegment()
     local segment = Instance.new("Part")
     segment.Name = "PathSegment"
@@ -52,12 +51,18 @@ local function createSegment()
     segment.CanQuery = false
     segment.CanTouch = false
     segment.CastShadow = false
+    
+    -- MAKE IT CLIENT-ONLY: Set transparency to 1 for everyone
+    segment.Transparency = 1
+    -- Then use LocalTransparencyModifier to make it visible ONLY to us
+    segment.LocalTransparencyModifier = -1 -- This makes it fully visible to local player only!
 
     -- Add subtle glow
     local pointLight = Instance.new("PointLight")
     pointLight.Brightness = 0.5
     pointLight.Color = GLOW_COLOR
     pointLight.Range = 8
+    pointLight.Enabled = false -- Disable for others
     pointLight.Parent = segment
 
     -- Selection box for outer glow effect
@@ -189,11 +194,11 @@ local function updatePath()
         return
     end
 
-    -- Create or get path model - PARENT TO CAMERA FOR CLIENT-ONLY
+    -- Create or get path model - Now truly client-only!
     if not pathModel or not pathModel.Parent then
         pathModel = Instance.new("Model")
         pathModel.Name = "LocalTycoonPath"
-        pathModel.Parent = camera -- IMPORTANT: Parent to camera, not workspace!
+        pathModel.Parent = workspace -- Parts render in workspace but are invisible to others
     end
 
     -- Calculate path
@@ -255,8 +260,9 @@ local function updatePath()
         local scale = 1 - (t * 0.3)
         segment.Size = SEGMENT_SIZE * scale
 
-        -- Make visible
-        segment.Transparency = 0
+        -- Make visible to local player only
+        segment.Transparency = 1 -- Keep it invisible to others
+        segment.LocalTransparencyModifier = -1 -- But visible to us!
         local light = segment:FindFirstChild("PointLight")
         if light then 
             light.Enabled = true
@@ -319,9 +325,9 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     segment.Color = PATH_COLOR
                 end
 
-                -- Subtle transparency wave
+                -- Subtle transparency wave (using LocalTransparencyModifier)
                 local wave = math.sin(animTime * FLOW_SPEED - segNum * 0.5) * 0.1
-                segment.Transparency = math.max(0, 0.1 + wave)
+                segment.LocalTransparencyModifier = -1 + wave -- Animates visibility for local player only
             end
         end
     end
@@ -344,5 +350,5 @@ camera:GetPropertyChangedSignal("Parent"):Connect(function()
 end)
 
 print("✅ CLIENT-ONLY Tycoon Path Guide loaded!")
-print("🔒 Path visible ONLY to you - parented to CurrentCamera")
-print("✨ Same beautiful animations, now truly private!")
+print("🔒 Path uses LocalTransparencyModifier - INVISIBLE to other players!")
+print("✨ Beautiful glowing segments that only YOU can see!")
