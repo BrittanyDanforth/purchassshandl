@@ -55,11 +55,11 @@ local Config = {
 	MAX_BUNCH_FADE = 0.7,                          -- Less aggressive fade
 	
 	-- Light Settings
-	LIGHT_BASE_BRIGHTNESS = 0.4,                   -- Brighter base
-	LIGHT_PULSE_BRIGHTNESS = 0.6,                  -- Less pulse variation
-	LIGHT_BASE_RANGE = 10,                         -- Larger range
-	GLOW_BASE_TRANSPARENCY = 0.2,                  -- More visible glow
-	GLOW_PULSE_AMOUNT = 0.15,                      -- Subtle pulse
+	LIGHT_BASE_BRIGHTNESS = 0.2,                   -- Dimmer base
+	LIGHT_PULSE_BRIGHTNESS = 0.3,                  -- Subtle pulse
+	LIGHT_BASE_RANGE = 8,                          -- Smaller range
+	GLOW_BASE_TRANSPARENCY = 0.4,                  -- More transparent glow
+	GLOW_PULSE_AMOUNT = 0.1,                       -- Very subtle pulse
 }
 
 --============================================================================--
@@ -250,20 +250,26 @@ local function hidePath()
 	
 	-- Fade out all segments
 	for _, segmentData in pairs(PathState.segments) do
-		if segmentData.part then
+		if segmentData and segmentData.part then
 			segmentData.targetTransparency = 1
 			segmentData.part:SetAttribute("TargetTransparency", 1)
 		end
 	end
 	
-	-- Schedule cleanup after fade
-	if PathState.pathModel then
+	-- Immediate cleanup - don't wait
+	task.spawn(function()
 		task.wait(Config.FADE_OUT_TIME)
 		if PathState.pathModel then
+			-- Destroy all children first
+			for _, child in pairs(PathState.pathModel:GetChildren()) do
+				child:Destroy()
+			end
 			PathState.pathModel:Destroy()
 			PathState.pathModel = nil
 		end
-	end
+		-- Clear segments table
+		PathState.segments = {}
+	end)
 end
 
 local function updatePath()
@@ -496,6 +502,17 @@ task.spawn(function()
 		if ownsTycoon or not targetGate then
 			PathState.currentTargetGate = nil
 			hidePath()
+			
+			-- Force cleanup if player owns tycoon
+			if ownsTycoon and PathState.pathModel then
+				-- Immediate destroy everything
+				for _, child in pairs(PathState.pathModel:GetChildren()) do
+					child:Destroy()
+				end
+				PathState.pathModel:Destroy()
+				PathState.pathModel = nil
+				PathState.segments = {}
+			end
 		else
 			if not PathState.active then
 				-- Reset smoothed positions for instant response
