@@ -89,9 +89,20 @@ local function getGroundPosition(position, ignoreList)
     return position, Vector3.new(0, 1, 0)
 end
 
--- Find all tycoon gates
+-- Cache for tycoon gates (update less frequently)
+local cachedGates = {}
+local lastGateUpdate = 0
+local GATE_UPDATE_INTERVAL = 2 -- Only update gates every 2 seconds
+
+-- Find all tycoon gates with caching
 local function findTycoonGates()
-    local gates = {}
+    local now = tick()
+    if now - lastGateUpdate < GATE_UPDATE_INTERVAL and #cachedGates > 0 then
+        return cachedGates -- Return cached gates
+    end
+    
+    lastGateUpdate = now
+    cachedGates = {}
 
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and (obj.Name == "Touch to claim!" or obj.Name:lower():find("gate")) then
@@ -100,7 +111,7 @@ local function findTycoonGates()
                 local tycoon = obj.Parent.Parent
                 local owner = tycoon:FindFirstChild("Owner")
                 if owner and owner:IsA("ObjectValue") then
-                    table.insert(gates, {
+                    table.insert(cachedGates, {
                         gate = obj,
                         tycoon = tycoon,
                         owner = owner,
@@ -111,7 +122,7 @@ local function findTycoonGates()
         end
     end
 
-    return gates
+    return cachedGates
 end
 
 -- Update path for local player only
@@ -209,8 +220,15 @@ local function updatePath()
         local t = i / (segmentCount + 1)
         local pathPos = startPos + direction * (distance * t)
 
-        -- Get ground position
-        local groundPos, groundNormal = getGroundPosition(pathPos, ignoreList)
+        -- Get ground position (skip every other segment for performance)
+        local groundPos, groundNormal
+        if i % 2 == 1 then
+            groundPos, groundNormal = getGroundPosition(pathPos, ignoreList)
+        else
+            -- Interpolate from previous segment for even segments
+            groundPos = pathPos
+            groundNormal = Vector3.new(0, 1, 0)
+        end
 
         -- Calculate rotation to align with ground
         local lookDirection = direction
@@ -257,13 +275,20 @@ local function updatePath()
     end
 end
 
--- Animation loop
+-- Animation loop with frame limiting
 local animTime = 0
+local lastPathUpdate = 0
+local PATH_UPDATE_RATE = 1/30 -- 30 FPS for path updates (smooth enough)
+
 RunService.RenderStepped:Connect(function(deltaTime)
     animTime = animTime + deltaTime
-
-    -- Update path
-    updatePath()
+    
+    -- Limit path updates to 30 FPS to reduce CPU usage
+    local now = tick()
+    if now - lastPathUpdate >= PATH_UPDATE_RATE then
+        lastPathUpdate = now
+        updatePath()
+    end
 
     -- Animate segments if path exists
     if pathModel and pathModel.Parent then
