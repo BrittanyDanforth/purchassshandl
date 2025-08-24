@@ -170,7 +170,7 @@ local success, initialCash = pcall(function()
 end)
 if success and initialCash then
 	currentCash = initialCash
-	updateDisplay(currentCash)
+	updateCash(currentCash)
 end
 
 cashUpdateEvent.OnClientEvent:Connect(function(newCash)
