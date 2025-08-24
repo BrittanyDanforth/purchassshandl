@@ -1,8 +1,7 @@
 --[[
-    CLIENT-ONLY Tycoon Path Guide System
-    - Place in StarterPlayer > StarterPlayerScripts as a LocalScript
-    - Path only visible to the local player
-    - Uses CurrentCamera for true client-side rendering
+	CLIENT-ONLY Tycoon Path Guide System
+	- Place in StarterPlayer > StarterPlayerScripts as a LocalScript
+	- Path only visible to the local player
 --]]
 
 local Players = game:GetService("Players")
@@ -10,12 +9,14 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
--- Wait for local player
 local player = Players.LocalPlayer
+if not player then
+	player = Players.PlayerAdded:Wait()
+end
 
 -- Configuration
-local PATH_COLOR = Color3.fromRGB(100, 255, 170) -- Mint green
-local GLOW_COLOR = Color3.fromRGB(150, 255, 200) -- Lighter mint
+local PATH_COLOR = Color3.fromRGB(255, 179, 212) -- Using the Light Pink from before
+local GLOW_COLOR = Color3.fromRGB(255, 204, 229) -- Using the Lighter Pink Glow
 local SEGMENT_SIZE = Vector3.new(2, 0.1, 1) -- Flat rectangular segments
 local SEGMENT_SPACING = 3 -- Distance between segments
 local MAX_SEGMENTS = 25 -- Maximum path segments
@@ -38,96 +39,85 @@ raycastParams.IgnoreWater = true
 
 -- Track path model
 local pathModel = nil
+local camera = workspace.CurrentCamera
 
--- Create a single path segment (CLIENT-ONLY using LocalTransparencyModifier)
+-- Create a single path segment
 local function createSegment()
-    local segment = Instance.new("Part")
-    segment.Name = "PathSegment"
-    segment.Size = SEGMENT_SIZE
-    segment.Material = Enum.Material.Neon
-    segment.Color = PATH_COLOR
-    segment.Anchored = true
-    segment.CanCollide = false
-    segment.CanQuery = false
-    segment.CanTouch = false
-    segment.CastShadow = false
-    
-    -- MAKE IT CLIENT-ONLY: Set transparency to 1 for everyone
-    segment.Transparency = 1
-    -- Then use LocalTransparencyModifier to make it visible ONLY to us
-    segment.LocalTransparencyModifier = -1 -- This makes it fully visible to local player only!
+	local segment = Instance.new("Part")
+	segment.Name = "PathSegment"
+	segment.Size = SEGMENT_SIZE
+	segment.Material = Enum.Material.Neon
+	segment.Color = PATH_COLOR
+	segment.Anchored = true
+	segment.CanCollide = false
+	segment.CanQuery = false
+	segment.CanTouch = false
+	segment.CastShadow = false
 
-    -- Add subtle glow
-    local pointLight = Instance.new("PointLight")
-    pointLight.Brightness = 0.5
-    pointLight.Color = GLOW_COLOR
-    pointLight.Range = 8
-    pointLight.Enabled = false -- Disable for others
-    pointLight.Parent = segment
+	segment.Transparency = 1
+	segment.LocalTransparencyModifier = -1
 
-    -- Selection box for outer glow effect
-    local selection = Instance.new("SelectionBox")
-    selection.Adornee = segment
-    selection.Color3 = GLOW_COLOR
-    selection.LineThickness = 0.05
-    selection.Transparency = 0.7
-    selection.Parent = segment
+	local pointLight = Instance.new("PointLight")
+	pointLight.Brightness = 0.5
+	pointLight.Color = GLOW_COLOR
+	pointLight.Range = 8
+	pointLight.Enabled = false
+	pointLight.Parent = segment
 
-    return segment
+	local selection = Instance.new("SelectionBox")
+	selection.Adornee = segment
+	selection.Color3 = GLOW_COLOR
+	selection.LineThickness = 0.05
+	selection.Transparency = 0.4
+	selection.Parent = segment
+
+	return segment
 end
 
 -- Get ground position at a point
 local function getGroundPosition(position, ignoreList)
-    raycastParams.FilterDescendantsInstances = ignoreList
+	raycastParams.FilterDescendantsInstances = ignoreList
+	local rayOrigin = position + Vector3.new(0, 10, 0)
+	local rayDirection = Vector3.new(0, -50, 0)
+	local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 
-    -- Cast ray from above position
-    local rayOrigin = position + Vector3.new(0, 10, 0)
-    local rayDirection = Vector3.new(0, -50, 0)
-
-    local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-
-    if rayResult then
-        return rayResult.Position + Vector3.new(0, GROUND_OFFSET, 0), rayResult.Normal
-    end
-
-    -- Fallback to original height
-    return position, Vector3.new(0, 1, 0)
+	if rayResult then
+		return rayResult.Position + Vector3.new(0, GROUND_OFFSET, 0), rayResult.Normal
+	end
+	return position, Vector3.new(0, 1, 0)
 end
 
--- Cache for tycoon gates (update less frequently)
+-- Cache for tycoon gates
 local cachedGates = {}
 local lastGateUpdate = 0
-local GATE_UPDATE_INTERVAL = 2 -- Only update gates every 2 seconds
+local GATE_UPDATE_INTERVAL = 2
 
 -- Find all tycoon gates with caching
 local function findTycoonGates()
-    local now = tick()
-    if now - lastGateUpdate < GATE_UPDATE_INTERVAL and #cachedGates > 0 then
-        return cachedGates -- Return cached gates
-    end
-    
-    lastGateUpdate = now
-    cachedGates = {}
+	local now = tick()
+	if now - lastGateUpdate < GATE_UPDATE_INTERVAL and #cachedGates > 0 then
+		return cachedGates
+	end
 
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj.Name == "Touch to claim!" or obj.Name:lower():find("gate")) then
-            local touchPart = obj:FindFirstChild("Head")
-            if touchPart and obj.Parent and obj.Parent.Parent then
-                local tycoon = obj.Parent.Parent
-                local owner = tycoon:FindFirstChild("Owner")
-                if owner and owner:IsA("ObjectValue") then
-                    table.insert(cachedGates, {
-                        gate = obj,
-                        tycoon = tycoon,
-                        owner = owner,
-                        position = touchPart.Position
-                    })
-                end
-            end
-        end
-    end
+	lastGateUpdate = now
+	cachedGates = {}
 
-    return cachedGates
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") and (obj.Name == "Touch to claim!" or obj.Name:lower():find("gate")) then
+			local touchPart = obj:FindFirstChild("Head")
+			if touchPart and obj.Parent and obj.Parent.Parent then
+				local tycoon = obj.Parent.Parent
+				local owner = tycoon:FindFirstChild("Owner")
+				if owner and owner:IsA("ObjectValue") then
+					table.insert(cachedGates, {
+						owner = owner,
+						position = touchPart.Position
+					})
+				end
+			end
+		end
+	end
+	return cachedGates
 end
 
 -- Update path for local player only
@@ -200,24 +190,11 @@ local function updatePath()
 	local endPos = nearestGate.position
 	local direction = (endPos - startPos).Unit
 	local distance = math.min(nearestDistance, MAX_DISTANCE)
-	
-	-- DYNAMIC SEGMENT COUNT AND SPACING TO PREVENT BUNCHING
-	-- Reduce segments when close to prevent ugly bunching
-	local distanceFactor = math.clamp(distance / 100, 0.3, 1) -- Scale down when close
-	local dynamicSpacing = SEGMENT_SPACING * (1 + (1 - distanceFactor) * 2) -- Increase spacing when close
-	
-	-- Calculate segment count with dynamic spacing
-	local segmentCount = math.floor(distance / dynamicSpacing)
-	segmentCount = math.clamp(segmentCount, 3, MAX_SEGMENTS) -- At least 3 segments, max 25
-	
-	-- Further reduce segments when very close
-	if distance < 30 then
-		segmentCount = math.min(segmentCount, 5)
-	elseif distance < 50 then
-		segmentCount = math.min(segmentCount, 10)
-	end
-	
+	local segmentCount = math.min(math.floor(distance / SEGMENT_SPACING), MAX_SEGMENTS)
 	local ignoreList = {character, pathModel}
+
+	-- Store segment positions to check for bunching
+	local segmentPositions = {}
 
 	for i = 1, segmentCount do
 		local segment = pathModel:FindFirstChild("Segment" .. i)
@@ -227,11 +204,7 @@ local function updatePath()
 			segment.Parent = pathModel
 		end
 
-		-- START CLOSER TO PLAYER when near target to prevent bunching at feet
-		local startOffset = 0.15 + (0.25 * (1 - distanceFactor)) -- Start further from player when close
-		local endOffset = 0.85 - (0.15 * (1 - distanceFactor)) -- End further from target when close
-		
-		local t = startOffset + (i - 1) / (segmentCount - 1) * (endOffset - startOffset)
+		local t = i / (segmentCount + 1)
 		local pathPos = startPos + direction * (distance * t)
 
 		local groundPos, groundNormal = getGroundPosition(pathPos, ignoreList)
@@ -252,18 +225,35 @@ local function updatePath()
 			segment.CFrame = CFrame.lookAt(groundPos, groundPos + direction)
 		end
 
-		-- SCALE SEGMENTS MORE AGGRESSIVELY WHEN CLOSE
+		-- Store the actual position after lerping
+		segmentPositions[i] = segment.Position
+
 		local scale = 1 - (t * 0.3)
-		-- Additional scaling based on distance
-		scale = scale * (0.7 + 0.3 * distanceFactor)
-		
 		segment.Size = SEGMENT_SIZE * scale
 		segment.Transparency = 1
 		segment.LocalTransparencyModifier = -1
+		
+		-- FADE SEGMENTS THAT ARE TOO CLOSE TOGETHER
+		local fadeFactor = 0
+		if i > 1 then
+			local prevPos = segmentPositions[i-1]
+			local currentPos = segmentPositions[i]
+			local spacing = (currentPos - prevPos).Magnitude
+			
+			-- If segments are closer than 60% of normal spacing, start fading
+			if spacing < SEGMENT_SPACING * 0.6 then
+				fadeFactor = 1 - (spacing / (SEGMENT_SPACING * 0.6))
+				fadeFactor = math.clamp(fadeFactor, 0, 0.8) -- Max 80% fade
+			end
+		end
+		
+		-- Apply fade to LocalTransparencyModifier
+		segment:SetAttribute("FadeFactor", fadeFactor)
+		
 		local light = segment:FindFirstChild("PointLight")
 		if light then
 			light.Enabled = true
-			light.Range = 8 * scale
+			light.Range = 8 * scale * (1 - fadeFactor) -- Dim light for faded segments
 		end
 	end
 
@@ -277,74 +267,67 @@ local function updatePath()
 	end
 end
 
--- Animation loop with frame limiting
 local animTime = 0
 local lastPathUpdate = 0
-local PATH_UPDATE_RATE = 1/30 -- 30 FPS for path updates (smooth enough)
+local PATH_UPDATE_RATE = 1/30
 
 RunService.RenderStepped:Connect(function(deltaTime)
-    animTime = animTime + deltaTime
-    
-    -- Limit path updates to 30 FPS to reduce CPU usage
-    local now = tick()
-    if now - lastPathUpdate >= PATH_UPDATE_RATE then
-        lastPathUpdate = now
-        updatePath()
-    end
+	animTime = animTime + deltaTime
+	local now = tick()
+	if now - lastPathUpdate >= PATH_UPDATE_RATE then
+		lastPathUpdate = now
+		updatePath()
+	end
 
-    -- Animate segments if path exists
-    if pathModel and pathModel.Parent then
-        for i, segment in pairs(pathModel:GetChildren()) do
-            if segment:IsA("Part") and segment.Transparency < 1 then
-                -- Extract segment number
-                local segNum = tonumber(segment.Name:match("Segment(%d+)")) or 1
+	if pathModel and pathModel.Parent then
+		for i, segment in pairs(pathModel:GetChildren()) do
+			if segment:IsA("Part") then
+				local segNum = tonumber(segment.Name:match("Segment(%d+)")) or 1
+				local pulse = math.sin(animTime * PULSE_SPEED + segNum * 0.2) * 0.5 + 0.5
 
-                -- Pulsing glow
-                local pulse = math.sin(animTime * PULSE_SPEED + segNum * 0.2) * 0.5 + 0.5
-                segment.Material = Enum.Material.Neon
+				-- Get fade factor for bunched segments
+				local fadeFactor = segment:GetAttribute("FadeFactor") or 0
 
-                local light = segment:FindFirstChild("PointLight")
-                if light then
-                    light.Brightness = 0.3 + pulse * 0.7
-                end
+				local light = segment:FindFirstChild("PointLight")
+				if light then
+					light.Brightness = (0.3 + pulse * 0.7) * (1 - fadeFactor)
+				end
 
-                local selection = segment:FindFirstChild("SelectionBox")
-                if selection then
-                    selection.Transparency = 0.5 + pulse * 0.3
-                end
+				-- Makes the glowing outline much more solid and visible, but fade when bunched
+				local selection = segment:FindFirstChild("SelectionBox")
+				if selection then
+					selection.Transparency = (0.1 + pulse * 0.1) + (fadeFactor * 0.7)
+				end
 
-                -- Flow effect
-                local flow = (animTime * FLOW_SPEED + segNum) % 10
-                if flow < 1 then
-                    segment.Color = GLOW_COLOR:Lerp(PATH_COLOR, flow)
-                else
-                    segment.Color = PATH_COLOR
-                end
+				local flow = (animTime * FLOW_SPEED + segNum) % 10
+				if flow < 1 then
+					segment.Color = GLOW_COLOR:Lerp(PATH_COLOR, flow)
+				else
+					segment.Color = PATH_COLOR
+				end
 
-                -- Subtle transparency wave (using LocalTransparencyModifier)
-                local wave = math.sin(animTime * FLOW_SPEED - segNum * 0.5) * 0.1
-                segment.LocalTransparencyModifier = -1 + wave -- Animates visibility for local player only
-            end
-        end
-    end
+				-- Apply fade to the transparency wave
+				local wave = math.sin(animTime * FLOW_SPEED - segNum * 0.5) * 0.05
+				segment.LocalTransparencyModifier = -1 + wave + fadeFactor
+			end
+		end
+	end
 end)
 
--- Cleanup on character removing
 player.CharacterRemoving:Connect(function()
-    if pathModel then
-        pathModel:Destroy()
-        pathModel = nil
-    end
+	if pathModel then
+		pathModel:Destroy()
+		pathModel = nil
+	end
 end)
 
--- Clean up if camera changes
-camera:GetPropertyChangedSignal("Parent"):Connect(function()
-    if camera.Parent == nil and pathModel then
-        pathModel:Destroy()
-        pathModel = nil
-    end
-end)
+if camera then
+	camera:GetPropertyChangedSignal("Parent"):Connect(function()
+		if camera.Parent == nil and pathModel then
+			pathModel:Destroy()
+			pathModel = nil
+		end
+	end)
+end
 
-print("✅ CLIENT-ONLY Tycoon Path Guide loaded!")
-print("🔒 Path uses LocalTransparencyModifier - INVISIBLE to other players!")
-print("✨ Beautiful glowing segments that only YOU can see!")
+print("✅ CLIENT-ONLY Tycoon Path Guide loaded (Anti-Bunching Fade Applied)!")
