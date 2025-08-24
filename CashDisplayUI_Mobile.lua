@@ -50,9 +50,9 @@ screenGui.Parent = playerGui
 -- Main container (TINY AF)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "TinyCashDisplay"
-mainFrame.AnchorPoint = Vector2.new(1, 0)
--- TOP RIGHT CORNER - completely out of the way
-mainFrame.Position = UDim2.new(1, -10, 0, 10)  -- Top right!
+mainFrame.AnchorPoint = Vector2.new(1, 0.5)
+-- MIDDLE RIGHT - not top, not bottom, just right!
+mainFrame.Position = UDim2.new(1, -15, 0.5, 0)  -- Middle right!
 mainFrame.Size = UDim2.new(0, 120, 0, 35)  -- SUPER SMALL!
 mainFrame.BackgroundColor3 = COLORS.panel
 mainFrame.BackgroundTransparency = 0.3
@@ -193,13 +193,13 @@ local function checkDevice()
 	if isMobile then
 		-- ULTRA TINY for mobile
 		mainFrame.Size = UDim2.new(0, 100, 0, 30)
-		mainFrame.Position = UDim2.new(1, -8, 0, 8)
+		mainFrame.Position = UDim2.new(1, -10, 0.5, 0)
 		icon.Size = UDim2.new(0, 20, 0, 20)
 		textConstraint.MaxTextSize = 14
 	else
 		-- Still small for PC
 		mainFrame.Size = UDim2.new(0, 120, 0, 35)
-		mainFrame.Position = UDim2.new(1, -10, 0, 10)
+		mainFrame.Position = UDim2.new(1, -15, 0.5, 0)
 		icon.Size = UDim2.new(0, 25, 0, 25)
 		textConstraint.MaxTextSize = 16
 	end
