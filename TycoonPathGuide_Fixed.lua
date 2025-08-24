@@ -93,9 +93,23 @@ local function quadraticBezier(t, p0, p1, p2)
 	return u * u * p0 + 2 * u * t * p1 + t * t * p2
 end
 
--- Get ground position with raycast
-local function getGroundPosition(position, ignoreList)
+-- Get ground position with raycast (prefers player's ground level)
+local function getGroundPosition(position, ignoreList, playerHeight)
 	raycastParams.FilterDescendantsInstances = ignoreList
+	
+	-- First, try from player's height level
+	if playerHeight then
+		local rayOrigin = Vector3.new(position.X, playerHeight + 5, position.Z)
+		local rayDirection = Vector3.new(0, -10, 0)
+		local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+		
+		if rayResult and math.abs(rayResult.Position.Y - playerHeight) < 10 then
+			-- Found ground near player's level
+			return rayResult.Position + Vector3.new(0, Config.GROUND_OFFSET, 0), rayResult.Normal
+		end
+	end
+	
+	-- Fallback: cast from above
 	local rayOrigin = position + Vector3.new(0, 20, 0)
 	local rayDirection = Vector3.new(0, -100, 0)
 	local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
@@ -311,7 +325,10 @@ local function updatePath()
 	end
 	
 	-- Calculate bezier curve control point for arc
-	local controlPoint = (smoothStart + smoothEnd) / 2 + Vector3.new(0, smoothDistance * Config.PATH_ARC_HEIGHT, 0)
+	-- Keep arc low to avoid going over structures
+	local midPoint = (smoothStart + smoothEnd) / 2
+	local arcHeight = math.min(smoothDistance * Config.PATH_ARC_HEIGHT, 5) -- Cap arc height at 5 studs
+	local controlPoint = midPoint + Vector3.new(0, arcHeight, 0)
 	
 	local segmentCount = math.min(math.floor(smoothDistance / Config.SEGMENT_SPACING), Config.MAX_SEGMENTS)
 	local ignoreList = {character, PathState.pathModel}
@@ -335,8 +352,9 @@ local function updatePath()
 		local t = i / (segmentCount + 1)
 		local pathPos = quadraticBezier(t, smoothStart, controlPoint, smoothEnd)
 		
-		-- Get ground position
-		local groundPos, groundNormal = getGroundPosition(pathPos, ignoreList)
+		-- Get ground position (prefer player's height level)
+		local playerHeight = humanoidRoot.Position.Y
+		local groundPos, groundNormal = getGroundPosition(pathPos, ignoreList, playerHeight)
 		segmentPositions[i] = groundPos
 		
 		-- Calculate direction
