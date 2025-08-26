@@ -1123,8 +1123,15 @@ function UIModules.ShopUI:CreateEggShop(parent)
     end
     
     -- Update canvas size
-    scrollFrame:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+    spawn(function()
+        wait(0.1) -- Wait for layout to update
+        if gridLayout and gridLayout.Parent then
+            gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+            end)
+            -- Set initial size
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+        end
     end)
 end
 
@@ -3064,6 +3071,23 @@ function UIModules.TradingUI:UpdateTradeDisplay()
     -- TODO: Update trade window based on current trade data
 end
 
+function UIModules.TradingUI:CreateActiveTradesView(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = scrollFrame
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 10)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add trade items
+    local tradeLabel = UIComponents:CreateLabel(scrollFrame, "No active trades", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    tradeLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    tradeLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
+end
+
 -- ========================================
 -- BATTLE UI MODULE
 -- ========================================
@@ -3411,6 +3435,23 @@ function UIModules.BattleUI:CreateBattlerInfo(parent, player, size, position)
     return infoFrame
 end
 
+function UIModules.BattleUI:CreateTournamentView(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = scrollFrame
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 10)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add tournament items
+    local tournamentLabel = UIComponents:CreateLabel(scrollFrame, "No active tournaments", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    tournamentLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    tournamentLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
+end
+
 -- ========================================
 -- QUEST UI MODULE
 -- ========================================
@@ -3621,6 +3662,23 @@ function UIModules.QuestUI:ClaimQuest(quest)
             MainUI.UpdateCurrency(LocalData.PlayerData.currencies)
         end
     end
+end
+
+function UIModules.QuestUI:CreateAchievementList(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = scrollFrame
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 10)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add achievement items
+    local achievementLabel = UIComponents:CreateLabel(scrollFrame, "Achievements coming soon!", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    achievementLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    achievementLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
 end
 
 -- ========================================

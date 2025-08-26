@@ -4753,8 +4753,13 @@ local function GetWeightedRandomPet(eggType, player)
     local egg = EggCases[eggType]
     if not egg then return nil end
     
-    local playerData = PlayerData[player.UserId]
+    local playerData = nil
     local luckMultiplier = 1
+    
+    -- Handle nil player
+    if player and player.UserId then
+        playerData = PlayerData[player.UserId]
+    end
     
     -- Apply luck multipliers
     if playerData then
@@ -4798,7 +4803,7 @@ local function GetWeightedRandomPet(eggType, player)
     end
 end
 
-local function GenerateCaseItems(eggType, winnerPet)
+local function GenerateCaseItems(eggType, winnerPet, player)
     local items = {}
     local egg = EggCases[eggType]
     
@@ -4818,11 +4823,11 @@ local function GenerateCaseItems(eggType, winnerPet)
             if #legendaryPets > 0 then
                 items[i] = legendaryPets[math.random(1, #legendaryPets)]
             else
-                items[i] = GetWeightedRandomPet(eggType, nil)
+                items[i] = GetWeightedRandomPet(eggType, player)
             end
         else
             -- Random pets for other positions
-            items[i] = GetWeightedRandomPet(eggType, nil)
+            items[i] = GetWeightedRandomPet(eggType, player)
         end
     end
     
@@ -4947,7 +4952,7 @@ local function OpenCase(player, eggType)
         end
         
         -- Generate case items with winner at center
-        local caseItems = GenerateCaseItems(eggType, winnerPet)
+        local caseItems = GenerateCaseItems(eggType, winnerPet, player)
         
         -- Determine variant
         local variant = "normal"
@@ -6653,13 +6658,13 @@ function AchievementSystem:CheckAchievements(player)
                 completed = playerData.currencies.coins >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "battles_won" then
-                completed = (playerData.statistics.battleStats.wins or 0) >= achievement.requirement.value
+                completed = (playerData.statistics.battleStats and playerData.statistics.battleStats.wins or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "win_streak" then
-                completed = (playerData.statistics.battleStats.highestWinStreak or 0) >= achievement.requirement.value
+                completed = (playerData.statistics.battleStats and playerData.statistics.battleStats.highestWinStreak or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "trades_completed" then
-                completed = (playerData.statistics.tradingStats.tradesCompleted or 0) >= achievement.requirement.value
+                completed = (playerData.statistics.tradingStats and playerData.statistics.tradingStats.tradesCompleted or 0) >= achievement.requirement.value
             end
             
             if completed then
