@@ -142,8 +142,10 @@ local CLIENT_CONFIG = {
         Warning = Color3.fromRGB(255, 255, 50),       -- Yellow
         Info = Color3.fromRGB(100, 200, 255),         -- Blue
         Background = Color3.fromRGB(255, 240, 245),   -- Lavender Blush
+        Surface = Color3.fromRGB(255, 250, 250),      -- Slightly off-white
         Dark = Color3.fromRGB(50, 50, 50),            -- Dark
         White = Color3.fromRGB(255, 255, 255),        -- White
+        TextSecondary = Color3.fromRGB(150, 150, 150), -- Gray text
     },
     
     -- Rarity Colors
@@ -171,7 +173,7 @@ local CLIENT_CONFIG = {
         Click = "rbxassetid://876939830",
         Open = "rbxassetid://9113651994",
         Close = "rbxassetid://9119713896",
-        Success = "rbxassetid://9043665007",
+        Success = "rbxassetid://421058909",
         Error = "rbxassetid://6895079853",
         Notification = "rbxassetid://421058925",
         CaseOpen = "rbxassetid://9119713951",
@@ -2183,7 +2185,7 @@ function UIModules.InventoryUI:CreatePetGrid(parent)
     self.GridLayout = gridLayout
     
     -- Update canvas size
-    scrollFrame:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
     end)
 end
@@ -2310,6 +2312,12 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
     card.MouseLeave:Connect(function()
         Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.White}, CLIENT_CONFIG.TWEEN_INFO.Fast)
     end)
+    
+    -- Store pet data for filtering
+    card:SetAttribute("PetData", {
+        name = petData.displayName,
+        nickname = petInstance.nickname
+    })
     
     return card
 end
@@ -2720,6 +2728,23 @@ function UIModules.InventoryUI:RenamePet(petInstance)
         end
     end)
     confirmButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success
+end
+
+function UIModules.InventoryUI:FilterPets(searchText)
+    if not self.PetGrid then return end
+    
+    searchText = searchText:lower()
+    
+    for _, child in ipairs(self.PetGrid:GetChildren()) do
+        if child:IsA("Frame") and child.Name ~= "UIGridLayout" then
+            local petData = child:GetAttribute("PetData")
+            if petData then
+                local petName = (petData.nickname or petData.name or ""):lower()
+                local isVisible = searchText == "" or petName:find(searchText, 1, true) ~= nil
+                child.Visible = isVisible
+            end
+        end
+    end
 end
 
 function UIModules.InventoryUI:RefreshInventory()
@@ -4731,7 +4756,7 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
     
     closeButton.MouseButton1Click:Connect(function()
         -- Animate out
-        Utilities:PlaySound("uiClick")
+        Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Click)
         Utilities:Tween(rewardWindow, {
             Size = UDim2.new(0, 0, 0, 0),
             Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -4889,7 +4914,10 @@ function UIModules.DailyRewardUI:ClaimDailyReward(overlay)
         
         -- Close window after delay
         wait(2)
-        Utilities:Tween(overlay:FindFirstChild("DailyRewardWindow"), {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        local rewardWindow = overlay:FindFirstChild("DailyRewardWindow")
+        if rewardWindow then
+            Utilities:Tween(rewardWindow, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        end
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         wait(0.3)
         overlay:Destroy()
@@ -6690,7 +6718,7 @@ if game:GetService("RunService"):IsStudio() then
         end)
         
         AddDebugButton("Open Legendary Egg", function()
-            UIModules.ShopUI:OpenEgg({id = "legendary", name = "Legendary Egg", price = 0, currency = "Gems"})
+            UIModules.ShopUI:OpenEgg({id = "legendary_egg", name = "Legendary Egg", price = 0, currency = "Gems"})
         end)
         
         AddDebugButton("Test Notification", function()
