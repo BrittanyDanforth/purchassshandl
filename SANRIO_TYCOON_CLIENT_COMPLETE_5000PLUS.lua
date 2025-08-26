@@ -91,13 +91,30 @@ end
 -- ========================================
 -- INITIALIZE MANAGERS
 -- ========================================
-local DataManager = AdvancedModules.ClientDataManager and AdvancedModules.ClientDataManager.new()
-local WindowManager = AdvancedModules.WindowManager and AdvancedModules.WindowManager.new(PlayerGui)
-local MainJanitor = AdvancedModules.Janitor and AdvancedModules.Janitor.new()
+local DataManager = nil
+local WindowManager = nil
+local MainJanitor = nil
+
+-- Initialize managers only if modules exist
+if AdvancedModules.ClientDataManager then
+    DataManager = AdvancedModules.ClientDataManager.new()
+end
+
+if AdvancedModules.WindowManager then
+    WindowManager = AdvancedModules.WindowManager.new(PlayerGui)
+end
+
+if AdvancedModules.Janitor then
+    MainJanitor = AdvancedModules.Janitor.new()
+end
 
 -- Connect delta networking if available
+local DeltaReceiver = nil
 if DataManager and AdvancedModules.DeltaNetworking and RemoteEvents.DataUpdated then
-    local DeltaReceiver = AdvancedModules.DeltaNetworking.newClient(RemoteEvents.DataUpdated, DataManager)
+    DeltaReceiver = AdvancedModules.DeltaNetworking.newClient(RemoteEvents.DataUpdated, DataManager)
+    if MainJanitor and DeltaReceiver then
+        MainJanitor:Add(DeltaReceiver)
+    end
 end
 
 -- ========================================

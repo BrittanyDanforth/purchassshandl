@@ -39,11 +39,27 @@ local Modules = {
 }
 
 -- Advanced modules (if they exist)
-pcall(function()
-    local AdvancedFolder = Services.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Shared")
-    Modules.Janitor = require(AdvancedFolder:WaitForChild("Janitor"))
-    Modules.DeltaNetworking = require(AdvancedFolder:WaitForChild("DeltaNetworking"))
+local success, result = pcall(function()
+    local ModulesFolder = Services.ReplicatedStorage:FindFirstChild("Modules")
+    if ModulesFolder then
+        local SharedFolder = ModulesFolder:FindFirstChild("Shared")
+        if SharedFolder then
+            local JanitorModule = SharedFolder:FindFirstChild("Janitor")
+            if JanitorModule then
+                Modules.Janitor = require(JanitorModule)
+            end
+            
+            local DeltaModule = SharedFolder:FindFirstChild("DeltaNetworking")
+            if DeltaModule then
+                Modules.DeltaNetworking = require(DeltaModule)
+            end
+        end
+    end
 end)
+
+if not success then
+    warn("[Server] Advanced modules not found, running without them:", result)
+end
 
 -- ========================================
 -- REMOTE SETUP
