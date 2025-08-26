@@ -75,15 +75,21 @@ local Mouse = LocalPlayer:GetMouse()
 -- ========================================
 -- REMOTE EVENTS & FUNCTIONS
 -- ========================================
-local RemoteFolder = Services.ReplicatedStorage:WaitForChild("RemoteEvents")
+local RemoteEventsFolder = Services.ReplicatedStorage:WaitForChild("RemoteEvents")
+local RemoteFunctionsFolder = Services.ReplicatedStorage:WaitForChild("RemoteFunctions")
 local RemoteEvents = {}
 local RemoteFunctions = {}
 
 -- Get all remote events
-for _, obj in ipairs(RemoteFolder:GetChildren()) do
+for _, obj in ipairs(RemoteEventsFolder:GetChildren()) do
     if obj:IsA("RemoteEvent") then
         RemoteEvents[obj.Name] = obj
-    elseif obj:IsA("RemoteFunction") then
+    end
+end
+
+-- Get all remote functions
+for _, obj in ipairs(RemoteFunctionsFolder:GetChildren()) do
+    if obj:IsA("RemoteFunction") then
         RemoteFunctions[obj.Name] = obj
     end
 end
