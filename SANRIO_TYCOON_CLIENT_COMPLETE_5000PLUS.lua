@@ -3986,6 +3986,11 @@ local function Initialize()
             MainUI.UpdateCurrency(playerData.currencies)
         end
         
+        -- Refresh inventory if open
+        if UIModules.InventoryUI and UIModules.InventoryUI.RefreshInventory then
+            UIModules.InventoryUI:RefreshInventory()
+        end
+        
         -- Generate quests if needed
         if not playerData.quests.daily or #playerData.quests.daily == 0 then
             -- Request quest generation
@@ -4000,6 +4005,27 @@ local function Initialize()
         
         if MainUI.UpdateCurrency then
             MainUI.UpdateCurrency(currencies)
+        end
+    end)
+    
+    -- Handle case opening results
+    RemoteEvents.CaseOpened.OnClientEvent:Connect(function(result)
+        print("[DEBUG] Received CaseOpened event:", result)
+        
+        if result.success then
+            -- The server sends the full updated playerData in DataLoaded event
+            -- So we just need to show the case opening animation
+            if result.results and UIModules.CaseOpeningUI then
+                UIModules.CaseOpeningUI:Open(result.results)
+            end
+            
+            -- Wait a moment for DataLoaded to update, then refresh inventory
+            task.wait(0.1)
+            if UIModules.InventoryUI and UIModules.InventoryUI.RefreshInventory then
+                UIModules.InventoryUI:RefreshInventory()
+            end
+        else
+            NotificationSystem:SendNotification("Error", result.error or "Failed to open case", "error")
         end
     end)
     

@@ -398,6 +398,32 @@ local QuestPool = {}
 local EventSchedule = {}
 local ServerAnalytics = {}
 local MarketListings = {}
+
+-- Deep merge function for robust data loading
+local function DeepMerge(template, data)
+    if type(template) ~= "table" then return data or template end
+    if type(data) ~= "table" then return template end
+    
+    local result = {}
+    
+    -- First, copy all template values
+    for key, value in pairs(template) do
+        if type(value) == "table" then
+            result[key] = DeepMerge(value, data[key])
+        else
+            result[key] = data[key] ~= nil and data[key] or value
+        end
+    end
+    
+    -- Then, preserve any extra data that's not in template
+    for key, value in pairs(data) do
+        if result[key] == nil then
+            result[key] = value
+        end
+    end
+    
+    return result
+end
 local AuctionListings = {}
 local TournamentData = {}
 local WorldBossData = {}
@@ -4652,26 +4678,13 @@ local function LoadPlayerData(player)
     end)
     
     if success and data then
-        PlayerData[player.UserId] = data
+        -- Use DeepMerge to properly merge saved data with default template
+        PlayerData[player.UserId] = DeepMerge(GetDefaultPlayerData(), data)
         
-        -- Update data structure for any new fields
-        local defaultData = GetDefaultPlayerData()
-        for key, value in pairs(defaultData) do
-            if PlayerData[player.UserId][key] == nil then
-                PlayerData[player.UserId][key] = value
-            end
-        end
-        
-        -- Deep merge for nested tables
-        for key, value in pairs(defaultData) do
-            if type(value) == "table" and type(PlayerData[player.UserId][key]) == "table" then
-                for subKey, subValue in pairs(value) do
-                    if PlayerData[player.UserId][key][subKey] == nil then
-                        PlayerData[player.UserId][key][subKey] = subValue
-                    end
-                end
-            end
-        end
+        -- Ensure user-specific fields are set
+        PlayerData[player.UserId].userId = player.UserId
+        PlayerData[player.UserId].username = player.Name
+        PlayerData[player.UserId].displayName = player.DisplayName
     else
         PlayerData[player.UserId] = GetDefaultPlayerData()
         PlayerData[player.UserId].userId = player.UserId
@@ -5086,6 +5099,11 @@ local function OpenCase(player, eggType)
             results = results,
             newBalance = playerData.currencies
         })
+    end
+    
+    -- Also send updated player data to ensure client is synced
+    if RemoteEvents.DataLoaded then
+        RemoteEvents.DataLoaded:FireClient(player, playerData)
     end
     
     return {
