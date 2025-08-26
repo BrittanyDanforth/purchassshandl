@@ -3967,18 +3967,8 @@ end
 -- Start initialization
 Initialize()
 
--- Return module for potential access
-return {
-    MainUI = MainUI,
-    UIModules = UIModules,
-    NotificationSystem = NotificationSystem,
-    ParticleSystem = ParticleSystem,
-    Utilities = Utilities,
-    LocalData = LocalData
-}
-
 -- ========================================
--- DAILY REWARD UI MODULE
+-- DAILY REWARD UI MODULE  
 -- ========================================
 UIModules.DailyRewardUI = {}
 
