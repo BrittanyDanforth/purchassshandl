@@ -5041,10 +5041,26 @@ local function GetWeightedRandomPet(eggType, player)
         totalWeight = totalWeight + weight
     end
     
-    local random = math.random() * totalWeight / luckMultiplier
+    -- Correct luck calculation: higher luck = better chance at rare items
+    -- We'll modify the weights instead of the random value
+    local modifiedDropRates = {}
+    local modifiedTotalWeight = 0
+    
+    -- Get rarity values for each pet
+    for petName, weight in pairs(egg.dropRates) do
+        local petData = PetDatabase[petName]
+        local rarity = petData and petData.rarity or 1
+        
+        -- Apply luck multiplier to rarer pets (higher rarity = bigger boost)
+        local luckBoost = 1 + ((luckMultiplier - 1) * (rarity - 1) / 5)
+        modifiedDropRates[petName] = weight * luckBoost
+        modifiedTotalWeight = modifiedTotalWeight + (weight * luckBoost)
+    end
+    
+    local random = math.random() * modifiedTotalWeight
     local currentWeight = 0
     
-    for petName, weight in pairs(egg.dropRates) do
+    for petName, weight in pairs(modifiedDropRates) do
         currentWeight = currentWeight + weight
         if random <= currentWeight then
             return petName
@@ -5157,6 +5173,9 @@ local function OpenCase(player, eggType)
     end
     
     playerData.currencies[currencyType] = playerData.currencies[currencyType] - totalCost
+    
+    -- Mark player data as dirty for auto-save
+    MarkPlayerDirty(player.UserId)
     
     local results = {}
     
@@ -6887,12 +6906,44 @@ function AchievementSystem:CheckAchievements(player)
     local playerData = PlayerData[player.UserId]
     if not playerData then return end
     
+    -- Ensure statistics exists
+    if not playerData.statistics then
+        playerData.statistics = {
+            totalEggsOpened = 0,
+            totalPetsHatched = 0,
+            legendaryPetsFound = 0,
+            mythicalPetsFound = 0,
+            secretPetsFound = 0,
+            totalCoinsEarned = 0,
+            totalGemsEarned = 0,
+            totalGemsSpent = 0,
+            highestPetRarity = 0,
+            totalPetsSold = 0,
+            totalPetsEvolved = 0,
+            totalPetsFused = 0,
+            eggStatistics = {},
+            tradingStats = {
+                tradesCompleted = 0,
+                tradesDeclined = 0,
+                totalTradeValue = 0,
+                scamReports = 0,
+                tradePartners = {}
+            },
+            battleStats = {
+                wins = 0,
+                losses = 0,
+                highestWinStreak = 0,
+                totalDamageDealt = 0
+            }
+        }
+    end
+    
     for _, achievement in ipairs(AchievementDefinitions) do
         if not playerData.achievements[achievement.id] then
             local completed = false
             
             if achievement.requirement.type == "pets_hatched" then
-                completed = playerData.statistics.totalPetsHatched >= achievement.requirement.value
+                completed = (playerData.statistics and playerData.statistics.totalPetsHatched or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "unique_pets" then
                 local uniqueCount = 0
@@ -6911,10 +6962,10 @@ function AchievementSystem:CheckAchievements(player)
                 end
                 
             elseif achievement.requirement.type == "mythical_pet" then
-                completed = playerData.statistics.mythicalPetsFound >= achievement.requirement.value
+                completed = (playerData.statistics and playerData.statistics.mythicalPetsFound or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "secret_pet" then
-                completed = playerData.statistics.secretPetsFound >= achievement.requirement.value
+                completed = (playerData.statistics and playerData.statistics.secretPetsFound or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "coins" then
                 completed = playerData.currencies.coins >= achievement.requirement.value
@@ -7260,6 +7311,48 @@ local function SetupRemoteHandlers()
         return false
     end
     
+    -- Shop data
+    RemoteFunctions.GetShopData.OnServerInvoke = function(player, dataType)
+        if dataType == "gamepasses" then
+            -- Convert GamepassData to array format for client
+            local gamepasses = {}
+            for id, data in pairs(GamepassData) do
+                table.insert(gamepasses, {
+                    id = id,
+                    name = data.name,
+                    description = data.description,
+                    price = data.price,
+                    icon = data.icon
+                })
+            end
+            return gamepasses
+        elseif dataType == "eggs" then
+            -- Convert EggCases to array format for client
+            local eggs = {}
+            for id, data in pairs(EggCases) do
+                if not data.hidden then  -- Don't show hidden eggs
+                    table.insert(eggs, {
+                        id = id,
+                        name = data.name,
+                        price = data.price,
+                        currency = data.currency,
+                        image = data.icon or "rbxassetid://10000001001"
+                    })
+                end
+            end
+            -- Sort by price
+            table.sort(eggs, function(a, b)
+                if a.currency == b.currency then
+                    return a.price < b.price
+                else
+                    return a.currency == "Coins"  -- Coins come before Gems
+                end
+            end)
+            return eggs
+        end
+        return nil
+    end
+    
     -- Debug Functions (Studio only)
     if Services.RunService:IsStudio() then
         RemoteFunctions.DebugGiveCurrency.OnServerInvoke = function(player, currencyType, amount)
@@ -7421,22 +7514,89 @@ end
 -- ========================================
 -- AUTO-SAVE SYSTEM
 -- ========================================
+-- Dirty flag system for efficient auto-saving
+local DirtyPlayers = {} -- Track which players have unsaved changes
+local DirtyClans = {} -- Track which clans have unsaved changes
+
+-- Mark player data as dirty (needs saving)
+function MarkPlayerDirty(userId)
+    DirtyPlayers[userId] = true
+end
+
+-- Helper function to modify player currency and mark as dirty
+function ModifyPlayerCurrency(player, currencyType, amount)
+    local playerData = PlayerData[player.UserId]
+    if not playerData then return false end
+    
+    if not playerData.currencies[currencyType] then
+        playerData.currencies[currencyType] = 0
+    end
+    
+    local newAmount = playerData.currencies[currencyType] + amount
+    if newAmount < 0 then
+        return false -- Not enough currency
+    end
+    
+    playerData.currencies[currencyType] = newAmount
+    MarkPlayerDirty(player.UserId)
+    
+    -- Send delta update
+    if SanrioTycoonServer.DeltaManager then
+        SanrioTycoonServer.DeltaManager:SendUpdate(player, playerData)
+    end
+    
+    return true
+end
+
+-- Mark clan data as dirty
+function MarkClanDirty(clanId)
+    DirtyClans[clanId] = true
+end
+
 spawn(function()
     while true do
         wait(CONFIG.DATA_AUTOSAVE_INTERVAL)
         
-        for userId, data in pairs(PlayerData) do
+        -- Only save players with dirty data
+        local dirtyCount = 0
+        for userId, _ in pairs(DirtyPlayers) do
             local player = Services.Players:GetPlayerByUserId(userId)
             if player then
-                SavePlayerData(player)
+                local success = SavePlayerData(player)
+                if success then
+                    DirtyPlayers[userId] = nil -- Clear dirty flag on successful save
+                    dirtyCount = dirtyCount + 1
+                end
+            else
+                -- Player left, remove from dirty list
+                DirtyPlayers[userId] = nil
             end
         end
         
-        -- Save clan data
-        for clanId, clan in pairs(ClanData) do
-            pcall(function()
-                DataStores.ClanData:SetAsync(clanId, clan)
-            end)
+        if dirtyCount > 0 then
+            print("[AutoSave] Saved", dirtyCount, "player(s) with changes")
+        end
+        
+        -- Only save clans with dirty data
+        local dirtyClanCount = 0
+        for clanId, _ in pairs(DirtyClans) do
+            local clan = ClanData[clanId]
+            if clan then
+                local success = pcall(function()
+                    DataStores.ClanData:SetAsync(clanId, clan)
+                end)
+                if success then
+                    DirtyClans[clanId] = nil -- Clear dirty flag on successful save
+                    dirtyClanCount = dirtyClanCount + 1
+                end
+            else
+                -- Clan deleted, remove from dirty list
+                DirtyClans[clanId] = nil
+            end
+        end
+        
+        if dirtyClanCount > 0 then
+            print("[AutoSave] Saved", dirtyClanCount, "clan(s) with changes")
         end
         
         -- Flush analytics

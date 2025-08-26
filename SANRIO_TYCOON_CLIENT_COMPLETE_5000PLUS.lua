@@ -1175,20 +1175,43 @@ function UIModules.ShopUI:CreateEggShop(parent)
     gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     gridLayout.Parent = scrollFrame
     
-    -- Sample egg data (will be replaced with server data)
-    local eggs = {
-        {id = "basic", name = "Basic Egg", price = 100, currency = "Coins", image = "rbxassetid://10000001001"},
-        {id = "premium", name = "Premium Egg", price = 250, currency = "Gems", image = "rbxassetid://10000001003"},
-        {id = "rare", name = "Rare Egg", price = 500, currency = "Gems", image = "rbxassetid://10000001005"},
-        {id = "epic", name = "Epic Egg", price = 1000, currency = "Gems", image = "rbxassetid://10000001007"},
-        {id = "legendary", name = "Legendary Egg", price = 2500, currency = "Gems", image = "rbxassetid://10000001009"},
-        {id = "mythical", name = "Mythical Egg", price = 10000, currency = "Gems", image = "rbxassetid://10000001011"}
-    }
+    -- Show loading indicator
+    local loadingLabel = UIComponents:CreateLabel(scrollFrame, "Loading eggs...", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
+    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
     
-    for i, eggData in ipairs(eggs) do
-        local eggCard = self:CreateEggCard(scrollFrame, eggData)
-        eggCard.LayoutOrder = i
-    end
+    -- Get egg data from server
+    spawn(function()
+        local success, eggs = pcall(function()
+            if RemoteFunctions.GetShopData then
+                return RemoteFunctions.GetShopData:InvokeServer("eggs")
+            else
+                -- Fallback data if remote doesn't exist
+                return {
+                    {id = "basic", name = "Basic Egg", price = 100, currency = "Coins", image = "rbxassetid://10000001001"},
+                    {id = "premium", name = "Premium Egg", price = 250, currency = "Gems", image = "rbxassetid://10000001003"},
+                    {id = "rare", name = "Rare Egg", price = 500, currency = "Gems", image = "rbxassetid://10000001005"},
+                    {id = "epic", name = "Epic Egg", price = 1000, currency = "Gems", image = "rbxassetid://10000001007"},
+                    {id = "legendary", name = "Legendary Egg", price = 2500, currency = "Gems", image = "rbxassetid://10000001009"},
+                    {id = "mythical", name = "Mythical Egg", price = 10000, currency = "Gems", image = "rbxassetid://10000001011"}
+                }
+            end
+        end)
+        
+        -- Remove loading label
+        if loadingLabel and loadingLabel.Parent then
+            loadingLabel:Destroy()
+        end
+        
+        if success and eggs then
+            for i, eggData in ipairs(eggs) do
+                local eggCard = self:CreateEggCard(scrollFrame, eggData)
+                eggCard.LayoutOrder = i
+            end
+        else
+            local errorLabel = UIComponents:CreateLabel(scrollFrame, "Failed to load eggs", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
+            errorLabel.TextColor3 = CLIENT_CONFIG.COLORS.Error
+        end
+    end)
     
     -- Update canvas size
     spawn(function()
@@ -1303,19 +1326,42 @@ function UIModules.ShopUI:CreateGamepassShop(parent)
     
     Utilities:CreatePadding(scrollFrame, 10)
     
-    -- Sample gamepass data
-    local gamepasses = {
-        {id = 123456, name = "2x Cash Multiplier", description = "Double all cash earned!", price = 199, icon = "rbxassetid://10000002001"},
-        {id = 123457, name = "Auto Collector", description = "Automatically collect cash!", price = 299, icon = "rbxassetid://10000002002"},
-        {id = 123458, name = "VIP Status", description = "Exclusive VIP perks!", price = 999, icon = "rbxassetid://10000002003"},
-        {id = 123459, name = "Pet Storage +100", description = "Increase pet storage!", price = 149, icon = "rbxassetid://10000002004"},
-        {id = 123460, name = "Lucky Boost", description = "Increase rare drops by 25%!", price = 399, icon = "rbxassetid://10000002005"}
-    }
+    -- Show loading indicator
+    local loadingLabel = UIComponents:CreateLabel(scrollFrame, "Loading gamepasses...", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
+    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
     
-    for i, passData in ipairs(gamepasses) do
-        local passCard = self:CreateGamepassCard(scrollFrame, passData)
-        passCard.LayoutOrder = i
-    end
+    -- Get gamepass data from server
+    spawn(function()
+        local success, gamepasses = pcall(function()
+            if RemoteFunctions.GetShopData then
+                return RemoteFunctions.GetShopData:InvokeServer("gamepasses")
+            else
+                -- Fallback data if remote doesn't exist
+                return {
+                    {id = 123456, name = "2x Cash Multiplier", description = "Double all cash earned!", price = 199, icon = "rbxassetid://10000002001"},
+                    {id = 123457, name = "Auto Collector", description = "Automatically collect cash!", price = 299, icon = "rbxassetid://10000002002"},
+                    {id = 123458, name = "VIP Status", description = "Exclusive VIP perks!", price = 999, icon = "rbxassetid://10000002003"},
+                    {id = 123459, name = "Pet Storage +100", description = "Increase pet storage!", price = 149, icon = "rbxassetid://10000002004"},
+                    {id = 123460, name = "Lucky Boost", description = "Increase rare drops by 25%!", price = 399, icon = "rbxassetid://10000002005"}
+                }
+            end
+        end)
+        
+        -- Remove loading label
+        if loadingLabel and loadingLabel.Parent then
+            loadingLabel:Destroy()
+        end
+        
+        if success and gamepasses then
+            for i, passData in ipairs(gamepasses) do
+                local passCard = self:CreateGamepassCard(scrollFrame, passData)
+                passCard.LayoutOrder = i
+            end
+        else
+            local errorLabel = UIComponents:CreateLabel(scrollFrame, "Failed to load gamepasses", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
+            errorLabel.TextColor3 = CLIENT_CONFIG.COLORS.Error
+        end
+    end)
     
     -- Update canvas size
     spawn(function()
@@ -4098,13 +4144,18 @@ local function Initialize()
     RemoteEvents.DataLoaded.OnClientEvent:Connect(function(playerData)
         LocalData.PlayerData = playerData
         
-        -- Update currency display
+        -- Update DataManager if available (this will trigger reactive updates)
+        if DataManager then
+            DataManager:SetData(playerData)
+        end
+        
+        -- Update currency display (fallback for non-reactive)
         if MainUI.UpdateCurrency then
             MainUI.UpdateCurrency(playerData.currencies)
         end
         
-        -- Refresh inventory if open
-        if UIModules.InventoryUI and UIModules.InventoryUI.RefreshInventory then
+        -- Refresh inventory if open (this will be automatic with reactive updates)
+        if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
             UIModules.InventoryUI:RefreshInventory()
         end
         
@@ -4130,17 +4181,19 @@ local function Initialize()
         print("[DEBUG] Received CaseOpened event:", result)
         
         if result.success then
-            -- The server sends the full updated playerData in DataLoaded event
-            -- So we just need to show the case opening animation
+            -- Show the case opening animation
             if result.results and UIModules.CaseOpeningUI then
                 UIModules.CaseOpeningUI:Open(result.results)
             end
             
-            -- Wait a moment for DataLoaded to update, then refresh inventory
-            task.wait(0.1)
-            if UIModules.InventoryUI and UIModules.InventoryUI.RefreshInventory then
-                UIModules.InventoryUI:RefreshInventory()
-            end
+            -- The inventory will auto-refresh if using DataManager reactive updates
+            -- But we also ensure it refreshes after a delay for animation
+            spawn(function()
+                wait(2) -- Wait for animation to finish
+                if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
+                    UIModules.InventoryUI:RefreshInventory()
+                end
+            end)
         else
             NotificationSystem:SendNotification("Error", result.error or "Failed to open case", "error")
         end
@@ -4946,14 +4999,61 @@ function UIModules.ProfileUI:ShowProfileStats(parent, player)
     
     Utilities:CreatePadding(statsContainer, 10)
     
-    -- Sample stats
+    -- Get real player data
+    local playerData = nil
+    if player == LocalPlayer then
+        -- Use local data for own profile
+        playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
+    else
+        -- Request data from server for other players
+        local success, data = pcall(function()
+            return RemoteFunctions.GetPlayerData:InvokeServer(player)
+        end)
+        if success and data then
+            playerData = data
+        end
+    end
+    
+    -- If no data available, show loading message
+    if not playerData then
+        local loadingLabel = UIComponents:CreateLabel(statsContainer, "Loading player data...", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 24)
+        loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+        return
+    end
+    
+    -- Calculate real stats
+    local totalWealth = (playerData.currencies and ((playerData.currencies.coins or 0) + ((playerData.currencies.gems or 0) * 100))) or 0
+    local petCount = 0
+    if playerData.pets then
+        if type(playerData.pets) == "table" then
+            for _ in pairs(playerData.pets) do
+                petCount = petCount + 1
+            end
+        end
+    end
+    
+    local battleWins = (playerData.statistics and playerData.statistics.battleStats and playerData.statistics.battleStats.wins) or 0
+    local tradesCompleted = (playerData.statistics and playerData.statistics.tradeStats and playerData.statistics.tradeStats.tradesCompleted) or 0
+    local playTime = (playerData.statistics and playerData.statistics.PlayTime) or 0
+    local achievements = 0
+    local totalAchievements = 100 -- You can make this dynamic
+    
+    if playerData.achievements then
+        for _, achieved in pairs(playerData.achievements) do
+            if achieved then
+                achievements = achievements + 1
+            end
+        end
+    end
+    
+    -- Format stats for display
     local stats = {
-        {title = "Total Wealth", value = "1.5M", icon = "💰", color = CLIENT_CONFIG.COLORS.Warning},
-        {title = "Pets Owned", value = "127", icon = "🐾", color = CLIENT_CONFIG.COLORS.Primary},
-        {title = "Battle Wins", value = "342", icon = "⚔️", color = CLIENT_CONFIG.COLORS.Success},
-        {title = "Trades Completed", value = "89", icon = "🤝", color = CLIENT_CONFIG.COLORS.Info},
-        {title = "Play Time", value = "127h", icon = "⏱️", color = CLIENT_CONFIG.COLORS.Secondary},
-        {title = "Achievements", value = "45/100", icon = "🏆", color = CLIENT_CONFIG.COLORS.Accent}
+        {title = "Total Wealth", value = Utilities:FormatNumber(totalWealth), icon = "💰", color = CLIENT_CONFIG.COLORS.Warning},
+        {title = "Pets Owned", value = tostring(petCount), icon = "🐾", color = CLIENT_CONFIG.COLORS.Primary},
+        {title = "Battle Wins", value = tostring(battleWins), icon = "⚔️", color = CLIENT_CONFIG.COLORS.Success},
+        {title = "Trades Completed", value = tostring(tradesCompleted), icon = "🤝", color = CLIENT_CONFIG.COLORS.Info},
+        {title = "Play Time", value = string.format("%.1fh", playTime / 3600), icon = "⏱️", color = CLIENT_CONFIG.COLORS.Secondary},
+        {title = "Achievements", value = achievements .. "/" .. totalAchievements, icon = "🏆", color = CLIENT_CONFIG.COLORS.Accent}
     }
     
     for _, stat in ipairs(stats) do
@@ -5850,20 +5950,153 @@ if game:GetService("RunService"):IsStudio() then
     local DebugPanel = {}
     
     function DebugPanel:Create()
+        -- Create container for both minimized and expanded states
+        local container = Instance.new("Frame")
+        container.Name = "DebugPanelContainer"
+        container.Size = UDim2.new(0, 300, 0, 400)
+        container.Position = UDim2.new(1, -310, 1, -410)
+        container.BackgroundTransparency = 1
+        container.Parent = MainUI.ScreenGui
+        
+        -- Main panel
         local panel = Instance.new("Frame")
         panel.Name = "DebugPanel"
-        panel.Size = UDim2.new(0, 300, 0, 400)
-        panel.Position = UDim2.new(1, -310, 1, -410)
+        panel.Size = UDim2.new(1, 0, 1, 0)
         panel.BackgroundColor3 = Color3.new(0, 0, 0)
         panel.BackgroundTransparency = 0.3
-        panel.Parent = MainUI.ScreenGui
+        panel.Parent = container
         
         Utilities:CreateCorner(panel, 8)
         
-        local title = UIComponents:CreateLabel(panel, "Debug Panel", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 0), 16)
+        -- Header with title and controls
+        local header = Instance.new("Frame")
+        header.Size = UDim2.new(1, 0, 0, 30)
+        header.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+        header.Parent = panel
+        
+        local headerCorner = Instance.new("UICorner")
+        headerCorner.CornerRadius = UDim.new(0, 8)
+        headerCorner.Parent = header
+        
+        -- Fix bottom corners
+        local headerFix = Instance.new("Frame")
+        headerFix.Size = UDim2.new(1, 0, 0, 8)
+        headerFix.Position = UDim2.new(0, 0, 1, -8)
+        headerFix.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+        headerFix.BorderSizePixel = 0
+        headerFix.Parent = header
+        
+        local title = UIComponents:CreateLabel(header, "Debug Panel", UDim2.new(1, -60, 1, 0), UDim2.new(0, 10, 0, 0), 16)
         title.TextColor3 = Color3.new(1, 1, 1)
         title.Font = CLIENT_CONFIG.FONTS.Secondary
+        title.TextXAlignment = Enum.TextXAlignment.Left
         
+        -- Minimize button
+        local minimizeBtn = Instance.new("TextButton")
+        minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+        minimizeBtn.Position = UDim2.new(1, -55, 0.5, -12.5)
+        minimizeBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+        minimizeBtn.Text = "—"
+        minimizeBtn.TextColor3 = Color3.new(0, 0, 0)
+        minimizeBtn.Font = Enum.Font.SourceSansBold
+        minimizeBtn.TextSize = 20
+        minimizeBtn.Parent = header
+        
+        local minBtnCorner = Instance.new("UICorner")
+        minBtnCorner.CornerRadius = UDim.new(0, 6)
+        minBtnCorner.Parent = minimizeBtn
+        
+        -- Close button
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 25, 0, 25)
+        closeBtn.Position = UDim2.new(1, -28, 0.5, -12.5)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+        closeBtn.Text = "×"
+        closeBtn.TextColor3 = Color3.new(1, 1, 1)
+        closeBtn.Font = Enum.Font.SourceSansBold
+        closeBtn.TextSize = 24
+        closeBtn.Parent = header
+        
+        local closeBtnCorner = Instance.new("UICorner")
+        closeBtnCorner.CornerRadius = UDim.new(0, 6)
+        closeBtnCorner.Parent = closeBtn
+        
+        -- Minimized indicator
+        local minimizedIndicator = Instance.new("TextButton")
+        minimizedIndicator.Name = "MinimizedIndicator"
+        minimizedIndicator.Size = UDim2.new(0, 120, 0, 30)
+        minimizedIndicator.Position = UDim2.new(1, -130, 1, -40)
+        minimizedIndicator.BackgroundColor3 = Color3.new(0, 0, 0)
+        minimizedIndicator.BackgroundTransparency = 0.3
+        minimizedIndicator.Text = "Debug Panel"
+        minimizedIndicator.TextColor3 = Color3.new(1, 1, 1)
+        minimizedIndicator.Font = Enum.Font.SourceSansBold
+        minimizedIndicator.TextSize = 14
+        minimizedIndicator.Visible = false
+        minimizedIndicator.Parent = MainUI.ScreenGui
+        
+        local minIndicatorCorner = Instance.new("UICorner")
+        minIndicatorCorner.CornerRadius = UDim.new(0, 8)
+        minIndicatorCorner.Parent = minimizedIndicator
+        
+        -- Make header draggable
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+        
+        header.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = container.Position
+            end
+        end)
+        
+        Services.UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Position - dragStart
+                container.Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+        
+        Services.UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end)
+        
+        -- Button functionality
+        local isMinimized = false
+        
+        minimizeBtn.MouseButton1Click:Connect(function()
+            isMinimized = true
+            container.Visible = false
+            minimizedIndicator.Visible = true
+            minimizedIndicator.Position = UDim2.new(
+                container.Position.X.Scale,
+                container.Position.X.Offset,
+                container.Position.Y.Scale,
+                container.Position.Y.Offset + 370
+            )
+        end)
+        
+        closeBtn.MouseButton1Click:Connect(function()
+            container:Destroy()
+            minimizedIndicator:Destroy()
+        end)
+        
+        minimizedIndicator.MouseButton1Click:Connect(function()
+            isMinimized = false
+            container.Visible = true
+            minimizedIndicator.Visible = false
+        end)
+        
+        -- Content
         local content = UIComponents:CreateScrollingFrame(panel, UDim2.new(1, -10, 1, -40), UDim2.new(0, 5, 0, 35))
         
         -- Add debug buttons
