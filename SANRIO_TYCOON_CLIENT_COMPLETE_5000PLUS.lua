@@ -4936,6 +4936,74 @@ function UIModules.ProfileUI:ShowProfileAchievements(parent, player)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
 end
 
+function UIModules.ProfileUI:ShowProfileBadges(parent, player)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local badgeList = Instance.new("Frame")
+    badgeList.Size = UDim2.new(1, -20, 0, 800)
+    badgeList.BackgroundTransparency = 1
+    badgeList.Parent = scrollFrame
+    
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.CellPadding = UDim2.new(0, 15, 0, 15)
+    gridLayout.CellSize = UDim2.new(0, 100, 0, 120)
+    gridLayout.FillDirection = Enum.FillDirection.Horizontal
+    gridLayout.Parent = badgeList
+    
+    Utilities:CreatePadding(badgeList, 10)
+    
+    -- Sample badges
+    local badges = {
+        {name = "Beta Tester", icon = "🎮", desc = "Joined during beta", owned = true},
+        {name = "VIP", icon = "⭐", desc = "VIP member", owned = true},
+        {name = "Collector", icon = "🏆", desc = "Collected 100 pets", owned = false},
+        {name = "Trader", icon = "🤝", desc = "Completed 50 trades", owned = false},
+        {name = "Champion", icon = "👑", desc = "Won a tournament", owned = false}
+    }
+    
+    for _, badge in ipairs(badges) do
+        local badgeCard = Instance.new("Frame")
+        badgeCard.Size = UDim2.new(1, 0, 1, 0)
+        badgeCard.BackgroundColor3 = badge.owned and CLIENT_CONFIG.COLORS.White or Color3.fromRGB(230, 230, 230)
+        badgeCard.Parent = badgeList
+        
+        Utilities:CreateCorner(badgeCard, 12)
+        Utilities:CreatePadding(badgeCard, 10)
+        
+        if not badge.owned then
+            badgeCard.BackgroundTransparency = 0.5
+        end
+        
+        -- Icon
+        local iconLabel = UIComponents:CreateLabel(badgeCard, badge.icon, UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 10), 32)
+        iconLabel.TextTransparency = badge.owned and 0 or 0.5
+        
+        -- Name
+        local nameLabel = UIComponents:CreateLabel(badgeCard, badge.name, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 55), 12)
+        nameLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+        nameLabel.TextColor3 = badge.owned and CLIENT_CONFIG.COLORS.Dark or Color3.fromRGB(150, 150, 150)
+        nameLabel.TextWrapped = true
+        
+        -- Description
+        local descLabel = UIComponents:CreateLabel(badgeCard, badge.desc, UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 75), 10)
+        descLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+        descLabel.TextWrapped = true
+        
+        -- Lock overlay for unowned badges
+        if not badge.owned then
+            local lockIcon = UIComponents:CreateLabel(badgeCard, "🔒", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 48)
+            lockIcon.TextTransparency = 0.7
+            lockIcon.ZIndex = badgeCard.ZIndex + 1
+        end
+    end
+    
+    -- Update canvas size
+    spawn(function()
+        wait(0.1)
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+    end)
+end
+
 -- ========================================
 -- CLAN UI MODULE
 -- ========================================
