@@ -562,4 +562,22 @@ function TradingSystem:AddToHistory(trade)
     end
 end
 
+function TradingSystem:OnPlayerLeaving(player)
+    -- Cancel any active trades
+    local activeTradeId = nil
+    for tradeId, trade in pairs(self.ActiveTrades) do
+        if trade.player1.userId == player.UserId or trade.player2.userId == player.UserId then
+            activeTradeId = tradeId
+            break
+        end
+    end
+    
+    if activeTradeId then
+        self:CancelTrade(activeTradeId, player)
+    end
+    
+    -- Clean up trade history (optional - could keep for persistent data)
+    self.TradeHistory[player.UserId] = nil
+end
+
 return TradingSystem

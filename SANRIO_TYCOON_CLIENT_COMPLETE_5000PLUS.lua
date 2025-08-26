@@ -173,7 +173,7 @@ local CLIENT_CONFIG = {
         Close = "rbxassetid://9113651870",
         Success = "rbxassetid://9043665007",
         Error = "rbxassetid://6895079853",
-        Notification = "rbxassetid://9125503013",
+        Notification = "rbxassetid://421058925",
         CaseOpen = "rbxassetid://9113658186",
         Legendary = "rbxassetid://9125367154",
         Purchase = "rbxassetid://9113660731",
@@ -1610,17 +1610,30 @@ function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, tot
     spinnerFrame.Name = "SpinnerFrame"
     spinnerFrame.Size = UDim2.new(1, -100, 0, 200)
     spinnerFrame.Position = UDim2.new(0, 50, 0, 80)
-    spinnerFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark
+    spinnerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40) -- Darker background for contrast
+    spinnerFrame.BorderSizePixel = 2
+    spinnerFrame.BorderColor3 = CLIENT_CONFIG.COLORS.Primary
     spinnerFrame.ClipsDescendants = true
     spinnerFrame.ZIndex = 102
     spinnerFrame.Parent = content
     
     Utilities:CreateCorner(spinnerFrame, 12)
     
+    -- Add inner border for depth
+    local innerBorder = Instance.new("Frame")
+    innerBorder.Size = UDim2.new(1, -4, 1, -4)
+    innerBorder.Position = UDim2.new(0, 2, 0, 2)
+    innerBorder.BackgroundTransparency = 1
+    innerBorder.BorderSizePixel = 1
+    innerBorder.BorderColor3 = Color3.fromRGB(50, 50, 60)
+    innerBorder.ZIndex = 102
+    innerBorder.Parent = spinnerFrame
+    
     -- Create case items
     local itemContainer = Instance.new("Frame")
     itemContainer.Name = "ItemContainer"
-    itemContainer.Size = UDim2.new(0, #result.caseItems * CLIENT_CONFIG.CASE_ITEM_WIDTH, 1, 0)
+    local caseItems = result.caseItems or {}
+    itemContainer.Size = UDim2.new(0, #caseItems * CLIENT_CONFIG.CASE_ITEM_WIDTH, 1, 0)
     itemContainer.BackgroundTransparency = 1
     itemContainer.ZIndex = 103
     itemContainer.Parent = spinnerFrame
@@ -2639,7 +2652,18 @@ function UIModules.InventoryUI:RenamePet(petInstance)
     local confirmButton = UIComponents:CreateButton(buttonContainer, "Confirm", UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), function()
         if input.Text ~= "" then
             petInstance.nickname = input.Text
-            -- TODO: Send to server
+            -- Send to server
+            local success, result = pcall(function()
+                return RemoteFunctions.RenamePet:InvokeServer(petInstance.uniqueId, input.Text)
+            end)
+            
+            if success and result then
+                Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Success)
+                self:RefreshInventory()
+            else
+                Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Error)
+                NotificationSystem:SendNotification("Error", "Failed to rename pet", "error")
+            end
             NotificationSystem:SendNotification("Success", "Pet renamed to " .. input.Text, "success")
             dialog:Destroy()
         end
@@ -3251,19 +3275,31 @@ function UIModules.TradingUI:CreateSelectablePetCard(parent, petInstance, petDat
 end
 
 function UIModules.TradingUI:AddPetToTrade(pet)
-    -- TODO: Send to server
-    RemoteFunctions.UpdateTrade:InvokeServer(self.CurrentTrade.id, "add_item", {
-        itemType = "pet",
-        itemData = pet
-    })
+    -- Send to server
+    local success, result = pcall(function()
+        return RemoteFunctions.UpdateTrade:InvokeServer(self.CurrentTrade.id, "add_item", {
+            itemType = "pet",
+            itemData = pet
+        })
+    end)
+    
+    if not success or not result then
+        NotificationSystem:SendNotification("Error", "Failed to add pet to trade", "error")
+    end
 end
 
 function UIModules.TradingUI:UpdateCurrency(currencyType, amount)
-    -- TODO: Send to server
-    RemoteFunctions.UpdateTrade:InvokeServer(self.CurrentTrade.id, "add_item", {
-        itemType = "currency",
-        itemData = {type = currencyType, amount = amount}
-    })
+    -- Send to server
+    local success, result = pcall(function()
+        return RemoteFunctions.UpdateTrade:InvokeServer(self.CurrentTrade.id, "add_item", {
+            itemType = "currency",
+            itemData = {type = currencyType, amount = amount}
+        })
+    end)
+    
+    if not success or not result then
+        NotificationSystem:SendNotification("Error", "Failed to update currency in trade", "error")
+    end
 end
 
 function UIModules.TradingUI:ToggleReady()
@@ -3290,8 +3326,74 @@ function UIModules.TradingUI:CancelTrade()
     end
 end
 
+function UIModules.TradingUI:CreateTradeItemCard(parent, item)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(0, 80, 0, 80)
+    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Secondary
+    card.BorderSizePixel = 0
+    card.Parent = parent
+    
+    Utilities:CreateCorner(card, 8)
+    
+    if item.itemType == "pet" then
+        local petData = LocalData.PetDatabase[item.itemData.petId] or {}
+        
+        local petImage = UIComponents:CreateImageLabel(card, petData.imageId or "", 
+            UDim2.new(1, -10, 1, -10), UDim2.new(0, 5, 0, 5))
+        
+        -- Rarity border
+        local border = Instance.new("Frame")
+        border.Size = UDim2.new(1, 0, 0, 3)
+        border.Position = UDim2.new(0, 0, 1, -3)
+        border.BackgroundColor3 = Utilities:GetRarityColor(petData.rarity or 1)
+        border.BorderSizePixel = 0
+        border.Parent = card
+    elseif item.itemType == "currency" then
+        local iconMap = {
+            coins = CLIENT_CONFIG.ICONS.Coin,
+            gems = CLIENT_CONFIG.ICONS.Gem,
+            tickets = CLIENT_CONFIG.ICONS.Ticket
+        }
+        
+        local icon = UIComponents:CreateImageLabel(card, iconMap[item.itemData.type] or "", 
+            UDim2.new(0, 40, 0, 40), UDim2.new(0.5, -20, 0.3, -20))
+        
+        local amountLabel = UIComponents:CreateLabel(card, tostring(item.itemData.amount), 
+            UDim2.new(1, -10, 0, 20), UDim2.new(0, 5, 1, -25), 14)
+        amountLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    end
+    
+    return card
+end
+
 function UIModules.TradingUI:UpdateTradeDisplay()
-    -- TODO: Update trade window based on current trade data
+    -- Update trade window based on current trade data
+    if not self.CurrentTrade or not self.CurrentTradeFrame then return end
+    
+    -- Update player 1 side
+    local player1Side = self.CurrentTradeFrame:FindFirstChild("Player1Side")
+    if player1Side then
+        player1Side.ItemsFrame:ClearAllChildren()
+        for _, item in ipairs(self.CurrentTrade.player1.items) do
+            self:CreateTradeItemCard(player1Side.ItemsFrame, item)
+        end
+        
+        player1Side.ReadyButton.BackgroundColor3 = self.CurrentTrade.player1.ready and 
+            CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Secondary
+    end
+    
+    -- Update player 2 side
+    local player2Side = self.CurrentTradeFrame:FindFirstChild("Player2Side")
+    if player2Side then
+        player2Side.ItemsFrame:ClearAllChildren()
+        for _, item in ipairs(self.CurrentTrade.player2.items) do
+            self:CreateTradeItemCard(player2Side.ItemsFrame, item)
+        end
+        
+        player2Side.ReadyLabel.Text = self.CurrentTrade.player2.ready and "Ready" or "Not Ready"
+        player2Side.ReadyLabel.TextColor3 = self.CurrentTrade.player2.ready and 
+            CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.TextSecondary
+    end
 end
 
 function UIModules.InventoryUI:CreateEquippedView(parent)
@@ -3547,8 +3649,66 @@ function UIModules.BattleUI:CreatePlayerCard(parent, player)
 end
 
 function UIModules.BattleUI:StartQuickMatch()
-    -- TODO: Implement matchmaking
+    -- Implement matchmaking
+    local success, result = pcall(function()
+        return RemoteFunctions.JoinBattleMatchmaking:InvokeServer()
+    end)
+    
+    if success and result then
+        NotificationSystem:SendNotification("Matchmaking", "Searching for opponent...", "info")
+        -- Update UI to show searching state
+        self:ShowMatchmakingUI()
+    else
+        NotificationSystem:SendNotification("Error", "Failed to join matchmaking", "error")
+    end
     NotificationSystem:SendNotification("Matchmaking", "Searching for opponent...", "info")
+end
+
+function UIModules.BattleUI:ShowMatchmakingUI()
+    -- Create matchmaking overlay
+    local overlay = Instance.new("Frame")
+    overlay.Name = "MatchmakingOverlay"
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.ZIndex = 500
+    overlay.Parent = MainUI.ScreenGui
+    
+    local searchWindow = Instance.new("Frame")
+    searchWindow.Size = UDim2.new(0, 400, 0, 200)
+    searchWindow.Position = UDim2.new(0.5, -200, 0.5, -100)
+    searchWindow.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    searchWindow.ZIndex = 501
+    searchWindow.Parent = overlay
+    
+    Utilities:CreateCorner(searchWindow, 20)
+    Utilities:CreateShadow(searchWindow, 0.5, 20)
+    
+    local spinner = Instance.new("ImageLabel")
+    spinner.Size = UDim2.new(0, 60, 0, 60)
+    spinner.Position = UDim2.new(0.5, -30, 0.3, 0)
+    spinner.BackgroundTransparency = 1
+    spinner.Image = "rbxassetid://8244601490"
+    spinner.ZIndex = 502
+    spinner.Parent = searchWindow
+    
+    -- Animate spinner
+    Utilities:Tween(spinner, {Rotation = 360}, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1))
+    
+    local statusLabel = UIComponents:CreateLabel(searchWindow, "Searching for opponent...", 
+        UDim2.new(1, -40, 0, 30), UDim2.new(0, 20, 0.6, 0), 20)
+    statusLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    statusLabel.ZIndex = 502
+    
+    local cancelButton = UIComponents:CreateButton(searchWindow, "Cancel", 
+        UDim2.new(0, 120, 0, 40), UDim2.new(0.5, -60, 0.8, -20), function()
+            RemoteFunctions.CancelMatchmaking:InvokeServer()
+            overlay:Destroy()
+        end)
+    cancelButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Error
+    cancelButton.ZIndex = 502
+    
+    self.MatchmakingOverlay = overlay
 end
 
 function UIModules.BattleUI:ChallengePlayer(player)
@@ -4493,7 +4653,7 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
         {day = 7, coins = 10000, gems = 100, special = "Premium Egg"}
     }
     
-    local currentStreak = LocalData.PlayerData and LocalData.PlayerData.dailyRewards.streak or 1
+    local currentStreak = LocalData.PlayerData and LocalData.PlayerData.dailyRewards and LocalData.PlayerData.dailyRewards.streak or 1
     
     for i, reward in ipairs(dailyRewards) do
         local dayCard = self:CreateDayCard(daysContainer, reward, i <= currentStreak, i == currentStreak)

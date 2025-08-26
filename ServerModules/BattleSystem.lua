@@ -650,4 +650,23 @@ function BattleSystem:GiveBattleRewards(player, won)
     DataStoreModule:MarkPlayerDirty(player.UserId)
 end
 
+function BattleSystem:OnPlayerLeaving(player)
+    -- End any active battles
+    local battleId = self.PlayerBattles[player.UserId]
+    if battleId then
+        local battle = self.ActiveBattles[battleId]
+        if battle then
+            -- Determine winner (the other player)
+            local winner = battle.players[1] == player and battle.players[2] or battle.players[1]
+            
+            -- End battle with forfeit
+            self:EndBattle(battleId, winner, "Opponent disconnected")
+        end
+    end
+    
+    -- Clean up player data
+    self.PlayerBattles[player.UserId] = nil
+    self.BattleTeams[player.UserId] = nil
+end
+
 return BattleSystem
