@@ -35,6 +35,35 @@ local Services = {
 }
 
 -- ========================================
+-- ADVANCED MODULE LOADING
+-- ========================================
+local AdvancedModules = {}
+local ModulesFolder = Services.ReplicatedStorage:WaitForChild("Modules", 5)
+
+if ModulesFolder then
+    local SharedFolder = ModulesFolder:FindFirstChild("Shared")
+    local ClientFolder = ModulesFolder:FindFirstChild("Client")
+    
+    if SharedFolder then
+        if SharedFolder:FindFirstChild("ClientDataManager") then
+            AdvancedModules.ClientDataManager = require(SharedFolder.ClientDataManager)
+        end
+        if SharedFolder:FindFirstChild("Janitor") then
+            AdvancedModules.Janitor = require(SharedFolder.Janitor)
+        end
+        if SharedFolder:FindFirstChild("DeltaNetworking") then
+            AdvancedModules.DeltaNetworking = require(SharedFolder.DeltaNetworking)
+        end
+    end
+    
+    if ClientFolder then
+        if ClientFolder:FindFirstChild("WindowManager") then
+            AdvancedModules.WindowManager = require(ClientFolder.WindowManager)
+        end
+    end
+end
+
+-- ========================================
 -- LOCAL PLAYER
 -- ========================================
 local LocalPlayer = Services.Players.LocalPlayer
@@ -57,6 +86,18 @@ for _, obj in ipairs(RemoteFolder:GetChildren()) do
     elseif obj:IsA("RemoteFunction") then
         RemoteFunctions[obj.Name] = obj
     end
+end
+
+-- ========================================
+-- INITIALIZE MANAGERS
+-- ========================================
+local DataManager = AdvancedModules.ClientDataManager and AdvancedModules.ClientDataManager.new()
+local WindowManager = AdvancedModules.WindowManager and AdvancedModules.WindowManager.new(PlayerGui)
+local MainJanitor = AdvancedModules.Janitor and AdvancedModules.Janitor.new()
+
+-- Connect delta networking if available
+if DataManager and AdvancedModules.DeltaNetworking and RemoteEvents.DataUpdated then
+    local DeltaReceiver = AdvancedModules.DeltaNetworking.newClient(RemoteEvents.DataUpdated, DataManager)
 end
 
 -- ========================================
@@ -825,17 +866,44 @@ function MainUI:CreateCurrencyDisplay()
         Gems = gemLabel
     }
     
-    -- Update function
-    self.UpdateCurrency = function(currencies)
-        coinLabel.Text = Utilities:FormatNumber(currencies.coins or 0)
-        gemLabel.Text = Utilities:FormatNumber(currencies.gems or 0)
+    -- Set up reactive updates if DataManager is available
+    if DataManager then
+        -- Watch for coin changes
+        DataManager:Watch("currencies.coins", function(coins)
+            coinLabel.Text = Utilities:FormatNumber(coins or 0)
+            
+            -- Animation
+            Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            spawn(function()
+                wait(0.3)
+                Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            end)
+        end)
         
-        -- Animation
-        Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        wait(0.3)
-        Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        -- Watch for gem changes
+        DataManager:Watch("currencies.gems", function(gems)
+            gemLabel.Text = Utilities:FormatNumber(gems or 0)
+            
+            -- Animation
+            Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            spawn(function()
+                wait(0.3)
+                Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            end)
+        end)
+    else
+        -- Fallback update function
+        self.UpdateCurrency = function(currencies)
+            coinLabel.Text = Utilities:FormatNumber(currencies.coins or 0)
+            gemLabel.Text = Utilities:FormatNumber(currencies.gems or 0)
+            
+            -- Animation
+            Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            wait(0.3)
+            Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        end
     end
 end
 
@@ -1730,6 +1798,15 @@ function UIModules.InventoryUI:Open()
         return
     end
     
+    -- Set up reactive updates if DataManager is available
+    if DataManager and not self.PetWatcher then
+        self.PetWatcher = DataManager:Watch("pets", function()
+            if self.Frame and self.Frame.Visible then
+                self:RefreshInventory()
+            end
+        end)
+    end
+    
     -- Create main inventory frame
     local inventoryFrame = UIComponents:CreateFrame(MainUI.MainContainer, "InventoryFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
     inventoryFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
@@ -2472,7 +2549,9 @@ function UIModules.InventoryUI:RenamePet(petInstance)
 end
 
 function UIModules.InventoryUI:RefreshInventory()
-    if not LocalData.PlayerData then return end
+    -- Get data from DataManager if available, fallback to LocalData
+    local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
+    if not playerData then return end
     
     -- Clear existing
     if self.PetGrid then
@@ -2483,24 +2562,62 @@ function UIModules.InventoryUI:RefreshInventory()
         end
     end
     
-    -- Update stats
-    local petCount = #LocalData.PlayerData.pets
+    -- Convert dictionary to array for display
+    local pets = {}
     local equippedCount = 0
-    for _, pet in ipairs(LocalData.PlayerData.pets) do
-        if pet.equipped then
-            equippedCount = equippedCount + 1
+    
+    if type(playerData.pets) == "table" then
+        -- Check if it's a dictionary (has non-numeric keys)
+        local isDictionary = false
+        for key, _ in pairs(playerData.pets) do
+            if type(key) ~= "number" then
+                isDictionary = true
+                break
+            end
+        end
+        
+        if isDictionary then
+            -- Convert dictionary to array
+            for id, pet in pairs(playerData.pets) do
+                pet.uniqueId = id
+                table.insert(pets, pet)
+                if pet.equipped then
+                    equippedCount = equippedCount + 1
+                end
+            end
+            
+            -- Sort by level, rarity, or obtained time
+            table.sort(pets, function(a, b)
+                if a.level ~= b.level then
+                    return a.level > b.level
+                elseif a.rarity ~= b.rarity then
+                    return a.rarity > b.rarity
+                else
+                    return (a.obtained or 0) > (b.obtained or 0)
+                end
+            end)
+        else
+            -- Already an array
+            pets = playerData.pets
+            for _, pet in ipairs(pets) do
+                if pet.equipped then
+                    equippedCount = equippedCount + 1
+                end
+            end
         end
     end
     
+    local petCount = #pets
+    
     if self.StatsLabels then
-        self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. LocalData.PlayerData.maxPetStorage
+        self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. (playerData.maxPetStorage or 500)
         self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
         self.StatsLabels.Storage.UpdateValue(petCount)
     end
     
     -- Add pet cards
     if self.PetGrid then
-        for i, pet in ipairs(LocalData.PlayerData.pets) do
+        for i, pet in ipairs(pets) do
             local petData = LocalData.PetDatabase[pet.petId]
             if petData then
                 local card = self:CreatePetCard(self.PetGrid, pet, petData)
@@ -5824,6 +5941,44 @@ end
 -- ========================================
 print("Sanrio Tycoon Shop Client v5.0 loaded successfully!")
 print("Total UI modules loaded:", #UIModules)
+
+-- ========================================
+-- CLEANUP ON LEAVE
+-- ========================================
+Services.Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        -- Clean up with main janitor
+        if MainJanitor then
+            MainJanitor:Cleanup()
+        end
+        
+        -- Clean up window manager
+        if WindowManager then
+            WindowManager:CloseAllWindows()
+        end
+        
+        -- Clean up data manager
+        if DataManager then
+            DataManager:Cleanup()
+        end
+        
+        -- Clean up UI module janitors
+        for _, module in pairs(UIModules) do
+            if module.Janitor then
+                module.Janitor:Cleanup()
+            end
+        end
+    end
+end)
+
+-- Also cleanup if script is destroyed
+script.AncestryChanged:Connect(function()
+    if not script.Parent then
+        if MainJanitor then
+            MainJanitor:Cleanup()
+        end
+    end
+end)
 
 -- Return for external access
 return {

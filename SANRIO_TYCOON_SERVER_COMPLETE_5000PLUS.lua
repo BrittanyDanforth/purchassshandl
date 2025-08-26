@@ -45,6 +45,206 @@ local Services = {
 }
 
 -- ========================================
+-- ADVANCED MODULE LOADING
+-- ========================================
+local AdvancedModules = {}
+local ModulesFolder = Services.ReplicatedStorage:WaitForChild("Modules", 5)
+
+if ModulesFolder then
+    local SharedFolder = ModulesFolder:FindFirstChild("Shared")
+    if SharedFolder then
+        if SharedFolder:FindFirstChild("DeltaNetworking") then
+            AdvancedModules.DeltaNetworking = require(SharedFolder.DeltaNetworking)
+        end
+        if SharedFolder:FindFirstChild("Janitor") then
+            AdvancedModules.Janitor = require(SharedFolder.Janitor)
+        end
+    end
+end
+
+-- Fallback if modules not found - inline implementations
+if not AdvancedModules.Janitor then
+    -- Inline Janitor implementation
+    local Janitor = {}
+    Janitor.__index = Janitor
+    
+    function Janitor.new()
+        local self = setmetatable({}, Janitor)
+        self._tasks = {}
+        self._cleaning = false
+        return self
+    end
+    
+    function Janitor:Add(task, cleanupMethod)
+        if self._cleaning then return end
+        table.insert(self._tasks, {task = task, method = cleanupMethod})
+        return task
+    end
+    
+    function Janitor:Cleanup()
+        if self._cleaning then return end
+        self._cleaning = true
+        
+        for _, taskData in ipairs(self._tasks) do
+            local task = taskData.task
+            local method = taskData.method
+            
+            if type(method) == "function" then
+                pcall(method, task)
+            elseif type(method) == "string" and task then
+                local func = task[method]
+                if func then pcall(func, task) end
+            end
+        end
+        
+        table.clear(self._tasks)
+        self._cleaning = false
+    end
+    
+    function Janitor:Destroy()
+        self:Cleanup()
+    end
+    
+    AdvancedModules.Janitor = Janitor
+end
+
+if not AdvancedModules.DeltaNetworking then
+    -- Inline Delta Networking implementation
+    local DeltaNetworking = {}
+    DeltaNetworking.__index = DeltaNetworking
+    
+    local function DeepDiff(old, new, path)
+        path = path or {}
+        local delta = {}
+        local hasChanges = false
+        
+        if old == nil and new ~= nil then
+            return new, true
+        elseif old ~= nil and new == nil then
+            return {__deleted = true}, true
+        elseif old == nil and new == nil then
+            return nil, false
+        end
+        
+        if type(old) ~= "table" or type(new) ~= "table" then
+            if old ~= new then
+                return new, true
+            else
+                return nil, false
+            end
+        end
+        
+        for key, newValue in pairs(new) do
+            local oldValue = old[key]
+            local diff, changed = DeepDiff(oldValue, newValue, path)
+            if changed then
+                delta[key] = diff
+                hasChanges = true
+            end
+        end
+        
+        for key, oldValue in pairs(old) do
+            if new[key] == nil then
+                delta[key] = {__deleted = true}
+                hasChanges = true
+            end
+        end
+        
+        return hasChanges and delta or nil, hasChanges
+    end
+    
+    local function ApplyPatch(target, patch)
+        if type(patch) ~= "table" then
+            return patch
+        end
+        
+        if patch.__deleted then
+            return nil
+        end
+        
+        if type(target) ~= "table" then
+            target = {}
+        end
+        
+        for key, value in pairs(patch) do
+            if type(value) == "table" and value.__deleted then
+                target[key] = nil
+            elseif type(value) == "table" and type(target[key]) == "table" then
+                target[key] = ApplyPatch(target[key], value)
+            else
+                target[key] = value
+            end
+        end
+        
+        return target
+    end
+    
+    function DeltaNetworking.newServer(remoteEvent)
+        local self = setmetatable({}, DeltaNetworking)
+        self.RemoteEvent = remoteEvent
+        self.PlayerStates = {}
+        self.PendingUpdates = {}
+        self.UpdateTimers = {}
+        return self
+    end
+    
+    function DeltaNetworking:TrackPlayer(player, initialState)
+        self.PlayerStates[player] = table.clone(initialState)
+        self.PendingUpdates[player] = {}
+    end
+    
+    function DeltaNetworking:UntrackPlayer(player)
+        self.PlayerStates[player] = nil
+        self.PendingUpdates[player] = nil
+        if self.UpdateTimers[player] then
+            self.UpdateTimers[player]:Disconnect()
+            self.UpdateTimers[player] = nil
+        end
+    end
+    
+    function DeltaNetworking:SendUpdate(player, newState)
+        local oldState = self.PlayerStates[player]
+        if not oldState then return end
+        
+        local delta, hasChanges = DeepDiff(oldState, newState)
+        if not hasChanges then return end
+        
+        self.PlayerStates[player] = table.clone(newState)
+        
+        table.insert(self.PendingUpdates[player], {
+            timestamp = tick(),
+            delta = delta
+        })
+        
+        if not self.UpdateTimers[player] then
+            self.UpdateTimers[player] = task.wait(0.5)
+            self:FlushUpdates(player)
+            self.UpdateTimers[player] = nil
+        end
+    end
+    
+    function DeltaNetworking:FlushUpdates(player)
+        local updates = self.PendingUpdates[player]
+        if not updates or #updates == 0 then return end
+        
+        local combinedDelta = {}
+        for _, update in ipairs(updates) do
+            combinedDelta = ApplyPatch(combinedDelta, update.delta)
+        end
+        
+        self.RemoteEvent:FireClient(player, {
+            type = "delta",
+            delta = combinedDelta,
+            timestamp = tick()
+        })
+        
+        self.PendingUpdates[player] = {}
+    end
+    
+    AdvancedModules.DeltaNetworking = DeltaNetworking
+end
+
+-- ========================================
 -- MODULE SYSTEM
 -- ========================================
 local SanrioTycoonServer = {
@@ -57,40 +257,55 @@ local SanrioTycoonServer = {
     Instances = {}
 }
 
--- Define all system modules
-SanrioTycoonServer.Systems.PlayerData = {}
-SanrioTycoonServer.Systems.PetSystem = {}
-SanrioTycoonServer.Systems.CaseOpening = {}
-SanrioTycoonServer.Systems.Trading = {}
-SanrioTycoonServer.Systems.Battle = {}
-SanrioTycoonServer.Systems.Clan = {}
-SanrioTycoonServer.Systems.Quest = {}
-SanrioTycoonServer.Systems.Achievement = {}
-SanrioTycoonServer.Systems.Daily = {}
-SanrioTycoonServer.Systems.BattlePass = {}
-SanrioTycoonServer.Systems.Economy = {}
-SanrioTycoonServer.Systems.Security = {}
-SanrioTycoonServer.Systems.Analytics = {}
-SanrioTycoonServer.Systems.Events = {}
-SanrioTycoonServer.Systems.Leaderboard = {}
-SanrioTycoonServer.Systems.Notification = {}
-SanrioTycoonServer.Systems.Social = {}
-SanrioTycoonServer.Systems.Rebirth = {}
-SanrioTycoonServer.Systems.Evolution = {}
-SanrioTycoonServer.Systems.Fusion = {}
-SanrioTycoonServer.Systems.Inventory = {}
-SanrioTycoonServer.Systems.Market = {}
-SanrioTycoonServer.Systems.Auction = {}
-SanrioTycoonServer.Systems.Tournament = {}
-SanrioTycoonServer.Systems.Minigames = {}
-SanrioTycoonServer.Systems.Housing = {}
-SanrioTycoonServer.Systems.Customization = {}
-SanrioTycoonServer.Systems.Weather = {}
-SanrioTycoonServer.Systems.DayNight = {}
-SanrioTycoonServer.Systems.Season = {}
-SanrioTycoonServer.Systems.WorldBoss = {}
-SanrioTycoonServer.Systems.Dungeon = {}
-SanrioTycoonServer.Systems.Raid = {}
+-- Create main janitor
+SanrioTycoonServer.MainJanitor = AdvancedModules.Janitor.new()
+SanrioTycoonServer.PlayerJanitors = {} -- Janitor per player
+
+-- Define all system modules with janitors
+local function CreateSystem(name)
+    local system = {
+        Name = name,
+        Janitor = AdvancedModules.Janitor.new(),
+        Cache = {},
+        Data = {}
+    }
+    SanrioTycoonServer.MainJanitor:Add(system.Janitor, "Cleanup")
+    return system
+end
+
+SanrioTycoonServer.Systems.PlayerData = CreateSystem("PlayerData")
+SanrioTycoonServer.Systems.PetSystem = CreateSystem("PetSystem")
+SanrioTycoonServer.Systems.CaseOpening = CreateSystem("CaseOpening")
+SanrioTycoonServer.Systems.Trading = CreateSystem("Trading")
+SanrioTycoonServer.Systems.Battle = CreateSystem("Battle")
+SanrioTycoonServer.Systems.Clan = CreateSystem("Clan")
+SanrioTycoonServer.Systems.Quest = CreateSystem("Quest")
+SanrioTycoonServer.Systems.Achievement = CreateSystem("Achievement")
+SanrioTycoonServer.Systems.Daily = CreateSystem("Daily")
+SanrioTycoonServer.Systems.BattlePass = CreateSystem("BattlePass")
+SanrioTycoonServer.Systems.Economy = CreateSystem("Economy")
+SanrioTycoonServer.Systems.Security = CreateSystem("Security")
+SanrioTycoonServer.Systems.Analytics = CreateSystem("Analytics")
+SanrioTycoonServer.Systems.Events = CreateSystem("Events")
+SanrioTycoonServer.Systems.Leaderboard = CreateSystem("Leaderboard")
+SanrioTycoonServer.Systems.Notification = CreateSystem("Notification")
+SanrioTycoonServer.Systems.Social = CreateSystem("Social")
+SanrioTycoonServer.Systems.Rebirth = CreateSystem("Rebirth")
+SanrioTycoonServer.Systems.Evolution = CreateSystem("Evolution")
+SanrioTycoonServer.Systems.Fusion = CreateSystem("Fusion")
+SanrioTycoonServer.Systems.Inventory = CreateSystem("Inventory")
+SanrioTycoonServer.Systems.Market = CreateSystem("Market")
+SanrioTycoonServer.Systems.Auction = CreateSystem("Auction")
+SanrioTycoonServer.Systems.Tournament = CreateSystem("Tournament")
+SanrioTycoonServer.Systems.Minigames = CreateSystem("Minigames")
+SanrioTycoonServer.Systems.Housing = CreateSystem("Housing")
+SanrioTycoonServer.Systems.Customization = CreateSystem("Customization")
+SanrioTycoonServer.Systems.Weather = CreateSystem("Weather")
+SanrioTycoonServer.Systems.DayNight = CreateSystem("DayNight")
+SanrioTycoonServer.Systems.Season = CreateSystem("Season")
+SanrioTycoonServer.Systems.WorldBoss = CreateSystem("WorldBoss")
+SanrioTycoonServer.Systems.Dungeon = CreateSystem("Dungeon")
+SanrioTycoonServer.Systems.Raid = CreateSystem("Raid")
 
 -- ========================================
 -- DATASTORE SETUP
@@ -4506,8 +4721,9 @@ local function GetDefaultPlayerData()
             rebirth_tokens = 0
         },
         
-        -- Pet Inventory
-        pets = {},
+        -- Pet Inventory (Dictionary for O(1) lookup)
+        pets = {}, -- {[petId] = petData}
+        petCount = 0,
         maxPetStorage = CONFIG.MAX_INVENTORY_SIZE,
         equippedPets = {},
         
@@ -4727,7 +4943,32 @@ local function LoadPlayerData(player)
     -- Track session
     PlayerData[player.UserId].sessionStart = tick()
     
-    -- Fire data loaded event
+    -- Setup delta tracking
+    SanrioTycoonServer.DeltaManager:TrackPlayer(player, PlayerData[player.UserId])
+    
+    -- Create player janitor
+    local janitor = AdvancedModules.Janitor.new()
+    SanrioTycoonServer.PlayerJanitors[player.UserId] = janitor
+    
+    -- Setup auto-save with janitor
+    local lastSaveTime = tick()
+    janitor:Add(Services.RunService.Heartbeat:Connect(function()
+        if tick() - lastSaveTime >= 60 then -- Auto-save every 60 seconds
+            SavePlayerData(player)
+            lastSaveTime = tick()
+        end
+    end))
+    
+    -- Fire data loaded event (send full data initially)
+    if RemoteEvents.DataUpdated then
+        RemoteEvents.DataUpdated:FireClient(player, {
+            type = "full",
+            data = PlayerData[player.UserId],
+            timestamp = tick()
+        })
+    end
+    
+    -- Legacy support
     if RemoteEvents.DataLoaded then
         RemoteEvents.DataLoaded:FireClient(player, PlayerData[player.UserId])
     end
@@ -5035,8 +5276,13 @@ local function OpenCase(player, eggType)
             end
         end
         
-        -- Add to inventory
-        table.insert(playerData.pets, petInstance)
+        -- Generate unique ID for dictionary storage
+        local uniqueId = Services.HttpService:GenerateGUID(false)
+        petInstance.uniqueId = uniqueId
+        
+        -- Add to inventory (Dictionary for O(1) lookup)
+        playerData.pets[uniqueId] = petInstance
+        playerData.petCount = (playerData.petCount or 0) + 1
         
         -- Update pet collection
         if not playerData.petCollection[petData.id] then
@@ -5092,18 +5338,16 @@ local function OpenCase(player, eggType)
     -- Save data
     SavePlayerData(player)
     
-    -- Fire client event
+    -- Send delta update (only changes will be sent)
+    SanrioTycoonServer.DeltaManager:SendUpdate(player, playerData)
+    
+    -- Fire client event for case animation
     if RemoteEvents.CaseOpened then
         RemoteEvents.CaseOpened:FireClient(player, {
             success = true,
             results = results,
             newBalance = playerData.currencies
         })
-    end
-    
-    -- Also send updated player data to ensure client is synced
-    if RemoteEvents.DataLoaded then
-        RemoteEvents.DataLoaded:FireClient(player, playerData)
     end
     
     return {
@@ -6844,6 +7088,7 @@ local function SetupRemoteEvents()
     
     -- Create RemoteEvents
     local eventNames = {
+        "DataUpdated", -- For delta networking
         "DataLoaded",
         "CaseOpened",
         "TradeStarted",
@@ -6903,6 +7148,9 @@ local function SetupRemoteEvents()
         end
         RemoteFunctions[functionName] = remoteFunction
     end
+    
+    -- Initialize Delta Networking manager
+    SanrioTycoonServer.DeltaManager = AdvancedModules.DeltaNetworking.newServer(RemoteEvents.DataUpdated)
 end
 
 local function SetupRemoteHandlers()
@@ -7065,7 +7313,16 @@ local function OnPlayerRemoving(player)
     -- Save player data
     SavePlayerData(player)
     
-    -- Clean up
+    -- Clean up with Janitor
+    if SanrioTycoonServer.PlayerJanitors[player.UserId] then
+        SanrioTycoonServer.PlayerJanitors[player.UserId]:Cleanup()
+        SanrioTycoonServer.PlayerJanitors[player.UserId] = nil
+    end
+    
+    -- Untrack from delta networking
+    SanrioTycoonServer.DeltaManager:UntrackPlayer(player)
+    
+    -- Clean up rate limiter
     RateLimiter:Reset(player)
     
     -- Cancel active trades
