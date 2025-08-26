@@ -41,6 +41,39 @@ local function findPlayerMoneyValue(player)
         if playerFolder then
             table.insert(locations, playerFolder:FindFirstChild("Money"))
             table.insert(locations, playerFolder:FindFirstChild("Cash"))
+            table.insert(locations, playerFolder:FindFirstChild("Value"))
+        end
+    end
+    
+    -- Check tycoon-specific locations
+    local tycoons = {
+        workspace:FindFirstChild("New Hellokitty  tycoon") and workspace["New Hellokitty  tycoon"]:FindFirstChild("Tycoons"),
+        workspace:FindFirstChild("Zednov's Tycoon Kit") and workspace["Zednov's Tycoon Kit"]:FindFirstChild("Tycoons"),
+        workspace:FindFirstChild("Cinnamoroll tycoon") and workspace["Cinnamoroll tycoon"]:FindFirstChild("Tycoons"),
+        workspace:FindFirstChild("Kuromi tycoon") and workspace["Kuromi tycoon"]:FindFirstChild("Tycoons")
+    }
+    
+    for _, tycoonFolder in ipairs(tycoons) do
+        if tycoonFolder then
+            for _, tycoon in pairs(tycoonFolder:GetChildren()) do
+                local owner = tycoon:FindFirstChild("Owner")
+                if owner and owner.Value == player then
+                    -- Found player's tycoon, look for money
+                    local cash = tycoon:FindFirstChild("Cash") or tycoon:FindFirstChild("Money")
+                    if cash then
+                        table.insert(locations, cash)
+                    end
+                    
+                    -- Check inside PurchasedObjects for money values
+                    local purchasedObjects = tycoon:FindFirstChild("PurchasedObjects")
+                    if purchasedObjects then
+                        local moneyObj = purchasedObjects:FindFirstChild("Money") or purchasedObjects:FindFirstChild("Cash")
+                        if moneyObj then
+                            table.insert(locations, moneyObj)
+                        end
+                    end
+                end
+            end
         end
     end
     
@@ -75,9 +108,23 @@ end
 
 -- Monitor player money changes
 local function monitorPlayerMoney(player)
+    -- Try to find money value immediately
     local moneyValue = findPlayerMoneyValue(player)
+    
+    -- If not found, wait a bit and try again (money value might be created after player joins)
     if not moneyValue then
-        warn("[MoneyUpdateBridge] Could not find money value for player:", player.Name)
+        wait(2) -- Wait for tycoon initialization
+        moneyValue = findPlayerMoneyValue(player)
+    end
+    
+    if not moneyValue then
+        -- Try one more time after another delay
+        wait(3)
+        moneyValue = findPlayerMoneyValue(player)
+    end
+    
+    if not moneyValue then
+        warn("[MoneyUpdateBridge] Could not find money value for player after retries:", player.Name)
         return
     end
     

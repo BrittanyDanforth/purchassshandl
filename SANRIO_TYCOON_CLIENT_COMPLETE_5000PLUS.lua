@@ -1266,27 +1266,45 @@ function UIModules.ShopUI:CreateEggShop(parent)
 end
 
 function UIModules.ShopUI:CreateEggCard(parent, eggData)
+    -- Skip invalid egg data
+    if not eggData or not eggData.id then
+        return
+    end
+    
     local card = Instance.new("Frame")
     card.Name = eggData.id .. "Card"
-    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface
+    card.BorderSizePixel = 0
     card.Parent = parent
     
     Utilities:CreateCorner(card, 12)
     Utilities:CreateShadow(card, 0.3)
     
-    -- Egg image
-    local eggImage = UIComponents:CreateImageLabel(card, eggData.image or "rbxassetid://0", UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20))
-    eggImage.BackgroundTransparency = 1
+    -- Egg image - only create if valid image exists
+    local imageId = eggData.image or eggData.imageId
+    if imageId and imageId ~= "" and imageId ~= "rbxassetid://0" then
+        local eggImage = UIComponents:CreateImageLabel(card, imageId, UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20))
+        eggImage.BackgroundTransparency = 1
+        eggImage.ScaleType = Enum.ScaleType.Fit
+        
+        -- Only animate if image loaded successfully
+        spawn(function()
+            while card.Parent and eggImage.Parent do
+                Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 15)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                wait(2)
+                if not card.Parent then break end
+                Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 25)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                wait(2)
+            end
+        end)
+    else
+        -- Show placeholder if no valid image
+        local placeholder = UIComponents:CreateLabel(card, "?", UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20), 60)
+        placeholder.TextColor3 = CLIENT_CONFIG.COLORS.TextSecondary
+        placeholder.Font = CLIENT_CONFIG.FONTS.Display
+    end
     
-    -- Floating animation
-    spawn(function()
-        while card.Parent do
-            Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 15)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(2)
-            Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 25)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(2)
-        end
-    end)
+    -- Animation moved inside the image creation block above
     
     -- Egg name
     local nameLabel = UIComponents:CreateLabel(card, eggData.name, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 150), 18)
@@ -1875,8 +1893,9 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     nameLabel.ZIndex = 104
     
     -- Variant label
-    if result.variant ~= "normal" then
-        local variantLabel = UIComponents:CreateLabel(resultFrame, "✨ " .. result.variant:upper() .. " VARIANT! ✨", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 410), 20)
+    local variant = result.variant or (result.pet and result.pet.variant) or (result.petData and result.petData.variant) or "normal"
+    if variant and variant ~= "normal" then
+        local variantLabel = UIComponents:CreateLabel(resultFrame, "✨ " .. variant:upper() .. " VARIANT! ✨", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 410), 20)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.TextColor3 = rarityColor
         variantLabel.ZIndex = 104
@@ -1887,7 +1906,8 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     
     -- Rarity label
     local rarityNames = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "SECRET"}
-    local rarityLabel = UIComponents:CreateLabel(resultFrame, rarityNames[result.petData.rarity] or "Unknown", UDim2.new(1, 0, 0, 25), UDim2.new(0, 0, 0, 440), 18)
+    local rarity = finalPetData.rarity or 1
+    local rarityLabel = UIComponents:CreateLabel(resultFrame, rarityNames[rarity] or "Unknown", UDim2.new(1, 0, 0, 25), UDim2.new(0, 0, 0, 440), 18)
     rarityLabel.TextColor3 = rarityColor
     rarityLabel.Font = CLIENT_CONFIG.FONTS.Secondary
     rarityLabel.ZIndex = 104
@@ -4828,6 +4848,7 @@ function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
     rewardDisplay.Size = UDim2.new(0, 300, 0, 200)
     rewardDisplay.Position = UDim2.new(0.5, -150, 0.2, 0) -- Move to top of screen
     rewardDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    rewardDisplay.BorderSizePixel = 0
     rewardDisplay.ZIndex = 700
     rewardDisplay.Parent = MainUI.ScreenGui
     
@@ -4866,17 +4887,31 @@ function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
     -- Sound
     Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Success)
     
-    -- Animate
+    -- Animate from top
     rewardDisplay.Size = UDim2.new(0, 0, 0, 0)
-    rewardDisplay.Position = UDim2.new(0.5, 0, 0.5, 0)
+    rewardDisplay.Position = UDim2.new(0.5, 0, 0.2, 0)
     Utilities:Tween(rewardDisplay, {
         Size = UDim2.new(0, 300, 0, 200),
-        Position = UDim2.new(0.5, -150, 0.5, -100)
+        Position = UDim2.new(0.5, -150, 0.2, 0)
     }, CLIENT_CONFIG.TWEEN_INFO.Bounce)
     
-    -- Auto close
-    wait(3)
-    Utilities:Tween(rewardDisplay, {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+    -- Auto close with fade
+    wait(2.5)
+    Utilities:Tween(rewardDisplay, {
+        Size = UDim2.new(0, 0, 0, 0), 
+        Position = UDim2.new(0.5, 0, 0.2, 0),
+        BackgroundTransparency = 1
+    }, CLIENT_CONFIG.TWEEN_INFO.Normal)
+    
+    -- Also fade out children
+    for _, child in ipairs(rewardDisplay:GetDescendants()) do
+        if child:IsA("TextLabel") then
+            Utilities:Tween(child, {TextTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        elseif child:IsA("ImageLabel") then
+            Utilities:Tween(child, {ImageTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        end
+    end
+    
     wait(0.3)
     rewardDisplay:Destroy()
 end
