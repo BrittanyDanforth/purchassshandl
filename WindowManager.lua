@@ -15,7 +15,7 @@ local WindowManager = {}
 WindowManager.__index = WindowManager
 
 -- Requires Janitor module
-local Janitor = require(script.Parent.Janitor)
+local Janitor = require(script.Parent.Parent.Shared.Janitor)
 
 -- ========================================
 -- CONFIGURATION
