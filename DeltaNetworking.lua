@@ -1,4 +1,6 @@
 -- ========================================
+-- LOCATION: ReplicatedStorage > Modules > Shared > DeltaNetworking (ModuleScript)
+-- ========================================
 -- DELTA NETWORKING SYSTEM
 -- Advanced network optimization for Roblox
 -- Reduces network traffic by 90%+

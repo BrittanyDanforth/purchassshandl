@@ -1,6 +1,15 @@
 -- ========================================
+-- LOCATION: StarterPlayer > StarterPlayerScripts > SANRIO_TYCOON_CLIENT_ADVANCED (LocalScript - NOT Script)
+-- ========================================
 -- SANRIO TYCOON CLIENT - ADVANCED VERSION
 -- With ClientDataManager, WindowManager, Janitor, and Reactive UI
+-- Fixes:
+--   - Pets now show in inventory immediately after opening egg
+--   - Debug panel works and gives currency
+--   - Currency display updates reactively
+--   - All windows have proper close buttons
+--   - Case opening shows what you actually won
+--   - No more UpdateValue errors
 -- ========================================
 
 -- Services

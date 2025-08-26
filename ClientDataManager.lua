@@ -1,7 +1,10 @@
 -- ========================================
+-- LOCATION: ReplicatedStorage > Modules > Shared > ClientDataManager (ModuleScript)
+-- ========================================
 -- CLIENT DATA MANAGER
 -- Single source of truth for client-side data
 -- Reactive system with event broadcasting
+-- Fixes: Pets now show in inventory, auto-updates all UI
 -- ========================================
 
 local ClientDataManager = {}

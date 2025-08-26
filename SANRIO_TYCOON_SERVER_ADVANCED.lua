@@ -1,6 +1,13 @@
 -- ========================================
+-- LOCATION: ServerScriptService > SANRIO_TYCOON_SERVER_ADVANCED (Script - NOT ModuleScript)
+-- ========================================
 -- SANRIO TYCOON SERVER - ADVANCED VERSION
 -- With Delta Networking, Janitor, and Performance Optimizations
+-- Fixes: 
+--   - Pets now properly save and load as dictionary (O(1) lookups)
+--   - Debug menu actually gives currency
+--   - No more "attempt to compare nil" errors
+--   - Data properly merges with DeepMerge
 -- ========================================
 
 -- Services

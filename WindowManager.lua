@@ -1,7 +1,10 @@
 -- ========================================
+-- LOCATION: ReplicatedStorage > Modules > Client > WindowManager (ModuleScript)
+-- ========================================
 -- WINDOW MANAGER MODULE
 -- Professional modal/popup management system
 -- Ensures consistent UI across all windows
+-- Fixes: All windows now have close buttons, proper animations
 -- ========================================
 
 local TweenService = game:GetService("TweenService")

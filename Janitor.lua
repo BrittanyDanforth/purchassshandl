@@ -1,7 +1,10 @@
 -- ========================================
+-- LOCATION: ReplicatedStorage > Modules > Shared > Janitor (ModuleScript)
+-- ========================================
 -- JANITOR MODULE
 -- Professional memory management for Roblox
 -- Prevents memory leaks automatically
+-- Fixes: No more memory leaks after 30+ minutes of gameplay
 -- ========================================
 
 local Janitor = {}
