@@ -1250,8 +1250,15 @@ function UIModules.ShopUI:CreateGamepassShop(parent)
     end
     
     -- Update canvas size
-    scrollFrame:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
+    spawn(function()
+        wait(0.1) -- Wait for layout to update
+        if listLayout and listLayout.Parent then
+            listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
+            end)
+            -- Set initial size
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
+        end
     end)
 end
 
@@ -3071,6 +3078,41 @@ function UIModules.TradingUI:UpdateTradeDisplay()
     -- TODO: Update trade window based on current trade data
 end
 
+function UIModules.InventoryUI:CreateEquippedView(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.Parent = scrollFrame
+    gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+    gridLayout.CellSize = UDim2.new(0, 120, 0, 140)
+    gridLayout.FillDirection = Enum.FillDirection.Horizontal
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add equipped pets display
+    local equippedLabel = UIComponents:CreateLabel(scrollFrame, "Your equipped pets will appear here", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    equippedLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    equippedLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
+end
+
+function UIModules.InventoryUI:CreateCollectionView(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = scrollFrame
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 10)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add collection progress display
+    local collectionLabel = UIComponents:CreateLabel(scrollFrame, "Pet collection progress will appear here", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    collectionLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    collectionLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
+end
+
 function UIModules.TradingUI:CreateActiveTradesView(parent)
     local scrollFrame = UIComponents:CreateScrollingFrame(parent)
     
@@ -3084,6 +3126,23 @@ function UIModules.TradingUI:CreateActiveTradesView(parent)
     local tradeLabel = UIComponents:CreateLabel(scrollFrame, "No active trades", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
     tradeLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     tradeLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
+end
+
+function UIModules.TradingUI:CreateTradeHistoryView(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = scrollFrame
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 10)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add history items
+    local historyLabel = UIComponents:CreateLabel(scrollFrame, "Trade history will appear here", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    historyLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    historyLabel.Font = CLIENT_CONFIG.FONTS.Secondary
     
     return scrollFrame
 end
@@ -3448,6 +3507,23 @@ function UIModules.BattleUI:CreateTournamentView(parent)
     local tournamentLabel = UIComponents:CreateLabel(scrollFrame, "No active tournaments", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
     tournamentLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
     tournamentLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    return scrollFrame
+end
+
+function UIModules.BattleUI:CreateHistoryView(parent)
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = scrollFrame
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 10)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    -- Add battle history items
+    local historyLabel = UIComponents:CreateLabel(scrollFrame, "Battle history will appear here", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 18)
+    historyLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    historyLabel.Font = CLIENT_CONFIG.FONTS.Secondary
     
     return scrollFrame
 end

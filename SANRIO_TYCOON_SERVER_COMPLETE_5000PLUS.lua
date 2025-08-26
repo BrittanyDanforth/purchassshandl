@@ -5084,14 +5084,14 @@ local function OpenCase(player, eggType)
         RemoteEvents.CaseOpened:FireClient(player, {
             success = true,
             results = results,
-            newBalance = playerData.currencies[currencyType]
+            newBalance = playerData.currencies
         })
     end
     
     return {
         success = true,
         results = results,
-        newBalance = playerData.currencies[currencyType]
+        newBalance = playerData.currencies
     }
 end
 
