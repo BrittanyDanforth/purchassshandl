@@ -37,7 +37,9 @@ local Modules = {
     CaseSystem = require(ModulesFolder:WaitForChild("CaseSystem")),
     TradingSystem = require(ModulesFolder:WaitForChild("TradingSystem")),
     DailyRewardSystem = require(ModulesFolder:WaitForChild("DailyRewardSystem")),
-    QuestSystem = require(ModulesFolder:WaitForChild("QuestSystem"))
+    QuestSystem = require(ModulesFolder:WaitForChild("QuestSystem")),
+    BattleSystem = require(ModulesFolder:WaitForChild("BattleSystem")),
+    AchievementSystem = require(ModulesFolder:WaitForChild("AchievementSystem"))
 }
 
 -- Advanced modules (if they exist)
@@ -155,6 +157,7 @@ local function SetupRemotes()
         "ClaimDailyReward",
         "GetDailyRewards",
         "StartBattle",
+        "SetBattleTeam",
         "BattleAction",
         "CreateClan",
         "JoinClan",
@@ -238,6 +241,9 @@ local function SetupRemoteHandlers()
             for _, petResult in ipairs(result.results) do
                 Modules.QuestSystem:OnPetHatched(player, petResult.pet)
             end
+            
+            -- Check achievements
+            Modules.AchievementSystem:CheckAchievements(player)
             
             -- Send case opened event
             RemoteEvents.CaseOpened:FireClient(player, result)
@@ -449,6 +455,25 @@ local function SetupRemoteHandlers()
         return Modules.QuestSystem:ClaimQuestReward(player, questId)
     end
     
+    -- Battle System
+    RemoteFunctions.StartBattle.OnServerInvoke = function(player1, targetName)
+        local player2 = Services.Players:FindFirstChild(targetName)
+        if not player2 then
+            return {success = false, error = "Player not found"}
+        end
+        
+        local battleId = Modules.BattleSystem:CreateBattle(player1, player2, "pvp")
+        return {success = true, battleId = battleId}
+    end
+    
+    RemoteFunctions.BattleAction.OnServerInvoke = function(player, battleId, action)
+        return Modules.BattleSystem:ExecuteAction(battleId, player, action)
+    end
+    
+    RemoteFunctions.SetBattleTeam.OnServerInvoke = function(player, battleId, petIds)
+        return Modules.BattleSystem:SetBattleTeam(battleId, player, petIds)
+    end
+    
     -- Debug (Studio only)
     if Services.RunService:IsStudio() and RemoteFunctions.DebugGiveCurrency then
         RemoteFunctions.DebugGiveCurrency.OnServerInvoke = function(player, currencyType, amount)
@@ -539,6 +564,9 @@ local function OnPlayerAdded(player)
     
     -- Generate daily quests
     Modules.QuestSystem:GenerateDailyQuests(player)
+    
+    -- Check achievements
+    Modules.AchievementSystem:CheckAchievements(player)
 end
 
 local function OnPlayerRemoving(player)

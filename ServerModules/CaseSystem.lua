@@ -28,11 +28,13 @@ CaseSystem.EggCases = {
         currency = "coins",
         icon = "rbxassetid://10000001001",
         dropRates = {
-            ["hello_kitty_classic"] = 40,
-            ["my_melody_basic"] = 30,
+            ["hello_kitty_classic"] = 30,
+            ["my_melody_basic"] = 25,
             ["cinnamoroll_basic"] = 20,
-            ["pompompurin_basic"] = 8,
-            ["keroppi_basic"] = 2
+            ["pompompurin_basic"] = 10,
+            ["keroppi_basic"] = 8,
+            ["pochacco_basic"] = 5,
+            ["tuxedosam_basic"] = 2
         },
         pitySystem = {
             enabled = true,
@@ -48,11 +50,14 @@ CaseSystem.EggCases = {
         currency = "coins",
         icon = "rbxassetid://10000001002",
         dropRates = {
-            ["kuromi_basic"] = 35,
-            ["my_melody_sweet"] = 25,
-            ["cinnamoroll_sky"] = 20,
-            ["pompompurin_chef"] = 15,
-            ["keroppi_ninja"] = 5
+            ["kuromi_basic"] = 25,
+            ["badtz_maru_basic"] = 20,
+            ["chococat_basic"] = 20,
+            ["my_melody_sweet"] = 15,
+            ["pompompurin_chef"] = 10,
+            ["pochacco_athlete"] = 5,
+            ["tuxedosam_gentleman"] = 3,
+            ["keroppi_ninja"] = 2
         },
         pitySystem = {
             enabled = true,
@@ -68,11 +73,14 @@ CaseSystem.EggCases = {
         currency = "gems",
         icon = "rbxassetid://10000001003",
         dropRates = {
-            ["hello_kitty_angel"] = 30,
-            ["kuromi_devil"] = 25,
-            ["cinnamoroll_sky"] = 20,
-            ["my_melody_sweet"] = 15,
-            ["keroppi_ninja"] = 8,
+            ["hello_kitty_angel"] = 20,
+            ["kuromi_devil"] = 18,
+            ["cinnamoroll_sky"] = 15,
+            ["badtz_maru_rebel"] = 12,
+            ["chococat_wise"] = 10,
+            ["keroppi_ninja"] = 10,
+            ["my_melody_sweet"] = 8,
+            ["pochacco_athlete"] = 5,
             ["hello_kitty_goddess"] = 2
         },
         pitySystem = {
@@ -89,11 +97,15 @@ CaseSystem.EggCases = {
         currency = "gems",
         icon = "rbxassetid://10000001004",
         dropRates = {
-            ["hello_kitty_goddess"] = 10,
-            ["kuromi_devil"] = 30,
-            ["cinnamoroll_sky"] = 25,
-            ["keroppi_ninja"] = 20,
-            ["pompompurin_chef"] = 15
+            ["hello_kitty_goddess"] = 15,
+            ["golden_cinnamoroll"] = 10,
+            ["shadow_kuromi"] = 8,
+            ["kuromi_devil"] = 20,
+            ["badtz_maru_rebel"] = 15,
+            ["chococat_wise"] = 12,
+            ["cinnamoroll_sky"] = 10,
+            ["keroppi_ninja"] = 8,
+            ["hello_kitty_rainbow"] = 2
         },
         pitySystem = {
             enabled = true,
@@ -110,11 +122,36 @@ CaseSystem.EggCases = {
         icon = "rbxassetid://10000001005",
         hidden = true, -- Only show during events
         dropRates = {
-            -- Event pets would go here
+            ["hello_kitty_rainbow"] = 25,
+            ["golden_cinnamoroll"] = 25,
+            ["shadow_kuromi"] = 25,
+            ["hello_kitty_goddess"] = 25
         },
         limitedTime = {
             startTime = 0,
             endTime = 0
+        }
+    },
+    
+    ["mythical_egg"] = {
+        name = "Mythical Egg",
+        description = "Contains the most powerful pets!",
+        price = 1000,
+        currency = "gems",
+        icon = "rbxassetid://10000001006",
+        dropRates = {
+            ["hello_kitty_rainbow"] = 5,
+            ["golden_cinnamoroll"] = 15,
+            ["shadow_kuromi"] = 15,
+            ["hello_kitty_goddess"] = 25,
+            ["kuromi_devil"] = 20,
+            ["badtz_maru_rebel"] = 10,
+            ["chococat_wise"] = 10
+        },
+        pitySystem = {
+            enabled = true,
+            threshold = 2,
+            guaranteedRarity = Configuration.RARITY.MYTHICAL
         }
     }
 }

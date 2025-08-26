@@ -35,6 +35,7 @@ function PetSystem:CreatePetInstance(petId, level, xp)
         uniqueId = uniqueId,
         petId = petId,
         name = petData.name,
+        rarity = petData.rarity,
         level = level or 1,
         xp = xp or 0,
         equipped = false,

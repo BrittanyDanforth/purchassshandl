@@ -520,7 +520,24 @@ function BattleSystem:GetPetAbilities(pet)
     if petData and petData.abilities then
         for _, ability in ipairs(petData.abilities) do
             if pet.level >= ability.unlockLevel then
-                table.insert(abilities, ability.id or ability.name:lower():gsub(" ", "_"))
+                -- Map ability names to ability IDs
+                local abilityId = ability.name:lower():gsub(" ", "_"):gsub("'", "")
+                
+                -- Add to ABILITIES table if not exists
+                if not ABILITIES[abilityId] then
+                    ABILITIES[abilityId] = {
+                        name = ability.name,
+                        description = ability.description,
+                        power = ability.effect.value or ability.effect.damage or 50,
+                        accuracy = 95,
+                        type = ability.effect.type == "heal" and "support" or "special",
+                        target = ability.effect.type:find("team") and "team" or "single",
+                        cooldown = ability.cooldown,
+                        effect = ability.effect
+                    }
+                end
+                
+                table.insert(abilities, abilityId)
             end
         end
     end
