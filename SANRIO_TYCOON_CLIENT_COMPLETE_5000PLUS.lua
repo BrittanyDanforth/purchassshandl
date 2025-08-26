@@ -118,9 +118,7 @@ end
 local DeltaReceiver = nil
 if DataManager and AdvancedModules.DeltaNetworking and RemoteEvents.DataUpdated then
     DeltaReceiver = AdvancedModules.DeltaNetworking.newClient(RemoteEvents.DataUpdated, DataManager)
-    if MainJanitor and DeltaReceiver then
-        MainJanitor:Add(DeltaReceiver)
-    end
+    -- Note: DeltaReceiver manages its own cleanup
 end
 
 -- ========================================
