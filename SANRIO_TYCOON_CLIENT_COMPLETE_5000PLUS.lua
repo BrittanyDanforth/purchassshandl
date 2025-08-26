@@ -3975,7 +3975,9 @@ return {
     ParticleSystem = ParticleSystem,
     Utilities = Utilities,
     LocalData = LocalData
-}-- ========================================
+}
+
+-- ========================================
 -- DAILY REWARD UI MODULE
 -- ========================================
 UIModules.DailyRewardUI = {}

@@ -2612,7 +2612,7 @@ PetDatabase["kiki_and_lala_classic"] = CreatePet({
             description = "Grants a random powerful buff to team",
             cooldown = 200,
             effect = "random_wish",
-            possibleBuffs = ["invincibility", "double_damage", "instant_heal", "time_stop"],
+            possibleBuffs = {"invincibility", "double_damage", "instant_heal", "time_stop"},
             duration = 15,
             targetType = "team",
             energyCost = 80,
@@ -3416,7 +3416,7 @@ PetDatabase["pompompurin_chef"] = CreatePet({
             description = "Creates magical food that grants random buffs",
             cooldown = 80,
             effect = "create_food",
-            foodTypes = ["attack_boost", "defense_boost", "speed_boost", "heal", "energy"],
+            foodTypes = {"attack_boost", "defense_boost", "speed_boost", "heal", "energy"},
             foodCount = 5,
             duration = 40,
             targetType = "area",
@@ -3896,7 +3896,7 @@ PetDatabase["sanrio_universe_guardian"] = CreatePet({
             value = 1,
             level = 60
         }
-    ],
+    },
     evolutionRequirements = nil,
     evolvesTo = nil,
     variants = {
@@ -4046,7 +4046,7 @@ PetDatabase["sanrio_creator"] = CreatePet({
             value = 1,
             level = 1
         }
-    ],
+    },
     evolutionRequirements = nil,
     evolvesTo = nil,
     variants = {
