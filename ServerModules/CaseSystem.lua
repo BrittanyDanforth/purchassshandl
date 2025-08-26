@@ -330,19 +330,24 @@ end
 function CaseSystem:OpenCase(player, eggType, hatchCount)
     local playerData = DataStoreModule.PlayerData[player.UserId]
     if not playerData then
-        return {success = false, error = "No player data"}
+        warn("[CaseSystem] No player data found for", player.Name)
+        return {success = false, error = "Your data is still loading. Please try again in a moment."}
     end
     
     local egg = self.EggCases[eggType]
     if not egg then
-        return {success = false, error = "Invalid egg type"}
+        warn("[CaseSystem] Invalid egg type requested:", eggType)
+        return {success = false, error = "That egg doesn't exist!"}
     end
     
     -- Check if egg is available (for limited time eggs)
     if egg.limitedTime then
         local currentTime = os.time()
         if currentTime < egg.limitedTime.startTime or currentTime > egg.limitedTime.endTime then
-            return {success = false, error = "This egg is not available"}
+            local message = currentTime < egg.limitedTime.startTime and 
+                "This egg isn't available yet!" or 
+                "This limited egg has expired!"
+            return {success = false, error = message}
         end
     end
     

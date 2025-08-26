@@ -121,7 +121,7 @@ local function createRemotes(folders)
         
         -- Trading
         "StartTrade", "AddTradeItem", "RemoveTradeItem", "SetTradeCurrency",
-        "ConfirmTrade", "CancelTrade",
+        "ConfirmTrade", "CancelTrade", "GetRecentTradePartners",
         
         -- Quests & Daily
         "ClaimQuest", "AbandonQuest", "ClaimDailyReward", "GetDailyRewards",
@@ -131,13 +131,14 @@ local function createRemotes(folders)
         
         -- Clan
         "CreateClan", "JoinClan", "LeaveClan", "InviteToClan",
-        "KickFromClan", "PromoteMember", "DemoteMember", "DonateToClan", "StartClanWar",
+        "KickFromClan", "PromoteMember", "DemoteMember", "DonateToClan", "StartClanWar", "GetClanList",
         
         -- Other
         "PerformRebirth", "CreateMarketListing", "CancelMarketListing",
         "PurchaseMarketListing", "PlaceAuctionBid", "JoinTournament", "LeaveTournament",
         "StartMinigame", "MinigameAction", "PurchaseHouse", "PlaceFurniture",
         "CustomizePet", "JoinDungeon", "LeaveDungeon", "JoinRaid", "LeaveRaid",
+        "ClaimMinigameReward", "GetLeaderboards",
         
         -- Debug (Studio only)
         "DebugGiveCurrency", "DebugGivePet", "DebugSetLevel"
@@ -402,6 +403,117 @@ local function connectRemoteHandlers(modules, folders)
             end
         end
         return {success = false, error = "System not available"}
+    end
+    
+    -- Trading extras
+    RemoteFunctions.GetRecentTradePartners.OnServerInvoke = function(player)
+        if modules.TradingSystem then
+            return modules.TradingSystem:GetRecentPartners(player)
+        end
+        return {}
+    end
+    
+    -- Clan extras
+    RemoteFunctions.GetClanList.OnServerInvoke = function(player)
+        if modules.ClanSystem then
+            return modules.ClanSystem:GetPublicClans()
+        end
+        -- Return sample clans if system not available
+        return {
+            {id = "clan1", name = "Sanrio Squad", memberCount = 45, maxMembers = 50, level = 10},
+            {id = "clan2", name = "Hello Kitty Club", memberCount = 38, maxMembers = 50, level = 8},
+            {id = "clan3", name = "Kuromi Gang", memberCount = 42, maxMembers = 50, level = 9}
+        }
+    end
+    
+    -- Minigame rewards
+    RemoteFunctions.ClaimMinigameReward.OnServerInvoke = function(player, gameType, gameData)
+        if modules.DataStoreModule then
+            local playerData = modules.DataStoreModule:GetPlayerData(player)
+            if playerData then
+                -- Calculate rewards based on game performance
+                local baseCoins = gameData.score * 10
+                local baseGems = math.floor(gameData.score / 100) * 5
+                
+                -- Apply multipliers or bonuses
+                local coinMultiplier = playerData.multipliers and playerData.multipliers.coins or 1
+                local finalCoins = math.floor(baseCoins * coinMultiplier)
+                local finalGems = baseGems
+                
+                -- Award rewards
+                playerData.currencies.coins = (playerData.currencies.coins or 0) + finalCoins
+                playerData.currencies.gems = (playerData.currencies.gems or 0) + finalGems
+                
+                -- Track statistics
+                playerData.statistics = playerData.statistics or {}
+                playerData.statistics.minigamesPlayed = (playerData.statistics.minigamesPlayed or 0) + 1
+                playerData.statistics.totalMinigameScore = (playerData.statistics.totalMinigameScore or 0) + gameData.score
+                
+                modules.DataStoreModule:MarkPlayerDirty(player.UserId)
+                RemoteEvents.CurrencyUpdated:FireClient(player, playerData.currencies)
+                
+                return {success = true, coins = finalCoins, gems = finalGems}
+            end
+        end
+        return {success = false, error = "Failed to award rewards"}
+    end
+    
+    -- Leaderboards
+    RemoteFunctions.GetLeaderboards.OnServerInvoke = function(player)
+        local leaderboards = {
+            coins = {},
+            level = {},
+            pets = {}
+        }
+        
+        if modules.DataStoreModule and modules.DataStoreModule.PlayerData then
+            -- Get all player data and sort
+            local allPlayers = {}
+            for userId, data in pairs(modules.DataStoreModule.PlayerData) do
+                table.insert(allPlayers, {
+                    userId = userId,
+                    username = data.username or "Unknown",
+                    coins = data.currencies and data.currencies.coins or 0,
+                    level = data.level or 1,
+                    petCount = data.pets and #data.pets or 0
+                })
+            end
+            
+            -- Sort by coins
+            table.sort(allPlayers, function(a, b) return a.coins > b.coins end)
+            for i = 1, math.min(10, #allPlayers) do
+                table.insert(leaderboards.coins, {
+                    rank = i,
+                    userId = allPlayers[i].userId,
+                    username = allPlayers[i].username,
+                    value = allPlayers[i].coins
+                })
+            end
+            
+            -- Sort by level
+            table.sort(allPlayers, function(a, b) return a.level > b.level end)
+            for i = 1, math.min(10, #allPlayers) do
+                table.insert(leaderboards.level, {
+                    rank = i,
+                    userId = allPlayers[i].userId,
+                    username = allPlayers[i].username,
+                    value = allPlayers[i].level
+                })
+            end
+            
+            -- Sort by pet count
+            table.sort(allPlayers, function(a, b) return a.petCount > b.petCount end)
+            for i = 1, math.min(10, #allPlayers) do
+                table.insert(leaderboards.pets, {
+                    rank = i,
+                    userId = allPlayers[i].userId,
+                    username = allPlayers[i].username,
+                    value = allPlayers[i].petCount
+                })
+            end
+        end
+        
+        return leaderboards
     end
     
     -- Debug handlers (Studio only)

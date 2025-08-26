@@ -580,4 +580,43 @@ function TradingSystem:OnPlayerLeaving(player)
     self.TradeHistory[player.UserId] = nil
 end
 
+function TradingSystem:GetRecentPartners(player)
+    local partners = {}
+    local history = self.TradeHistory[player.UserId]
+    
+    if history then
+        -- Get unique partners from trade history
+        local uniquePartners = {}
+        for _, trade in ipairs(history) do
+            local partnerId = trade.player1 == player.UserId and trade.player2 or trade.player1
+            if not uniquePartners[partnerId] then
+                uniquePartners[partnerId] = {
+                    userId = partnerId,
+                    username = trade.player1 == player.UserId and trade.player2Name or trade.player1Name,
+                    lastTradeTime = trade.timestamp
+                }
+            end
+        end
+        
+        -- Convert to array and sort by most recent
+        for _, partner in pairs(uniquePartners) do
+            table.insert(partners, partner)
+        end
+        
+        table.sort(partners, function(a, b)
+            return a.lastTradeTime > b.lastTradeTime
+        end)
+        
+        -- Limit to 10 most recent
+        local recentPartners = {}
+        for i = 1, math.min(10, #partners) do
+            recentPartners[i] = partners[i]
+        end
+        
+        return recentPartners
+    end
+    
+    return {}
+end
+
 return TradingSystem
