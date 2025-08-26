@@ -3223,7 +3223,7 @@ PetDatabase["cinnamoroll_celestial"] = CreatePet({
     evolutionRequirements = {
         level = 75,
         gems = 18000,
-        items = ["cloud_essence", "celestial_wings", "rainbow_crystal", "sky_orb"],
+        items = {"cloud_essence", "celestial_wings", "rainbow_crystal", "sky_orb"},
         cloudsRidden = 500
     },
     evolvesTo = "cinnamoroll_archangel",
