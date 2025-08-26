@@ -5735,10 +5735,32 @@ if game:GetService("RunService"):IsStudio() then
         
         AddDebugButton("Give 1M Coins", function()
             print("Debug: Adding 1M coins")
+            if RemoteFunctions.DebugGiveCurrency then
+                RemoteFunctions.DebugGiveCurrency:InvokeServer("coins", 1000000)
+            else
+                -- Fallback: Update local display (won't persist)
+                if LocalData.PlayerData then
+                    LocalData.PlayerData.currencies.coins = (LocalData.PlayerData.currencies.coins or 0) + 1000000
+                    if MainUI.UpdateCurrency then
+                        MainUI.UpdateCurrency(LocalData.PlayerData.currencies)
+                    end
+                end
+            end
         end)
         
         AddDebugButton("Give 1K Gems", function()
             print("Debug: Adding 1K gems")
+            if RemoteFunctions.DebugGiveCurrency then
+                RemoteFunctions.DebugGiveCurrency:InvokeServer("gems", 1000)
+            else
+                -- Fallback: Update local display (won't persist)
+                if LocalData.PlayerData then
+                    LocalData.PlayerData.currencies.gems = (LocalData.PlayerData.currencies.gems or 0) + 1000
+                    if MainUI.UpdateCurrency then
+                        MainUI.UpdateCurrency(LocalData.PlayerData.currencies)
+                    end
+                end
+            end
         end)
         
         AddDebugButton("Open Legendary Egg", function()

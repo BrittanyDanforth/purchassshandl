@@ -6872,7 +6872,8 @@ local function SetupRemoteEvents()
         "ClaimQuest",
         "ClaimDailyReward",
         "GetPlayerData",
-        "SaveSettings"
+        "SaveSettings",
+        "DebugGiveCurrency"
     }
     
     for _, functionName in ipairs(functionNames) do
@@ -6991,6 +6992,29 @@ local function SetupRemoteHandlers()
             return true
         end
         return false
+    end
+    
+    -- Debug Functions (Studio only)
+    if Services.RunService:IsStudio() then
+        RemoteFunctions.DebugGiveCurrency.OnServerInvoke = function(player, currencyType, amount)
+            local playerData = PlayerData[player.UserId]
+            if not playerData then return false end
+            
+            if currencyType == "coins" or currencyType == "gems" then
+                playerData.currencies[currencyType] = playerData.currencies[currencyType] + amount
+                SavePlayerData(player)
+                
+                -- Update client
+                if RemoteEvents.DataLoaded then
+                    RemoteEvents.DataLoaded:FireClient(player, playerData)
+                end
+                
+                print("[DEBUG] Gave", player.Name, amount, currencyType)
+                return true
+            end
+            
+            return false
+        end
     end
 end
 
