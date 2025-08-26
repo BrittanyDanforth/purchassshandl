@@ -35,7 +35,9 @@ local Modules = {
     PetSystem = require(ModulesFolder:WaitForChild("PetSystem")),
     PetDatabase = require(ModulesFolder:WaitForChild("PetDatabase")),
     CaseSystem = require(ModulesFolder:WaitForChild("CaseSystem")),
-    TradingSystem = require(ModulesFolder:WaitForChild("TradingSystem"))
+    TradingSystem = require(ModulesFolder:WaitForChild("TradingSystem")),
+    DailyRewardSystem = require(ModulesFolder:WaitForChild("DailyRewardSystem")),
+    QuestSystem = require(ModulesFolder:WaitForChild("QuestSystem"))
 }
 
 -- Advanced modules (if they exist)
@@ -151,6 +153,7 @@ local function SetupRemotes()
         "ClaimQuest",
         "AbandonQuest",
         "ClaimDailyReward",
+        "GetDailyRewards",
         "StartBattle",
         "BattleAction",
         "CreateClan",
@@ -228,6 +231,14 @@ local function SetupRemoteHandlers()
         local result = Modules.CaseSystem:OpenCase(player, eggType, hatchCount)
         
         if result.success then
+            -- Update quest progress
+            Modules.QuestSystem:OnEggOpened(player, hatchCount or 1)
+            
+            -- Update quest progress for each pet hatched
+            for _, petResult in ipairs(result.results) do
+                Modules.QuestSystem:OnPetHatched(player, petResult.pet)
+            end
+            
             -- Send case opened event
             RemoteEvents.CaseOpened:FireClient(player, result)
             
@@ -370,14 +381,19 @@ local function SetupRemoteHandlers()
         elseif dataType == "gamepasses" then
             -- Return gamepass data
             local gamepasses = {}
-            for id, name in pairs(Modules.Configuration.GAMEPASS_IDS) do
+            for id, data in pairs(Modules.Configuration.GAMEPASS_DATA) do
                 table.insert(gamepasses, {
                     id = id,
-                    name = name,
-                    price = 0, -- MarketplaceService will handle actual price
-                    description = "Unlock " .. name .. " benefits!"
+                    name = data.name,
+                    description = data.description,
+                    price = data.price,
+                    icon = data.icon
                 })
             end
+            -- Sort by price
+            table.sort(gamepasses, function(a, b)
+                return a.price < b.price
+            end)
             return gamepasses
         end
         return nil
@@ -417,6 +433,20 @@ local function SetupRemoteHandlers()
             return true
         end
         return false
+    end
+    
+    -- Daily Rewards
+    RemoteFunctions.ClaimDailyReward.OnServerInvoke = function(player)
+        return Modules.DailyRewardSystem:ClaimDailyReward(player)
+    end
+    
+    RemoteFunctions.GetDailyRewards.OnServerInvoke = function(player)
+        return Modules.DailyRewardSystem:GetAllRewards(player)
+    end
+    
+    -- Quests
+    RemoteFunctions.ClaimQuest.OnServerInvoke = function(player, questId)
+        return Modules.QuestSystem:ClaimQuestReward(player, questId)
     end
     
     -- Debug (Studio only)
@@ -503,6 +533,12 @@ local function OnPlayerAdded(player)
         message = "Start your adventure by opening eggs and collecting pets!",
         duration = 5
     })
+    
+    -- Check daily rewards
+    Modules.DailyRewardSystem:CheckDailyReward(player)
+    
+    -- Generate daily quests
+    Modules.QuestSystem:GenerateDailyQuests(player)
 end
 
 local function OnPlayerRemoving(player)

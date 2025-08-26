@@ -58,16 +58,82 @@ Configuration.CONFIG = {
 }
 
 -- ========================================
--- GAMEPASS IDS
+-- GAMEPASS IDS & DATA
 -- ========================================
 Configuration.GAMEPASS_IDS = {
-    VIP = 123456,
     DOUBLE_COINS = 123457,
     AUTO_COLLECT = 123458,
     EXTRA_STORAGE = 123459,
     LUCKY_BOOST = 123460,
     INSTANT_HATCH = 123461,
-    TELEPORT = 123462
+    VIP = 123456,
+    TELEPORT = 123462,
+    TRIPLE_REWARDS = 123463,
+    UNLIMITED_EQUIP = 123464,
+    AUTO_DELETE = 123465
+}
+
+Configuration.GAMEPASS_DATA = {
+    [123457] = {
+        name = "2x Cash Multiplier",
+        description = "Double all cash earned from eggs and rewards!",
+        price = 199,
+        icon = "rbxassetid://10000002001"
+    },
+    [123458] = {
+        name = "Auto Collector",
+        description = "Automatically collect rewards from your tycoon!",
+        price = 299,
+        icon = "rbxassetid://10000002002"
+    },
+    [123459] = {
+        name = "Pet Storage +100",
+        description = "Increase your pet storage by 100 slots!",
+        price = 149,
+        icon = "rbxassetid://10000002004"
+    },
+    [123460] = {
+        name = "Lucky Boost",
+        description = "Increase rare pet drops by 25%!",
+        price = 399,
+        icon = "rbxassetid://10000002005"
+    },
+    [123461] = {
+        name = "Instant Hatch",
+        description = "Skip egg hatching animations!",
+        price = 99,
+        icon = "rbxassetid://10000002006"
+    },
+    [123456] = {
+        name = "VIP Status",
+        description = "Exclusive VIP benefits and daily rewards!",
+        price = 999,
+        icon = "rbxassetid://10000002003"
+    },
+    [123462] = {
+        name = "Teleport Access",
+        description = "Teleport anywhere instantly!",
+        price = 249,
+        icon = "rbxassetid://10000002007"
+    },
+    [123463] = {
+        name = "Triple Rewards",
+        description = "3x rewards from all sources!",
+        price = 599,
+        icon = "rbxassetid://10000002008"
+    },
+    [123464] = {
+        name = "Unlimited Equip",
+        description = "Equip unlimited pets at once!",
+        price = 799,
+        icon = "rbxassetid://10000002009"
+    },
+    [123465] = {
+        name = "Auto Delete",
+        description = "Auto-delete common pets when inventory is full!",
+        price = 199,
+        icon = "rbxassetid://10000002010"
+    }
 }
 
 -- ========================================

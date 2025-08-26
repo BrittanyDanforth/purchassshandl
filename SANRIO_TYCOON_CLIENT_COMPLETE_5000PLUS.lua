@@ -464,7 +464,7 @@ function UIComponents:CreateImageLabel(parent, imageId, size, position)
     image.Size = size or UDim2.new(0, 100, 0, 100)
     image.Position = position or UDim2.new(0, 0, 0, 0)
     image.BackgroundTransparency = 1
-    image.Image = imageId
+    image.Image = imageId or ""
     image.ScaleType = Enum.ScaleType.Fit
     image.Parent = parent
     
