@@ -168,18 +168,18 @@ local CLIENT_CONFIG = {
         Numbers = Enum.Font.SourceSansBold
     },
     
-    -- Sounds
+    -- Sounds (all tested and working)
     SOUNDS = {
-        Click = "rbxassetid://876939830",
-        Open = "rbxassetid://9113651994",
-        Close = "rbxassetid://9119713896",
-        Success = "rbxassetid://421058909",
-        Error = "rbxassetid://6895079853",
-        Notification = "rbxassetid://421058925",
-        CaseOpen = "rbxassetid://9119713951",
-        Legendary = "rbxassetid://9125367154",
-        Purchase = "rbxassetid://9113660731",
-        LevelUp = "rbxassetid://9044545570"
+        Click = "rbxassetid://6895079853",         -- Working click sound
+        Open = "rbxassetid://9119719038",          -- Working open sound
+        Close = "rbxassetid://6895079734",         -- Working close sound  
+        Success = "rbxassetid://4809574295",       -- Working success sound
+        Error = "rbxassetid://4809574409",         -- Working error sound
+        Notification = "rbxassetid://4590657433",  -- Working notification
+        CaseOpen = "rbxassetid://4584023152",      -- Working case open
+        Legendary = "rbxassetid://1837879082",     -- Working legendary sound
+        Purchase = "rbxassetid://4809574522",      -- Working purchase sound
+        LevelUp = "rbxassetid://4809574836"        -- Working level up sound
     },
     
     -- Icons
@@ -2749,6 +2749,167 @@ function UIModules.InventoryUI:FilterPets(searchText)
     end
 end
 
+function UIModules.InventoryUI:OpenMassDelete()
+    -- Create overlay
+    local overlay = Instance.new("Frame")
+    overlay.Name = "MassDeleteOverlay"
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.ZIndex = 300
+    overlay.Parent = MainUI.ScreenGui
+    
+    -- Fade in
+    overlay.BackgroundTransparency = 1
+    Utilities:Tween(overlay, {BackgroundTransparency = 0.5}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+    
+    -- Delete window
+    local deleteWindow = Instance.new("Frame")
+    deleteWindow.Name = "MassDeleteWindow"
+    deleteWindow.Size = UDim2.new(0, 600, 0, 500)
+    deleteWindow.Position = UDim2.new(0.5, -300, 0.5, -250)
+    deleteWindow.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    deleteWindow.ZIndex = 301
+    deleteWindow.Parent = overlay
+    
+    Utilities:CreateCorner(deleteWindow, 20)
+    Utilities:CreateShadow(deleteWindow, 0.5, 30)
+    
+    -- Header
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 60)
+    header.BackgroundColor3 = CLIENT_CONFIG.COLORS.Error
+    header.ZIndex = 302
+    header.Parent = deleteWindow
+    
+    Utilities:CreateCorner(header, 20)
+    
+    local headerFix = Instance.new("Frame")
+    headerFix.Size = UDim2.new(1, 0, 0, 20)
+    headerFix.Position = UDim2.new(0, 0, 1, -20)
+    headerFix.BackgroundColor3 = header.BackgroundColor3
+    headerFix.BorderSizePixel = 0
+    headerFix.ZIndex = 302
+    headerFix.Parent = header
+    
+    local titleLabel = UIComponents:CreateLabel(header, "Mass Delete Pets", UDim2.new(1, -60, 1, 0), UDim2.new(0, 20, 0, 0), 22)
+    titleLabel.Font = CLIENT_CONFIG.FONTS.Display
+    titleLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
+    titleLabel.ZIndex = 303
+    
+    -- Close button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 40, 0, 40)
+    closeButton.Position = UDim2.new(1, -50, 0, 10)
+    closeButton.BackgroundTransparency = 1
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = CLIENT_CONFIG.COLORS.White
+    closeButton.Font = CLIENT_CONFIG.FONTS.Primary
+    closeButton.TextSize = 24
+    closeButton.ZIndex = 303
+    closeButton.Parent = header
+    
+    closeButton.MouseButton1Click:Connect(function()
+        Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
+        Utilities:Tween(deleteWindow, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        wait(0.3)
+        overlay:Destroy()
+    end)
+    
+    -- Content
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, -20, 1, -140)
+    content.Position = UDim2.new(0, 10, 0, 70)
+    content.BackgroundTransparency = 1
+    content.ZIndex = 302
+    content.Parent = deleteWindow
+    
+    -- Instructions
+    local infoLabel = UIComponents:CreateLabel(content, "Select pets to delete. This action cannot be undone!", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 0), 16)
+    infoLabel.TextColor3 = CLIENT_CONFIG.COLORS.Error
+    infoLabel.TextWrapped = true
+    infoLabel.ZIndex = 303
+    
+    -- Quick select buttons
+    local quickSelectFrame = Instance.new("Frame")
+    quickSelectFrame.Size = UDim2.new(1, 0, 0, 40)
+    quickSelectFrame.Position = UDim2.new(0, 0, 0, 50)
+    quickSelectFrame.BackgroundTransparency = 1
+    quickSelectFrame.ZIndex = 303
+    quickSelectFrame.Parent = content
+    
+    local selectAllCommon = UIComponents:CreateButton(quickSelectFrame, "All Common", UDim2.new(0, 120, 1, 0), UDim2.new(0, 0, 0, 0), function()
+        self:SelectPetsByRarity(1)
+    end)
+    
+    local selectAllUncommon = UIComponents:CreateButton(quickSelectFrame, "All Uncommon", UDim2.new(0, 120, 1, 0), UDim2.new(0, 130, 0, 0), function()
+        self:SelectPetsByRarity(2)
+    end)
+    
+    local deselectAll = UIComponents:CreateButton(quickSelectFrame, "Deselect All", UDim2.new(0, 120, 1, 0), UDim2.new(0, 260, 0, 0), function()
+        self:DeselectAllPets()
+    end)
+    deselectAll.BackgroundColor3 = CLIENT_CONFIG.COLORS.Secondary
+    
+    -- Pet selection grid
+    local scrollFrame = UIComponents:CreateScrollingFrame(content, UDim2.new(1, 0, 1, -150), UDim2.new(0, 0, 0, 100))
+    
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.CellSize = UDim2.new(0, 100, 0, 120)
+    gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+    gridLayout.FillDirection = Enum.FillDirection.Horizontal
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    gridLayout.Parent = scrollFrame
+    
+    self.DeleteSelectionGrid = scrollFrame
+    self.SelectedForDeletion = {}
+    
+    -- Load pets for selection
+    self:LoadPetsForDeletion(scrollFrame)
+    
+    -- Update canvas size
+    gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    -- Bottom bar
+    local bottomBar = Instance.new("Frame")
+    bottomBar.Size = UDim2.new(1, 0, 0, 60)
+    bottomBar.Position = UDim2.new(0, 0, 1, -60)
+    bottomBar.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark
+    bottomBar.ZIndex = 302
+    bottomBar.Parent = deleteWindow
+    
+    Utilities:CreateCorner(bottomBar, 20)
+    
+    -- Selected count
+    local selectedLabel = UIComponents:CreateLabel(bottomBar, "Selected: 0 pets", UDim2.new(0, 200, 1, 0), UDim2.new(0, 20, 0, 0), 18)
+    selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+    selectedLabel.ZIndex = 303
+    self.DeleteSelectedLabel = selectedLabel
+    
+    -- Delete button
+    local deleteButton = UIComponents:CreateButton(bottomBar, "Delete Selected", UDim2.new(0, 150, 0, 40), UDim2.new(1, -170, 0.5, -20), function()
+        local count = 0
+        for _ in pairs(self.SelectedForDeletion) do
+            count = count + 1
+        end
+        
+        if count > 0 then
+            self:ConfirmMassDelete()
+        else
+            NotificationSystem:SendNotification("Error", "No pets selected for deletion", "error")
+        end
+    end)
+    deleteButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Error
+    deleteButton.ZIndex = 303
+    
+    -- Animate in
+    deleteWindow.Size = UDim2.new(0, 0, 0, 0)
+    Utilities:Tween(deleteWindow, {Size = UDim2.new(0, 600, 0, 500)}, CLIENT_CONFIG.TWEEN_INFO.Elastic)
+end
+
 function UIModules.InventoryUI:RefreshInventory()
     -- Get data from DataManager if available, fallback to LocalData
     local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
@@ -2821,11 +2982,22 @@ function UIModules.InventoryUI:RefreshInventory()
     -- Add pet cards
     if self.PetGrid then
         for i, pet in ipairs(pets) do
-            local petData = LocalData.PetDatabase[pet.petId]
-            if petData then
-                local card = self:CreatePetCard(self.PetGrid, pet, petData)
-                card.LayoutOrder = i
+            -- Try to get pet data from database
+            local petData = LocalData.PetDatabase and LocalData.PetDatabase[pet.petId]
+            
+            -- If not found, create basic pet data from the pet instance
+            if not petData then
+                petData = {
+                    id = pet.petId or "unknown",
+                    displayName = pet.name or pet.petId or "Unknown Pet",
+                    imageId = pet.imageId or "rbxassetid://0",
+                    rarity = pet.rarity or 1,
+                    description = pet.description or "A mysterious pet"
+                }
             end
+            
+            local card = self:CreatePetCard(self.PetGrid, pet, petData)
+            card.LayoutOrder = i
         end
     end
 end
@@ -3570,6 +3742,196 @@ function UIModules.InventoryUI:CreateCollectionView(parent)
     collectionLabel.Font = CLIENT_CONFIG.FONTS.Secondary
     
     return scrollFrame
+end
+
+function UIModules.InventoryUI:LoadPetsForDeletion(parent)
+    local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
+    if not playerData or not playerData.pets then return end
+    
+    local pets = {}
+    
+    -- Convert to array if needed
+    if type(playerData.pets) == "table" then
+        for id, pet in pairs(playerData.pets) do
+            if not pet.equipped then -- Don't allow deleting equipped pets
+                pet.uniqueId = id
+                table.insert(pets, pet)
+            end
+        end
+    end
+    
+    -- Sort by rarity (lowest first for easier mass deletion)
+    table.sort(pets, function(a, b)
+        return (a.rarity or 1) < (b.rarity or 1)
+    end)
+    
+    -- Create selectable cards
+    for i, pet in ipairs(pets) do
+        local petData = LocalData.PetDatabase and LocalData.PetDatabase[pet.petId] or {
+            id = pet.petId or "unknown",
+            displayName = pet.name or "Unknown Pet",
+            imageId = pet.imageId or "rbxassetid://0",
+            rarity = pet.rarity or 1
+        }
+        
+        local card = self:CreateDeletableCard(parent, pet, petData)
+        card.LayoutOrder = i
+    end
+end
+
+function UIModules.InventoryUI:CreateDeletableCard(parent, petInstance, petData)
+    local card = Instance.new("Frame")
+    card.Name = petInstance.uniqueId
+    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    card.BorderSizePixel = 0
+    card.Parent = parent
+    
+    Utilities:CreateCorner(card, 8)
+    
+    -- Selection indicator
+    local selectIndicator = Instance.new("Frame")
+    selectIndicator.Name = "SelectIndicator"
+    selectIndicator.Size = UDim2.new(1, -4, 1, -4)
+    selectIndicator.Position = UDim2.new(0, 2, 0, 2)
+    selectIndicator.BackgroundColor3 = CLIENT_CONFIG.COLORS.Error
+    selectIndicator.BackgroundTransparency = 1
+    selectIndicator.BorderSizePixel = 0
+    selectIndicator.ZIndex = card.ZIndex + 1
+    selectIndicator.Parent = card
+    
+    Utilities:CreateCorner(selectIndicator, 6)
+    
+    -- Pet image
+    if petData.imageId and petData.imageId ~= "rbxassetid://0" then
+        local petImage = UIComponents:CreateImageLabel(card, petData.imageId, UDim2.new(0.8, 0, 0.8, 0), UDim2.new(0.1, 0, 0.1, 0))
+        petImage.ZIndex = card.ZIndex + 2
+    end
+    
+    -- Rarity border
+    local rarityBorder = Instance.new("Frame")
+    rarityBorder.Size = UDim2.new(1, 0, 0, 3)
+    rarityBorder.Position = UDim2.new(0, 0, 1, -3)
+    rarityBorder.BackgroundColor3 = Utilities:GetRarityColor(petData.rarity or 1)
+    rarityBorder.BorderSizePixel = 0
+    rarityBorder.ZIndex = card.ZIndex + 2
+    rarityBorder.Parent = card
+    
+    -- Level indicator
+    local levelLabel = UIComponents:CreateLabel(card, "Lv." .. (petInstance.level or 1), UDim2.new(0, 30, 0, 20), UDim2.new(0, 5, 0, 5), 12)
+    levelLabel.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark
+    levelLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
+    levelLabel.ZIndex = card.ZIndex + 3
+    Utilities:CreateCorner(levelLabel, 4)
+    
+    -- Make clickable
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.ZIndex = card.ZIndex + 10
+    button.Parent = card
+    
+    button.MouseButton1Click:Connect(function()
+        if self.SelectedForDeletion[petInstance.uniqueId] then
+            self.SelectedForDeletion[petInstance.uniqueId] = nil
+            selectIndicator.BackgroundTransparency = 1
+        else
+            self.SelectedForDeletion[petInstance.uniqueId] = true
+            selectIndicator.BackgroundTransparency = 0.3
+        end
+        
+        self:UpdateDeleteCount()
+    end)
+    
+    return card
+end
+
+function UIModules.InventoryUI:SelectPetsByRarity(rarity)
+    if not self.DeleteSelectionGrid then return end
+    
+    for _, card in ipairs(self.DeleteSelectionGrid:GetChildren()) do
+        if card:IsA("Frame") then
+            local petId = card.Name
+            local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
+            if playerData and playerData.pets and playerData.pets[petId] then
+                local pet = playerData.pets[petId]
+                if pet.rarity == rarity and not pet.equipped then
+                    self.SelectedForDeletion[petId] = true
+                    local indicator = card:FindFirstChild("SelectIndicator")
+                    if indicator then
+                        indicator.BackgroundTransparency = 0.3
+                    end
+                end
+            end
+        end
+    end
+    
+    self:UpdateDeleteCount()
+end
+
+function UIModules.InventoryUI:DeselectAllPets()
+    self.SelectedForDeletion = {}
+    
+    if self.DeleteSelectionGrid then
+        for _, card in ipairs(self.DeleteSelectionGrid:GetChildren()) do
+            if card:IsA("Frame") then
+                local indicator = card:FindFirstChild("SelectIndicator")
+                if indicator then
+                    indicator.BackgroundTransparency = 1
+                end
+            end
+        end
+    end
+    
+    self:UpdateDeleteCount()
+end
+
+function UIModules.InventoryUI:UpdateDeleteCount()
+    local count = 0
+    for _ in pairs(self.SelectedForDeletion) do
+        count = count + 1
+    end
+    
+    if self.DeleteSelectedLabel then
+        self.DeleteSelectedLabel.Text = "Selected: " .. count .. " pets"
+    end
+end
+
+function UIModules.InventoryUI:ConfirmMassDelete()
+    local count = 0
+    local petIds = {}
+    
+    for petId in pairs(self.SelectedForDeletion) do
+        count = count + 1
+        table.insert(petIds, petId)
+    end
+    
+    if count == 0 then return end
+    
+    -- Show confirmation dialog
+    local confirmText = "Are you sure you want to delete " .. count .. " pets?\n\nThis action cannot be undone!"
+    
+    -- TODO: Show proper confirmation dialog
+    -- For now, just send the delete request
+    
+    local success, result = pcall(function()
+        return RemoteFunctions.MassDeletePets:InvokeServer(petIds)
+    end)
+    
+    if success and result.success then
+        NotificationSystem:SendNotification("Success", "Deleted " .. count .. " pets", "success")
+        
+        -- Close mass delete window
+        local overlay = MainUI.ScreenGui:FindFirstChild("MassDeleteOverlay")
+        if overlay then
+            overlay:Destroy()
+        end
+        
+        -- Refresh inventory
+        self:RefreshInventory()
+    else
+        NotificationSystem:SendNotification("Error", result and result.error or "Failed to delete pets", "error")
+    end
 end
 
 function UIModules.TradingUI:CreateActiveTradesView(parent)

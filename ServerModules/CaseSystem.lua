@@ -423,12 +423,13 @@ function CaseSystem:OpenCase(player, eggType, hatchCount)
     -- Mark data as dirty
     DataStoreModule:MarkPlayerDirty(player.UserId)
     
-    -- Send results to client
+    -- Send results to client with updated balance
     return {
         success = true,
         results = results,
         instantHatch = instantHatch,
-        newBalance = playerData.currencies
+        newBalance = playerData.currencies,
+        caseItems = self:GenerateCaseItems(eggType, selectedPet)
     }
 end
 

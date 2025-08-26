@@ -73,8 +73,23 @@ local function createRemotes(folders)
         -- Trading
         "TradeStarted", "TradeUpdated", "TradeCompleted", "TradeCancelled",
         
+        -- Market
+        "MarketListingCreated", "MarketListingCancelled", "MarketPurchaseComplete",
+        "MarketUpdated",
+        
+        -- Clan
+        "ClanCreated", "ClanJoined", "ClanLeft", "ClanKicked", "ClanUpdated",
+        "ClanMemberJoined", "ClanMemberLeft", "ClanMemberKicked", "ClanMemberPromoted",
+        "ClanDonationMade", "ClanBankUpdated", "ClanLevelUp", "ClanInfoUpdated",
+        "ClanInviteReceived", "ClanWarRequest", "ClanWarStarted", "ClanWarEnded",
+        "ClanDisbanded",
+        
+        -- Rebirth
+        "RebirthPerformed", "RebirthItemPurchased", "RebirthUpgradeActivated",
+        "GlobalAnnouncement",
+        
         -- UI/Notifications
-        "NotificationSent", "CurrencyUpdated", "InventoryUpdated",
+        "NotificationSent", "CurrencyUpdated", "InventoryUpdated", "PetDeleted",
         
         -- Quests & Achievements
         "QuestsUpdated", "QuestCompleted", "QuestRewardClaimed", "AchievementUnlocked",
@@ -117,7 +132,7 @@ local function createRemotes(folders)
         "GetPlayerData", "GetShopData", "SaveSettings",
         
         -- Pet System
-        "OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets",
+        "OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets", "MassDeletePets",
         
         -- Trading
         "StartTrade", "AddTradeItem", "RemoveTradeItem", "SetTradeCurrency",
@@ -133,9 +148,15 @@ local function createRemotes(folders)
         "CreateClan", "JoinClan", "LeaveClan", "InviteToClan",
         "KickFromClan", "PromoteMember", "DemoteMember", "DonateToClan", "StartClanWar", "GetClanList",
         
+        -- Market
+        "CreateMarketListing", "CancelMarketListing", "PurchaseMarketListing",
+        "SearchMarketListings", "GetPlayerListings", "GetRecentSales", "GetPriceHistory",
+        
+        -- Rebirth
+        "PerformRebirth", "GetRebirthInfo", "GetRebirthShop", "PurchaseRebirthItem",
+        
         -- Other
-        "PerformRebirth", "CreateMarketListing", "CancelMarketListing",
-        "PurchaseMarketListing", "PlaceAuctionBid", "JoinTournament", "LeaveTournament",
+        "PlaceAuctionBid", "JoinTournament", "LeaveTournament",
         "StartMinigame", "MinigameAction", "PurchaseHouse", "PlaceFurniture",
         "CustomizePet", "JoinDungeon", "LeaveDungeon", "JoinRaid", "LeaveRaid",
         "ClaimMinigameReward", "GetLeaderboards",
@@ -359,6 +380,44 @@ local function connectRemoteHandlers(modules, folders)
         return {success = false, error = "System not available"}
     end
     
+    RemoteFunctions.MassDeletePets.OnServerInvoke = function(player, petIds)
+        if modules.PetSystem and modules.DataStoreModule then
+            local playerData = modules.DataStoreModule:GetPlayerData(player)
+            if not playerData then
+                return {success = false, error = "Player data not found"}
+            end
+            
+            local deletedCount = 0
+            local errors = {}
+            
+            for _, petId in ipairs(petIds) do
+                local pet = playerData.pets[petId]
+                if pet then
+                    if pet.equipped then
+                        table.insert(errors, petId .. " is equipped")
+                    else
+                        -- Delete the pet
+                        playerData.pets[petId] = nil
+                        deletedCount = deletedCount + 1
+                    end
+                end
+            end
+            
+            -- Mark data dirty
+            modules.DataStoreModule:MarkPlayerDirty(player.UserId)
+            
+            -- Fire update event
+            RemoteEvents.PetDeleted:FireClient(player, petIds)
+            
+            return {
+                success = true, 
+                deletedCount = deletedCount,
+                errors = errors
+            }
+        end
+        return {success = false, error = "System not available"}
+    end
+    
     -- Trading
     RemoteFunctions.StartTrade.OnServerInvoke = function(player, targetPlayerName)
         if modules.TradingSystem then
@@ -533,6 +592,100 @@ local function connectRemoteHandlers(modules, folders)
         end
     end
     
+    -- Market System
+    RemoteFunctions.CreateMarketListing.OnServerInvoke = function(player, itemType, itemData, price, duration)
+        if modules.MarketSystem then
+            return modules.MarketSystem:CreateListing(player, itemType, itemData, price, duration)
+        end
+        return {success = false, error = "Market system not available"}
+    end
+    
+    RemoteFunctions.CancelMarketListing.OnServerInvoke = function(player, listingId)
+        if modules.MarketSystem then
+            return modules.MarketSystem:CancelListing(player, listingId)
+        end
+        return {success = false, error = "Market system not available"}
+    end
+    
+    RemoteFunctions.PurchaseMarketListing.OnServerInvoke = function(player, listingId)
+        if modules.MarketSystem then
+            return modules.MarketSystem:PurchaseListing(player, listingId)
+        end
+        return {success = false, error = "Market system not available"}
+    end
+    
+    RemoteFunctions.SearchMarketListings.OnServerInvoke = function(player, filters)
+        if modules.MarketSystem then
+            return modules.MarketSystem:SearchListings(filters)
+        end
+        return {success = false, error = "Market system not available"}
+    end
+    
+    RemoteFunctions.GetPlayerListings.OnServerInvoke = function(player)
+        if modules.MarketSystem then
+            return modules.MarketSystem:GetPlayerListings(player)
+        end
+        return {success = false, error = "Market system not available"}
+    end
+    
+    -- Clan System handlers
+    RemoteFunctions.CreateClan.OnServerInvoke = function(player, clanName, clanTag, description)
+        if modules.ClanSystem then
+            return modules.ClanSystem:CreateClan(player, clanName, clanTag, description)
+        end
+        return {success = false, error = "Clan system not available"}
+    end
+    
+    RemoteFunctions.JoinClan.OnServerInvoke = function(player, clanId)
+        if modules.ClanSystem then
+            return modules.ClanSystem:JoinClan(player, clanId)
+        end
+        return {success = false, error = "Clan system not available"}
+    end
+    
+    RemoteFunctions.LeaveClan.OnServerInvoke = function(player)
+        if modules.ClanSystem then
+            return modules.ClanSystem:LeaveClan(player)
+        end
+        return {success = false, error = "Clan system not available"}
+    end
+    
+    RemoteFunctions.DonateToClan.OnServerInvoke = function(player, amount)
+        if modules.ClanSystem then
+            return modules.ClanSystem:DonateToClan(player, amount)
+        end
+        return {success = false, error = "Clan system not available"}
+    end
+    
+    -- Rebirth System
+    RemoteFunctions.PerformRebirth.OnServerInvoke = function(player)
+        if modules.RebirthSystem then
+            return modules.RebirthSystem:PerformRebirth(player)
+        end
+        return {success = false, error = "Rebirth system not available"}
+    end
+    
+    RemoteFunctions.GetRebirthInfo.OnServerInvoke = function(player)
+        if modules.RebirthSystem then
+            return modules.RebirthSystem:GetRebirthInfo(player)
+        end
+        return {success = false, error = "Rebirth system not available"}
+    end
+    
+    RemoteFunctions.GetRebirthShop.OnServerInvoke = function(player)
+        if modules.RebirthSystem then
+            return modules.RebirthSystem:GetRebirthShop(player)
+        end
+        return {success = false, error = "Rebirth system not available"}
+    end
+    
+    RemoteFunctions.PurchaseRebirthItem.OnServerInvoke = function(player, itemId)
+        if modules.RebirthSystem then
+            return modules.RebirthSystem:PurchaseRebirthItem(player, itemId)
+        end
+        return {success = false, error = "Rebirth system not available"}
+    end
+    
     print("✅ [BOOTSTRAP] All remote handlers connected!")
 end
 
@@ -590,6 +743,18 @@ local function setupPlayerHandlers(modules, folders)
         
         if modules.BattleSystem then
             modules.BattleSystem:OnPlayerLeaving(player)
+        end
+        
+        if modules.MarketSystem then
+            modules.MarketSystem:OnPlayerLeaving(player)
+        end
+        
+        if modules.ClanSystem then
+            modules.ClanSystem:OnPlayerLeaving(player)
+        end
+        
+        if modules.RebirthSystem then
+            modules.RebirthSystem:OnPlayerLeaving(player)
         end
     end)
     
