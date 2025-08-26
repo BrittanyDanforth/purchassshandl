@@ -428,9 +428,8 @@ local Pets = {
             evasion = 0.3,
             critical = 0.25
         }
-    }
-}
-
+    },
+    
     -- ====== BADTZ-MARU SERIES ======
     ["badtz_maru_basic"] = {
         name = "Badtz-Maru",
