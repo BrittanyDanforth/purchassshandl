@@ -3352,7 +3352,7 @@ PetDatabase["my_melody_angel"] = CreatePet({
     evolutionRequirements = {
         level = 75,
         gems = 16000,
-        items = {"angel_wings", "melody_harp", "pink_halo", "love_essence"],
+        items = {"angel_wings", "melody_harp", "pink_halo", "love_essence"},
         healingDone = 100000
     },
     evolvesTo = "my_melody_seraph",
@@ -3482,7 +3482,7 @@ PetDatabase["pompompurin_chef"] = CreatePet({
     evolutionRequirements = {
         level = 75,
         gems = 17000,
-        items = {"chef_hat", "golden_spoon", "recipe_book", "five_star_badge"],
+        items = {"chef_hat", "golden_spoon", "recipe_book", "five_star_badge"},
         mealsCooked = 1000
     },
     evolvesTo = "pompompurin_gourmet",
