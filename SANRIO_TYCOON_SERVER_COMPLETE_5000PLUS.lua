@@ -2084,7 +2084,7 @@ PetDatabase["monkichi_classic"] = CreatePet({
             energyCost = 25,
             level = 25
         }
-    ],
+    },
     evolutionRequirements = {
         level = 35,
         gems = 2400,

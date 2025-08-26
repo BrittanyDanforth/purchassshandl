@@ -3240,7 +3240,6 @@ function UIModules.BattleUI:CreatePlayerCard(parent, player)
     
     -- Battle button
     local battleButton = UIComponents:CreateButton(card, "Battle", UDim2.new(0, 80, 0, 35), UDim2.new(1, -90, 0.5, -17.5), function()
-        self:ChallengePla
         self:ChallengePlayer(player)
     end)
     battleButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Primary
