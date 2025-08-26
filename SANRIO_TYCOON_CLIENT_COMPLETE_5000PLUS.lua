@@ -4389,15 +4389,51 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
     bottomRect.Parent = header
     
     -- Title
-    local titleLabel = UIComponents:CreateLabel(header, "🎁 Daily Rewards 🎁", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 10), 28)
+    local titleLabel = UIComponents:CreateLabel(header, "🎁 Daily Rewards 🎁", UDim2.new(1, -50, 0, 40), UDim2.new(0, 0, 0, 10), 28)
     titleLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
     titleLabel.Font = CLIENT_CONFIG.FONTS.Display
     titleLabel.ZIndex = 603
     
     -- Streak info
-    local streakLabel = UIComponents:CreateLabel(header, "Day 1 • Keep your streak going!", UDim2.new(1, 0, 0, 25), UDim2.new(0, 0, 0, 45), 16)
+    local streakLabel = UIComponents:CreateLabel(header, "Day 1 • Keep your streak going!", UDim2.new(1, -50, 0, 25), UDim2.new(0, 0, 0, 45), 16)
     streakLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
     streakLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    
+    -- CRITICAL: Add close button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 40, 0, 40)
+    closeButton.Position = UDim2.new(1, -50, 0, 20)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 65, 65)
+    closeButton.Text = "✖"
+    closeButton.TextColor3 = Color3.new(1, 1, 1)
+    closeButton.TextScaled = true
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.ZIndex = 604
+    closeButton.Parent = header
+    
+    Utilities:CreateCorner(closeButton, 8)
+    
+    closeButton.MouseEnter:Connect(function()
+        Utilities:Tween(closeButton, {BackgroundColor3 = Color3.fromRGB(255, 100, 100)}, CLIENT_CONFIG.TWEEN_INFO.VeryFast)
+    end)
+    
+    closeButton.MouseLeave:Connect(function()
+        Utilities:Tween(closeButton, {BackgroundColor3 = Color3.fromRGB(255, 65, 65)}, CLIENT_CONFIG.TWEEN_INFO.VeryFast)
+    end)
+    
+    closeButton.MouseButton1Click:Connect(function()
+        -- Animate out
+        Utilities:PlaySound("uiClick")
+        Utilities:Tween(rewardWindow, {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        
+        wait(0.3)
+        overlay:Destroy()
+    end)
     streakLabel.ZIndex = 603
     
     -- Days grid
@@ -4556,10 +4592,10 @@ function UIModules.DailyRewardUI:ClaimDailyReward(overlay)
 end
 
 function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
-    -- Create reward display
+    -- Create reward display (positioned above the daily reward window)
     local rewardDisplay = Instance.new("Frame")
     rewardDisplay.Size = UDim2.new(0, 300, 0, 200)
-    rewardDisplay.Position = UDim2.new(0.5, -150, 0.5, -100)
+    rewardDisplay.Position = UDim2.new(0.5, -150, 0.2, 0) -- Move to top of screen
     rewardDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     rewardDisplay.ZIndex = 700
     rewardDisplay.Parent = MainUI.ScreenGui

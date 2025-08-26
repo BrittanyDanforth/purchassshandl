@@ -157,6 +157,64 @@ CaseSystem.EggCases = {
 }
 
 -- ========================================
+-- GET SHOP DATA FOR CLIENT
+-- ========================================
+function CaseSystem:GetShopEggs()
+    local shopData = {}
+    
+    for eggId, eggData in pairs(self.EggCases) do
+        -- Don't send hidden eggs
+        if not eggData.hidden then
+            table.insert(shopData, {
+                id = eggId,
+                name = eggData.name,
+                description = eggData.description,
+                price = eggData.price,
+                currency = eggData.currency,
+                icon = eggData.icon,
+                -- Calculate average rarity for display
+                averageRarity = self:CalculateAverageRarity(eggData.dropRates),
+                -- Show if it's limited time
+                limitedTime = eggData.limitedTime,
+                -- Special effects
+                effects = eggData.effects
+            })
+        end
+    end
+    
+    -- Sort by price (cheapest first)
+    table.sort(shopData, function(a, b)
+        if a.currency == b.currency then
+            return a.price < b.price
+        else
+            -- Coins first, then gems
+            return a.currency == "coins"
+        end
+    end)
+    
+    return shopData
+end
+
+function CaseSystem:CalculateAverageRarity(dropRates)
+    local totalWeight = 0
+    local rarityScore = 0
+    
+    for petId, weight in pairs(dropRates) do
+        local petData = PetDatabase:GetPet(petId)
+        if petData then
+            totalWeight = totalWeight + weight
+            rarityScore = rarityScore + (petData.rarity * weight)
+        end
+    end
+    
+    if totalWeight > 0 then
+        return math.floor(rarityScore / totalWeight)
+    end
+    
+    return 1
+end
+
+-- ========================================
 -- WEIGHTED RANDOM SELECTION
 -- ========================================
 function CaseSystem:GetWeightedRandomPet(eggType, player)
