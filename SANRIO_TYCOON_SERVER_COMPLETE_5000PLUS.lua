@@ -6653,13 +6653,13 @@ function AchievementSystem:CheckAchievements(player)
                 completed = playerData.currencies.coins >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "battles_won" then
-                completed = playerData.statistics.battleStats.wins >= achievement.requirement.value
+                completed = (playerData.statistics.battleStats.wins or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "win_streak" then
-                completed = playerData.statistics.battleStats.highestWinStreak >= achievement.requirement.value
+                completed = (playerData.statistics.battleStats.highestWinStreak or 0) >= achievement.requirement.value
                 
             elseif achievement.requirement.type == "trades_completed" then
-                completed = playerData.statistics.tradingStats.tradesCompleted >= achievement.requirement.value
+                completed = (playerData.statistics.tradingStats.tradesCompleted or 0) >= achievement.requirement.value
             end
             
             if completed then
