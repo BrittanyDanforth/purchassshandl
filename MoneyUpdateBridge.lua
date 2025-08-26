@@ -58,10 +58,19 @@ local function findPlayerMoneyValue(player)
             for _, tycoon in pairs(tycoonFolder:GetChildren()) do
                 local owner = tycoon:FindFirstChild("Owner")
                 if owner and owner.Value == player then
-                    -- Found player's tycoon, look for money
+                    -- Found player's tycoon, look for money in various locations
                     local cash = tycoon:FindFirstChild("Cash") or tycoon:FindFirstChild("Money")
                     if cash then
                         table.insert(locations, cash)
+                    end
+                    
+                    -- Check CurrencyToCollect
+                    local currencyFolder = tycoon:FindFirstChild("CurrencyToCollect")
+                    if currencyFolder then
+                        local curr = currencyFolder:FindFirstChild("Cash") or currencyFolder:FindFirstChild("Money")
+                        if curr then
+                            table.insert(locations, curr)
+                        end
                     end
                     
                     -- Check inside PurchasedObjects for money values
@@ -71,6 +80,24 @@ local function findPlayerMoneyValue(player)
                         if moneyObj then
                             table.insert(locations, moneyObj)
                         end
+                        
+                        -- Also check for a Collector part with money value
+                        local collector = purchasedObjects:FindFirstChild("Collector")
+                        if collector then
+                            local collectorMoney = collector:FindFirstChild("Cash") or collector:FindFirstChild("Money")
+                            if collectorMoney then
+                                table.insert(locations, collectorMoney)
+                            end
+                        end
+                    end
+                    
+                    -- Check Essentials folder
+                    local essentials = tycoon:FindFirstChild("Essentials")
+                    if essentials then
+                        local essentialCash = essentials:FindFirstChild("Cash") or essentials:FindFirstChild("Money")
+                        if essentialCash then
+                            table.insert(locations, essentialCash)
+                        end
                     end
                 end
             end
@@ -79,9 +106,15 @@ local function findPlayerMoneyValue(player)
     
     -- Return first valid money value found
     for _, moneyValue in ipairs(locations) do
-        if moneyValue and moneyValue:IsA("NumberValue") or moneyValue:IsA("IntValue") then
+        if moneyValue and (moneyValue:IsA("NumberValue") or moneyValue:IsA("IntValue")) then
+            print("[MoneyUpdateBridge] Found money value for", player.Name, "at", moneyValue:GetFullName())
             return moneyValue
         end
+    end
+    
+    -- Debug: print search locations
+    if #locations > 0 then
+        print("[MoneyUpdateBridge] Searched", #locations, "locations for", player.Name, "but found no valid NumberValue/IntValue")
     end
     
     return nil
@@ -172,9 +205,11 @@ end
 
 -- Connect new players
 Players.PlayerAdded:Connect(function(player)
-    -- Wait for character and money to be set up
-    wait(2)
-    monitorPlayerMoney(player)
+    spawn(function()
+        -- Wait for character and tycoon to be set up
+        wait(5)
+        monitorPlayerMoney(player)
+    end)
 end)
 
 -- Also update periodically in case we missed any changes

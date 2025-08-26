@@ -1605,6 +1605,13 @@ function UIModules.CaseOpeningUI:Open(results)
     
     -- Close button (shown after all animations)
     wait(1)
+    
+    -- Make sure we don't create duplicate buttons
+    local existingButton = container:FindFirstChild("CollectButton")
+    if existingButton then
+        existingButton:Destroy()
+    end
+    
     local closeButton = UIComponents:CreateButton(container, "Collect", UDim2.new(0, 200, 0, 50), UDim2.new(0.5, -100, 1, -70), function()
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
         Utilities:Tween(container, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
@@ -1612,8 +1619,10 @@ function UIModules.CaseOpeningUI:Open(results)
         wait(0.3)
         overlay:Destroy()
     end)
+    closeButton.Name = "CollectButton"
     closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success
     closeButton.ZIndex = 105
+    closeButton.Parent = container -- Ensure parent is set
 end
 
 function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, total)
@@ -1631,15 +1640,8 @@ function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, tot
     content.ZIndex = 102
     content.Parent = container
     
-    -- Title
-    local petName = "Mystery Pet"
-    if result.pet then
-        petName = result.pet.name or result.pet.petId or petName
-    elseif result.petData then
-        petName = result.petData.displayName or result.petData.name or petName
-    end
-    
-    local titleLabel = UIComponents:CreateLabel(content, "Opening " .. petName .. "...", 
+    -- Title (don't spoil the result!)
+    local titleLabel = UIComponents:CreateLabel(content, "Opening Case...", 
         UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 20), 24)
     titleLabel.Font = CLIENT_CONFIG.FONTS.Display
     titleLabel.ZIndex = 103
@@ -1915,14 +1917,14 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     rarityLabel.ZIndex = 104
     
     -- Sound effects
-    if result.petData.rarity >= 5 then
+    if finalPetData.rarity >= 5 then
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Legendary)
     else
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Success)
     end
     
     -- Particles based on rarity
-    if result.petData.rarity >= 4 then
+    if finalPetData.rarity >= 4 then
         for i = 1, 50 do
             spawn(function()
                 wait(i * 0.05)
