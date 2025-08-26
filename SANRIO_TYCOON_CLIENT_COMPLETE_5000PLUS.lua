@@ -169,15 +169,15 @@ local CLIENT_CONFIG = {
     -- Sounds
     SOUNDS = {
         Click = "rbxassetid://876939830",
-        Open = "rbxassetid://131961136",
-        Close = "rbxassetid://131961140",
-        Success = "rbxassetid://131961138",
-        Error = "rbxassetid://131961134",
-        Notification = "rbxassetid://131961142",
-        CaseOpen = "rbxassetid://131961144",
-        Legendary = "rbxassetid://131961146",
-        Purchase = "rbxassetid://131961148",
-        LevelUp = "rbxassetid://131961150"
+        Open = "rbxassetid://9113651994",
+        Close = "rbxassetid://9113651870",
+        Success = "rbxassetid://9043665007",
+        Error = "rbxassetid://6895079853",
+        Notification = "rbxassetid://9125503013",
+        CaseOpen = "rbxassetid://9113658186",
+        Legendary = "rbxassetid://9125367154",
+        Purchase = "rbxassetid://9113660731",
+        LevelUp = "rbxassetid://9044545570"
     },
     
     -- Icons
@@ -1593,7 +1593,14 @@ function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, tot
     content.Parent = container
     
     -- Title
-    local titleLabel = UIComponents:CreateLabel(content, "Opening " .. (result.petData.displayName or "Mystery Pet") .. "...", 
+    local petName = "Mystery Pet"
+    if result.pet then
+        petName = result.pet.name or result.pet.petId or petName
+    elseif result.petData then
+        petName = result.petData.displayName or result.petData.name or petName
+    end
+    
+    local titleLabel = UIComponents:CreateLabel(content, "Opening " .. petName .. "...", 
         UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 20), 24)
     titleLabel.Font = CLIENT_CONFIG.FONTS.Display
     titleLabel.ZIndex = 103
@@ -1639,7 +1646,32 @@ function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, tot
     indicatorGlow.Parent = indicator
     
     -- Create items
-    for i, petId in ipairs(result.caseItems) do
+    local caseItems = result.caseItems or {}
+    
+    -- If no case items, create dummy spinner
+    if #caseItems == 0 then
+        -- Get the pet that was won
+        local wonPetId = nil
+        if result.pet then
+            wonPetId = result.pet.petId
+        elseif result.petData then
+            wonPetId = result.petData.id
+        end
+        
+        -- Create a dummy spinner with random pets
+        local dummyPets = {"hello_kitty_classic", "my_melody_basic", "cinnamoroll_basic", "kuromi_basic", "pompompurin_basic"}
+        for i = 1, 60 do
+            if i == 50 and wonPetId then
+                -- Place the won pet at position 50
+                table.insert(caseItems, wonPetId)
+            else
+                -- Random pet
+                table.insert(caseItems, dummyPets[math.random(1, #dummyPets)])
+            end
+        end
+    end
+    
+    for i, petId in ipairs(caseItems) do
         local itemFrame = self:CreateCaseItem(petId, i == 50) -- Winner is at position 50
         itemFrame.Position = UDim2.new(0, (i - 1) * CLIENT_CONFIG.CASE_ITEM_WIDTH, 0, 0)
         itemFrame.Parent = itemContainer

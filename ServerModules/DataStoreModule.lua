@@ -297,6 +297,41 @@ function DataStoreModule:MarkClanDirty(clanId)
 end
 
 -- ========================================
+-- DATA ACCESS METHODS
+-- ========================================
+function DataStoreModule:GetPlayerData(player)
+    if not player then return nil end
+    
+    local userId = typeof(player) == "Instance" and player.UserId or player
+    return self.PlayerData[userId]
+end
+
+function DataStoreModule:UpdatePlayerData(player, path, value)
+    local playerData = self:GetPlayerData(player)
+    if not playerData then return false end
+    
+    -- Navigate to the path
+    local current = playerData
+    local keys = string.split(path, ".")
+    
+    for i = 1, #keys - 1 do
+        local key = keys[i]
+        if not current[key] then
+            current[key] = {}
+        end
+        current = current[key]
+    end
+    
+    -- Set the value
+    current[keys[#keys]] = value
+    
+    -- Mark as dirty
+    self:MarkPlayerDirty(player.UserId)
+    
+    return true
+end
+
+-- ========================================
 -- AUTO-SAVE SYSTEM
 -- ========================================
 function DataStoreModule:StartAutoSave()

@@ -97,7 +97,10 @@ local function createRemotes(folders)
         "WeatherChanged", "SeasonChanged",
         "WorldBossSpawned", "WorldBossDefeated",
         "DungeonStarted", "DungeonCompleted",
-        "RaidStarted", "RaidCompleted"
+        "RaidStarted", "RaidCompleted",
+        
+        -- Admin/Debug
+        "ShowAdminNotification"
     }
     
     for _, eventName in ipairs(eventNames) do
@@ -280,7 +283,20 @@ local function connectRemoteHandlers(modules, folders)
     RemoteFunctions.GetPlayerData.OnServerInvoke = function(player, targetPlayer)
         if modules.DataStoreModule then
             local target = targetPlayer or player
-            return modules.DataStoreModule:GetPlayerData(target)
+            local playerData = modules.DataStoreModule:GetPlayerData(target)
+            if playerData then
+                -- Return a safe copy of the data without sensitive information
+                return {
+                    currencies = playerData.currencies,
+                    pets = playerData.pets,
+                    equipped = playerData.equipped,
+                    inventory = playerData.inventory,
+                    statistics = playerData.statistics,
+                    settings = playerData.settings,
+                    level = playerData.level,
+                    experience = playerData.experience
+                }
+            end
         end
         return nil
     end
