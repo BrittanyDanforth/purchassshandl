@@ -170,11 +170,11 @@ local CLIENT_CONFIG = {
     SOUNDS = {
         Click = "rbxassetid://876939830",
         Open = "rbxassetid://9113651994",
-        Close = "rbxassetid://9113651870",
+        Close = "rbxassetid://9119713896",
         Success = "rbxassetid://9043665007",
         Error = "rbxassetid://6895079853",
         Notification = "rbxassetid://421058925",
-        CaseOpen = "rbxassetid://9113658186",
+        CaseOpen = "rbxassetid://9119713951",
         Legendary = "rbxassetid://9125367154",
         Purchase = "rbxassetid://9113660731",
         LevelUp = "rbxassetid://9044545570"
@@ -517,6 +517,11 @@ function UIComponents:CreateScrollingFrame(parent, size, position, canvasSize)
 end
 
 function UIComponents:CreateProgressBar(parent, size, position, value, maxValue)
+    -- Ensure values are valid
+    value = value or 0
+    maxValue = maxValue or 1
+    if maxValue == 0 then maxValue = 1 end -- Prevent division by zero
+    
     local container = Instance.new("Frame")
     container.Name = "ProgressBar"
     container.Size = size or UDim2.new(0, 200, 0, 20)
@@ -528,7 +533,7 @@ function UIComponents:CreateProgressBar(parent, size, position, value, maxValue)
     
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
-    fill.Size = UDim2.new(value / maxValue, 0, 1, 0)
+    fill.Size = UDim2.new(math.clamp(value / maxValue, 0, 1), 0, 1, 0)
     fill.Position = UDim2.new(0, 0, 0, 0)
     fill.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success
     fill.Parent = container
@@ -548,13 +553,17 @@ function UIComponents:CreateProgressBar(parent, size, position, value, maxValue)
     label.TextScaled = true
     label.Parent = container
     
-    container.UpdateValue = function(newValue)
-        value = math.clamp(newValue, 0, maxValue)
-        Utilities:Tween(fill, {Size = UDim2.new(value / maxValue, 0, 1, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        label.Text = string.format("%d / %d", value, maxValue)
-    end
+    -- Store update function in a table to avoid setting properties on Frame
+    local progressBar = {
+        Frame = container,
+        UpdateValue = function(newValue)
+            value = math.clamp(newValue, 0, maxValue)
+            Utilities:Tween(fill, {Size = UDim2.new(value / maxValue, 0, 1, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+            label.Text = string.format("%d / %d", value, maxValue)
+        end
+    }
     
-    return container
+    return progressBar
 end
 
 function UIComponents:CreateToggle(parent, text, size, position, defaultValue, callback)
@@ -614,13 +623,20 @@ function UIComponents:CreateToggle(parent, text, size, position, defaultValue, c
         end
     end)
     
-    container.SetValue = function(newValue)
-        if newValue ~= value then
-            toggleButton.MouseButton1Click:Fire()
+    -- Return toggle object with methods
+    local toggle = {
+        Frame = container,
+        SetValue = function(newValue)
+            if newValue ~= value then
+                toggleButton.MouseButton1Click:Fire()
+            end
+        end,
+        GetValue = function()
+            return value
         end
-    end
+    }
     
-    return container
+    return toggle
 end
 
 function UIComponents:CreateTab(parent, tabs, size, position)
@@ -1225,8 +1241,10 @@ function UIModules.ShopUI:CreateEggShop(parent)
         
         if success and eggs then
             for i, eggData in ipairs(eggs) do
-                local eggCard = self:CreateEggCard(scrollFrame, eggData)
-                eggCard.LayoutOrder = i
+                if eggData and eggData.id then -- Only create card if egg data is valid
+                    local eggCard = self:CreateEggCard(scrollFrame, eggData)
+                    eggCard.LayoutOrder = i
+                end
             end
         else
             local errorLabel = UIComponents:CreateLabel(scrollFrame, "Failed to load eggs", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
@@ -1257,7 +1275,8 @@ function UIModules.ShopUI:CreateEggCard(parent, eggData)
     Utilities:CreateShadow(card, 0.3)
     
     -- Egg image
-    local eggImage = UIComponents:CreateImageLabel(card, eggData.image, UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20))
+    local eggImage = UIComponents:CreateImageLabel(card, eggData.image or "rbxassetid://0", UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20))
+    eggImage.BackgroundTransparency = 1
     
     -- Floating animation
     spawn(function()
@@ -1803,12 +1822,24 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     petDisplay.ZIndex = 104
     petDisplay.Parent = resultFrame
     
+    -- Get pet data safely
+    local petData = result.petData or result.pet or {}
+    local petId = petData.petId or petData.id or "unknown"
+    local dbPetData = LocalData.PetDatabase and LocalData.PetDatabase[petId] or {}
+    
+    -- Merge data sources
+    local finalPetData = {
+        imageId = petData.imageId or dbPetData.imageId or "rbxassetid://0",
+        rarity = petData.rarity or dbPetData.rarity or 1,
+        displayName = petData.displayName or petData.name or dbPetData.displayName or "Unknown Pet"
+    }
+    
     -- For now, show image instead of 3D model
-    local petImage = UIComponents:CreateImageLabel(petDisplay, result.petData.imageId, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0))
+    local petImage = UIComponents:CreateImageLabel(petDisplay, finalPetData.imageId, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0))
     petImage.ZIndex = 104
     
     -- Rarity effects
-    local rarityColor = Utilities:GetRarityColor(result.petData.rarity)
+    local rarityColor = Utilities:GetRarityColor(finalPetData.rarity)
     
     -- Background glow
     local glow = Instance.new("ImageLabel")
@@ -1839,7 +1870,7 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     gotLabel.ZIndex = 104
     
     -- Pet name
-    local nameLabel = UIComponents:CreateLabel(resultFrame, result.petData.displayName, UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 370), 28)
+    local nameLabel = UIComponents:CreateLabel(resultFrame, finalPetData.displayName, UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 370), 28)
     nameLabel.Font = CLIENT_CONFIG.FONTS.Display
     nameLabel.ZIndex = 104
     
@@ -2735,7 +2766,9 @@ function UIModules.InventoryUI:RefreshInventory()
     if self.StatsLabels then
         self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. (playerData.maxPetStorage or 500)
         self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
-        self.StatsLabels.Storage.UpdateValue(petCount)
+        if self.StatsLabels.Storage and self.StatsLabels.Storage.UpdateValue then
+            self.StatsLabels.Storage.UpdateValue(petCount)
+        end
     end
     
     -- Add pet cards
@@ -4026,7 +4059,8 @@ function UIModules.QuestUI:CreateQuestCard(parent, quest)
     descLabel.TextWrapped = true
     
     -- Progress bar
-    local progressBar = UIComponents:CreateProgressBar(infoFrame, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 1, -25), quest.progress, quest.target)
+    local progressBar = UIComponents:CreateProgressBar(infoFrame, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 1, -25), quest.progress or 0, quest.target or 1)
+    progressBar.Frame.Parent = infoFrame
     
     -- Rewards
     local rewardsFrame = Instance.new("Frame")
@@ -4784,6 +4818,11 @@ function UIModules.DailyRewardUI:ClaimDailyReward(overlay)
 end
 
 function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
+    -- Ensure rewards is a table
+    if type(rewards) ~= "table" then
+        rewards = {}
+    end
+    
     -- Create reward display (positioned above the daily reward window)
     local rewardDisplay = Instance.new("Frame")
     rewardDisplay.Size = UDim2.new(0, 300, 0, 200)
