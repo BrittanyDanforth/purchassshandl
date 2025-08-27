@@ -99,6 +99,7 @@ local function createRemotes(folders)
         
         -- Battle
         "BattleStarted", "BattleReady", "BattleTurnCompleted", "BattleEnded",
+        "MatchmakingFound",
         
         -- Clan
         "ClanCreated", "ClanInvite", "ClanUpdated", "ClanWarStarted", "ClanWarEnded",
@@ -142,7 +143,8 @@ local function createRemotes(folders)
         "ClaimQuest", "AbandonQuest", "ClaimDailyReward", "GetDailyRewards",
         
         -- Battle
-        "StartBattle", "SetBattleTeam", "BattleAction",
+        "StartBattle", "SetBattleTeam", "BattleAction", "JoinBattleMatchmaking", 
+        "CancelMatchmaking", "JoinBattle",
         
         -- Clan
         "CreateClan", "JoinClan", "LeaveClan", "InviteToClan",
@@ -208,8 +210,8 @@ local function loadModules(folders)
     modules.Configuration = safeRequire(folders.ServerModules, "Configuration")
     
     -- 2. Advanced utility modules (no dependencies)
-    modules.Janitor = safeRequire(folders.Shared, "Janitor")
-    modules.DeltaNetworking = safeRequire(folders.Shared, "DeltaNetworking")
+    -- modules.Janitor = safeRequire(folders.Shared, "Janitor")
+    -- modules.DeltaNetworking = safeRequire(folders.Shared, "DeltaNetworking")
     
     -- 3. Data layer (depends on Configuration)
     modules.DataStoreModule = safeRequire(folders.ServerModules, "DataStoreModule")
@@ -462,6 +464,30 @@ local function connectRemoteHandlers(modules, folders)
             end
         end
         return {success = false, error = "System not available"}
+    end
+    
+    RemoteFunctions.JoinBattleMatchmaking.OnServerInvoke = function(player)
+        if modules.BattleSystem then
+            return modules.BattleSystem:JoinMatchmaking(player)
+        end
+        return {success = false, error = "Battle system not available"}
+    end
+    
+    RemoteFunctions.CancelMatchmaking.OnServerInvoke = function(player)
+        if modules.BattleSystem then
+            return modules.BattleSystem:LeaveMatchmaking(player)
+        end
+        return {success = true}
+    end
+    
+    RemoteFunctions.JoinBattle.OnServerInvoke = function(player, targetPlayer)
+        if modules.BattleSystem then
+            local battleId = modules.BattleSystem:CreateBattle(player, targetPlayer, "challenge")
+            if battleId then
+                return {success = true, battleId = battleId}
+            end
+        end
+        return {success = false, error = "Failed to create battle"}
     end
     
     -- Trading extras

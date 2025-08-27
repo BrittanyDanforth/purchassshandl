@@ -27,7 +27,7 @@ TradingSystem.TradeHistory = {}
 -- ========================================
 function TradingSystem:CreateTrade(player1, player2)
     -- Check if players can trade
-    local canTrade, reason = self:CanPlayersTradeSystem(player1, player2)
+    local canTrade, reason = self:CanPlayersTrade(player1, player2)
     if not canTrade then
         return nil, reason
     end

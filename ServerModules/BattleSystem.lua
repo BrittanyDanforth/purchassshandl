@@ -666,9 +666,64 @@ function BattleSystem:OnPlayerLeaving(player)
         end
     end
     
+    -- Remove from matchmaking queue
+    self:LeaveMatchmaking(player)
+    
     -- Clean up player data
     self.PlayerBattles[player.UserId] = nil
     self.BattleTeams[player.UserId] = nil
+end
+
+-- ========================================
+-- MATCHMAKING SYSTEM
+-- ========================================
+function BattleSystem:JoinMatchmaking(player)
+    -- Check if already in battle or queue
+    if self.PlayerBattles[player.UserId] then
+        return {success = false, error = "Already in battle"}
+    end
+    
+    -- Check if already in queue
+    for i, queuedPlayer in ipairs(self.BattleQueue) do
+        if queuedPlayer.UserId == player.UserId then
+            return {success = false, error = "Already in matchmaking"}
+        end
+    end
+    
+    -- Add to queue
+    table.insert(self.BattleQueue, player)
+    
+    -- Try to match players
+    if #self.BattleQueue >= 2 then
+        local player1 = table.remove(self.BattleQueue, 1)
+        local player2 = table.remove(self.BattleQueue, 1)
+        
+        -- Create battle
+        local battleId = self:CreateBattle(player1, player2, "matchmaking")
+        
+        -- Notify both players
+        local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+        if RemoteEvents and RemoteEvents:FindFirstChild("MatchmakingFound") then
+            RemoteEvents.MatchmakingFound:FireClient(player1, {battleId = battleId, opponent = player2.Name})
+            RemoteEvents.MatchmakingFound:FireClient(player2, {battleId = battleId, opponent = player1.Name})
+        end
+        
+        return {success = true, message = "Match found!"}
+    end
+    
+    return {success = true, message = "Added to matchmaking queue"}
+end
+
+function BattleSystem:LeaveMatchmaking(player)
+    -- Remove from queue
+    for i = #self.BattleQueue, 1, -1 do
+        if self.BattleQueue[i].UserId == player.UserId then
+            table.remove(self.BattleQueue, i)
+            return {success = true}
+        end
+    end
+    
+    return {success = false, error = "Not in matchmaking"}
 end
 
 return BattleSystem

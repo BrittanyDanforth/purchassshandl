@@ -924,30 +924,29 @@ function MainUI:Initialize()
     uiScale.Scale = LocalData.Settings.UIScale
     uiScale.Parent = mainContainer
     
-    -- Periodic cleanup for stuck tooltips and overlays
+    -- Track active overlays properly
+    self.ActiveOverlays = {}
+    
+    -- Proper overlay management methods
+    function self:RegisterOverlay(overlayName, overlay)
+        self.ActiveOverlays[overlayName] = overlay
+    end
+    
+    function self:UnregisterOverlay(overlayName)
+        if self.ActiveOverlays[overlayName] then
+            self.ActiveOverlays[overlayName]:Destroy()
+            self.ActiveOverlays[overlayName] = nil
+        end
+    end
+    
+    -- Clean up tooltips only (they should auto-destroy on mouse leave anyway)
     spawn(function()
         while self.ScreenGui and self.ScreenGui.Parent do
-            wait(2) -- Check every 2 seconds
+            wait(5) -- Less frequent check
             for _, child in ipairs(self.ScreenGui:GetChildren()) do
-                -- Clean up stuck tooltips
+                -- Only clean up orphaned tooltips
                 if string.find(child.Name, "NavTooltip_") then
                     child:Destroy()
-                end
-                -- Clean up any overlay that shouldn't be there
-                if string.find(child.Name, "Overlay") and child.BackgroundTransparency < 0.9 then
-                    -- Skip PetDetailsOverlay if it has the active marker
-                    if child.Name == "PetDetailsOverlay" and child:FindFirstChild("DetailsFrame") then
-                        -- It's actively being used, don't remove
-                        continue
-                    end
-                    
-                    -- For other overlays, check if they're stuck
-                    if not child:GetAttribute("CreatedTime") then
-                        child:SetAttribute("CreatedTime", tick())
-                    elseif tick() - child:GetAttribute("CreatedTime") > 30 then -- Increased to 30 seconds
-                        print("[DEBUG] Removing stuck overlay:", child.Name)
-                        child:Destroy()
-                    end
                 end
             end
         end
@@ -2769,6 +2768,9 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     -- Store reference so we can clean it up
     self.DetailsOverlay = overlay
     
+    -- Register with MainUI overlay management
+    MainUI:RegisterOverlay("PetDetails", overlay)
+    
     -- Fade in
     overlay.BackgroundTransparency = 1
     Utilities:Tween(overlay, {BackgroundTransparency = 0.3}, CLIENT_CONFIG.TWEEN_INFO.Normal)
@@ -2832,7 +2834,8 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         Utilities:Tween(detailsFrame, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         task.wait(0.3)
-        overlay:Destroy()
+        MainUI:UnregisterOverlay("PetDetails")
+        self.DetailsOverlay = nil
     end)
     
     -- Content
@@ -4796,13 +4799,16 @@ function UIModules.BattleUI:StartQuickMatch()
     end)
     
     if success and result then
-        NotificationSystem:SendNotification("Matchmaking", "Searching for opponent...", "info")
-        -- Update UI to show searching state
-        self:ShowMatchmakingUI()
+        if result.success then
+            NotificationSystem:SendNotification("Matchmaking", "Searching for opponent...", "info")
+            -- Update UI to show searching state
+            self:ShowMatchmakingUI()
+        else
+            NotificationSystem:SendNotification("Error", result.error or "Failed to join matchmaking", "error")
+        end
     else
-        NotificationSystem:SendNotification("Error", "Failed to join matchmaking", "error")
+        NotificationSystem:SendNotification("Error", result or "Failed to join matchmaking", "error")
     end
-    NotificationSystem:SendNotification("Matchmaking", "Searching for opponent...", "info")
 end
 
 function UIModules.BattleUI:ShowMatchmakingUI()
@@ -4851,6 +4857,24 @@ function UIModules.BattleUI:ShowMatchmakingUI()
     
     self.MatchmakingOverlay = overlay
 end
+
+-- Handle matchmaking found event
+RemoteEvents.MatchmakingFound.OnClientEvent:Connect(function(data)
+    -- Close matchmaking overlay
+    if UIModules.BattleUI.MatchmakingOverlay then
+        UIModules.BattleUI.MatchmakingOverlay:Destroy()
+        UIModules.BattleUI.MatchmakingOverlay = nil
+    end
+    
+    -- Open battle arena
+    UIModules.BattleUI:OpenBattleArena({
+        id = data.battleId,
+        players = {
+            [1] = {player = LocalPlayer},
+            [2] = {player = {Name = data.opponent}}
+        }
+    })
+end)
 
 function UIModules.BattleUI:ChallengePlayer(player)
     local result = RemoteFunctions.JoinBattle:InvokeServer(player)
