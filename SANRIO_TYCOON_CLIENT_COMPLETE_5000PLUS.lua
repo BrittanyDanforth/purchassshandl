@@ -2683,6 +2683,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     -- Pet image/model
     local petDisplay = Instance.new("ViewportFrame")
     petDisplay.Size = UDim2.new(1, 0, 0, 250)
+    petDisplay.Position = UDim2.new(0, 0, 0, 0)  -- Explicitly at top
     petDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     petDisplay.ZIndex = 202
     petDisplay.Parent = leftSide
@@ -2694,17 +2695,19 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     petImage.ZIndex = 203
     
     -- Variant label
+    local variantOffset = 260
     if petInstance.variant and petInstance.variant ~= "normal" then
         local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 260), 18)
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.ZIndex = 203
+        variantOffset = 290  -- Add extra space when variant label exists
     end
     
-    -- Action buttons
+    -- Action buttons - positioned below pet display and variant label
     local actionsFrame = Instance.new("Frame")
     actionsFrame.Size = UDim2.new(1, 0, 0, 100)  -- Height for buttons
-    actionsFrame.Position = UDim2.new(0, 0, 1, -110)  -- Positioned from bottom with margin
+    actionsFrame.Position = UDim2.new(0, 0, 0, variantOffset)  -- Position below pet + variant
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 202
     actionsFrame.Parent = leftSide
@@ -5625,9 +5628,12 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
             Size = UDim2.new(0, 0, 0, 0),
             Position = UDim2.new(0.5, 0, 0.5, 0)
         }, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
         
-        task.wait(0.3)
+        -- Animate overlay and wait for completion
+        local overlayTween = Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        overlayTween.Completed:Wait()
+        
+        -- Now safe to destroy
         overlay:Destroy()
     end)
     streakLabel.ZIndex = 603
@@ -5782,8 +5788,12 @@ function UIModules.DailyRewardUI:ClaimDailyReward(overlay)
         if rewardWindow then
             Utilities:Tween(rewardWindow, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         end
-        Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        task.wait(0.3)
+        
+        -- Animate overlay and wait for completion
+        local overlayTween = Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        overlayTween.Completed:Wait()
+        
+        -- Now safe to destroy
         overlay:Destroy()
     else
         NotificationSystem:SendNotification("Error", rewards or "Failed to claim daily reward", "error")
