@@ -2703,11 +2703,10 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     
     -- Action buttons
     local actionsFrame = Instance.new("Frame")
-    actionsFrame.Size = UDim2.new(1, 0, 0, 0)  -- AutomaticSize will handle this
-    actionsFrame.Position = UDim2.new(0, 0, 0, 300)  -- Position below pet display + variant
+    actionsFrame.Size = UDim2.new(1, 0, 0, 90)  -- Height for 2 buttons (40px each + 10px padding)
+    actionsFrame.Position = UDim2.new(0, 0, 1, -90)  -- Position at very bottom
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 202
-    actionsFrame.AutomaticSize = Enum.AutomaticSize.Y  -- Auto size based on content
     actionsFrame.Parent = leftSide
     
     local actionsLayout = Instance.new("UIListLayout")
