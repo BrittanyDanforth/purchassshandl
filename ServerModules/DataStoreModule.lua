@@ -234,14 +234,44 @@ function DataStoreModule:SavePlayerData(player)
         
         -- Create backup every 5th save
         if math.random(1, 5) == 1 then
-            pcall(function()
+            local backupSuccess, backupError = pcall(function()
                 BackupDataStore:SetAsync(tostring(userId) .. "_" .. os.date("%Y%m%d"), data)
             end)
+            if not backupSuccess then
+                warn("[DataStore] Backup failed for", player.Name, ":", backupError)
+            end
         end
         
         return true
     else
-        warn("[DataStore] Failed to save data for", player.Name, "after", attempts, "attempts")
+        warn("[DataStore] CRITICAL: Failed to save data for", player.Name, "after", attempts, "attempts")
+        
+        -- Log to server for monitoring
+        if errorMsg then
+            print("[DataStore] Last error:", errorMsg)
+        end
+        
+        -- Notify player of save failure
+        local RemoteEvents = game.ReplicatedStorage:FindFirstChild("RemoteEvents")
+        if RemoteEvents and RemoteEvents:FindFirstChild("SystemNotification") then
+            RemoteEvents.SystemNotification:FireClient(player, {
+                title = "Save Warning",
+                message = "Your data failed to save. Please rejoin to prevent data loss.",
+                type = "error",
+                duration = 10
+            })
+        end
+        
+        -- Add to critical failure tracking
+        if not self.CriticalFailures then
+            self.CriticalFailures = {}
+        end
+        self.CriticalFailures[userId] = {
+            timestamp = os.time(),
+            attempts = attempts,
+            lastError = errorMsg
+        }
+        
         return false
     end
 end

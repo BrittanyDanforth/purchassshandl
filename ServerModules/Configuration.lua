@@ -54,7 +54,45 @@ Configuration.CONFIG = {
     
     -- Leaderboards
     LEADERBOARD_UPDATE_INTERVAL = 60,
-    LEADERBOARD_MAX_ENTRIES = 100
+    LEADERBOARD_MAX_ENTRIES = 100,
+    
+    -- Market System
+    MARKET_LISTING_DURATION = 24 * 60 * 60,  -- 24 hours default
+    MARKET_MAX_LISTINGS_PER_PLAYER = 10,
+    MARKET_MIN_PRICE = 10,
+    MARKET_MAX_PRICE = 999999999,
+    MARKET_TAX_RATE = 0.05,  -- 5% tax
+    
+    -- Case System
+    CASE_SPIN_TIME = 5,
+    CASE_ITEMS_VISIBLE = 5,
+    CASE_ITEM_WIDTH = 150,
+    CASE_DECELERATION = 0.98,
+    MAX_HATCH_COUNT = 10,
+    VALID_HATCH_COUNTS = {1, 3, 5, 10},
+    
+    -- Quest System
+    DAILY_QUEST_COUNT = 3,
+    WEEKLY_QUEST_COUNT = 1,
+    QUEST_REFRESH_HOUR = 0,  -- Midnight UTC
+    
+    -- Pet System
+    PET_MAX_LEVEL = 100,
+    PET_BASE_EXP_REQUIREMENT = 100,
+    PET_EXP_SCALING = 1.1,
+    PET_EVOLUTION_LEVEL = 50,
+    PET_VARIANT_CHANCE = 0.001,  -- 0.1% chance
+    
+    -- UI Settings
+    UI_NOTIFICATION_DURATION = 5,
+    UI_ANIMATION_SPEED = 0.3,
+    UI_PARTICLE_LIFETIME = 5,
+    UI_MAX_PARTICLES = 100,
+    
+    -- Performance
+    MAX_PET_CARDS_CACHE = 100,
+    INVENTORY_REFRESH_THROTTLE = 0.5,  -- seconds
+    DATA_UPDATE_BATCH_SIZE = 50
 }
 
 -- ========================================

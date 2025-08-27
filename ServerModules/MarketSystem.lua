@@ -583,6 +583,51 @@ function MarketSystem:ValidateListing(player, itemType, itemData, price, duratio
         return {success = false, error = "Invalid duration"}
     end
     
+    -- ENHANCED VALIDATION: Check item ownership and validity
+    local playerData = self.DataStoreModule:GetPlayerData(player)
+    if not playerData then
+        return {success = false, error = "Player data not found"}
+    end
+    
+    if itemType == CATEGORIES.PETS then
+        if not itemData or not itemData.petId then
+            return {success = false, error = "Invalid pet data"}
+        end
+        
+        local pet = playerData.pets[itemData.petId]
+        if not pet then
+            return {success = false, error = "You don't own this pet"}
+        end
+        
+        if pet.equipped then
+            return {success = false, error = "Cannot list equipped pets"}
+        end
+        
+        if pet.locked then
+            return {success = false, error = "Cannot list locked pets"}
+        end
+    elseif itemType == CATEGORIES.ITEMS then
+        if not itemData or not itemData.itemId then
+            return {success = false, error = "Invalid item data"}
+        end
+        
+        -- Check item ownership in inventory
+        local hasItem = false
+        if playerData.inventory and playerData.inventory[itemData.itemId] then
+            hasItem = playerData.inventory[itemData.itemId] > 0
+        end
+        
+        if not hasItem then
+            return {success = false, error = "You don't own this item"}
+        end
+    end
+    
+    -- Check listing limits
+    local playerListings = self.ListingsByPlayer[player.UserId] or {}
+    if #playerListings >= MAX_LISTINGS_PER_PLAYER then
+        return {success = false, error = "You have reached the maximum number of listings (" .. MAX_LISTINGS_PER_PLAYER .. ")"}
+    end
+    
     return {success = true}
 end
 

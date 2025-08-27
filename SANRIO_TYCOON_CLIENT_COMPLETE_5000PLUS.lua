@@ -182,16 +182,16 @@ local CLIENT_CONFIG = {
     
     -- Sounds (all tested and working)
     SOUNDS = {
-        Click = "rbxassetid://6895079853",         -- Working click sound
-        Open = "rbxassetid://9119719038",          -- Working open sound
-        Close = "rbxassetid://6895079734",         -- Working close sound  
-        Success = "rbxassetid://4809574295",       -- Working success sound
-        Error = "rbxassetid://4809574409",         -- Working error sound
-        Notification = "rbxassetid://4590662191",  -- Working notification
-        CaseOpen = "rbxassetid://9119713038",      -- Working case open
-        Legendary = "rbxassetid://1837879082",     -- Working legendary sound
-        Purchase = "rbxassetid://4809574522",      -- Working purchase sound
-        LevelUp = "rbxassetid://4809574836"        -- Working level up sound
+        Click = "rbxasset://sounds/click.wav",         -- Default click sound
+        Open = "rbxasset://sounds/uuhhh.mp3",          -- Default open sound
+        Close = "rbxasset://sounds/switch.mp3",        -- Default close sound  
+        Success = "rbxasset://sounds/victory.wav",     -- Default success sound
+        Error = "rbxasset://sounds/error.wav",         -- Default error sound
+        Notification = "rbxasset://sounds/electronicpingshort.wav",  -- Default notification
+        CaseOpen = "rbxasset://sounds/snap.mp3",       -- Default case open
+        Legendary = "rbxasset://sounds/victory.wav",   -- Default legendary sound
+        Purchase = "rbxasset://sounds/buy.wav",        -- Default purchase sound
+        LevelUp = "rbxasset://sounds/victory.wav"      -- Default level up sound
     },
     
     -- Icons
@@ -991,6 +991,7 @@ function MainUI:Initialize()
     local mainContainer = Instance.new("Frame")
     mainContainer.Name = "MainContainer"
     mainContainer.Size = UDim2.new(1, 0, 1, 0)
+    mainContainer.Position = UDim2.new(0, 0, 0, 0)
     mainContainer.BackgroundTransparency = 1
     mainContainer.Parent = screenGui
     
@@ -999,19 +1000,21 @@ function MainUI:Initialize()
     -- Create navigation bar FIRST (so we know its width)
     self:CreateNavigationBar()
     
-    -- Create main UI panel that contains everything else
+    -- Create main UI panel that contains everything else - FIXED to cover entire screen except nav bar
     local mainPanel = Instance.new("Frame")
     mainPanel.Name = "MainUIPanel"
-    mainPanel.Size = UDim2.new(1, -80, 1, 0)  -- Full height, width minus nav bar
-    mainPanel.Position = UDim2.new(0, 80, 0, 0)  -- Positioned right against nav bar
+    mainPanel.Size = UDim2.new(1, -90, 1, 0)  -- Full height, width minus nav bar (90px for nav + padding)
+    mainPanel.Position = UDim2.new(0, 90, 0, 0)  -- Positioned right against nav bar with padding
     mainPanel.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
     mainPanel.BackgroundTransparency = 0  -- Solid background
+    mainPanel.BorderSizePixel = 0
+    mainPanel.ClipsDescendants = true
     mainPanel.ZIndex = 5  -- Behind other UI elements but above background
     mainPanel.Parent = mainContainer
     
     -- Add visual polish to main panel
-    Utilities:CreateCorner(mainPanel, 12)  -- Subtle corners for polish
-    Utilities:CreateShadow(mainPanel, 0.3, 20)  -- Add shadow for depth
+    Utilities:CreateCorner(mainPanel, 0)  -- No corners for seamless look
+    -- No shadow for main panel to prevent overlapping issues
     
     -- Store reference
     self.MainPanel = mainPanel
@@ -1061,7 +1064,10 @@ end
 function MainUI:CreateCurrencyDisplay()
     local currencyFrame = UIComponents:CreateFrame(self.MainPanel or self.MainContainer, "CurrencyDisplay", UDim2.new(0, 400, 0, 60), UDim2.new(0, 10, 0, 10))
     currencyFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
-    Utilities:CreateShadow(currencyFrame, 0.3)
+    currencyFrame.BorderSizePixel = 0
+    currencyFrame.ZIndex = CLIENT_CONFIG.ZINDEX.Default + 10
+    Utilities:CreateCorner(currencyFrame, 8)
+    Utilities:CreateShadow(currencyFrame, 0.2, 10)
     
     local layout = Instance.new("UIListLayout")
     layout.FillDirection = Enum.FillDirection.Horizontal
@@ -1146,18 +1152,30 @@ function MainUI:CreateCurrencyDisplay()
 end
 
 function MainUI:CreateNavigationBar()
-    local navBar = UIComponents:CreateFrame(self.MainContainer, "NavigationBar", UDim2.new(0, 80, 1, -140), UDim2.new(0, 10, 0, 80))
+    -- Navigation bar that covers full height of screen
+    local navBar = UIComponents:CreateFrame(self.MainContainer, "NavigationBar", UDim2.new(0, 80, 1, 0), UDim2.new(0, 0, 0, 0))
     navBar.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    navBar.BorderSizePixel = 0
+    navBar.ClipsDescendants = false
     navBar.ZIndex = CLIENT_CONFIG.ZINDEX.Default
-    Utilities:CreateShadow(navBar, 0.3)
+    -- No shadow for nav bar to prevent overlapping
+    
+    -- Create a container for buttons with proper padding from top
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Name = "ButtonContainer"
+    buttonContainer.Size = UDim2.new(1, 0, 1, -20)
+    buttonContainer.Position = UDim2.new(0, 0, 0, 10)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Parent = navBar
     
     local layout = Instance.new("UIListLayout")
     layout.FillDirection = Enum.FillDirection.Vertical
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.VerticalAlignment = Enum.VerticalAlignment.Top
     layout.Padding = UDim.new(0, 10)
-    layout.Parent = navBar
+    layout.Parent = buttonContainer
     
-    Utilities:CreatePadding(navBar, 10)
+    Utilities:CreatePadding(buttonContainer, 10)
     
     local navButtons = {
         {Name = "Shop", Icon = CLIENT_CONFIG.ICONS.Egg, Module = "ShopUI"},
@@ -1179,7 +1197,7 @@ function MainUI:CreateNavigationBar()
         button.Text = ""
         button.AutoButtonColor = false -- Disable Roblox hover effects
         button.ZIndex = CLIENT_CONFIG.ZINDEX.Default + 1
-        button.Parent = navBar
+        button.Parent = buttonContainer
         
         Utilities:CreateCorner(button, 8)
         
@@ -2785,28 +2803,32 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
     levelLabel.Font = Enum.Font.SourceSansBold
     levelLabel.Parent = levelBadge
     
-    -- Equipped indicator
-    if petInstance.equipped then
-        local equippedBadge = Instance.new("Frame")
-        equippedBadge.Name = "EquippedBadge"
-        equippedBadge.Size = UDim2.new(0, 20, 0, 20)
-        equippedBadge.Position = UDim2.new(1, -25, 0, 5)
-        equippedBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
-        equippedBadge.Parent = card
-        
-        local equippedCorner = Instance.new("UICorner")
-        equippedCorner.CornerRadius = UDim.new(0, 10)
-        equippedCorner.Parent = equippedBadge
-        
-        local checkmark = Instance.new("TextLabel")
-        checkmark.Size = UDim2.new(1, 0, 1, 0)
-        checkmark.BackgroundTransparency = 1
-        checkmark.Text = "✓"
-        checkmark.TextScaled = true
-        checkmark.TextColor3 = Color3.new(1, 1, 1)
-        checkmark.Font = Enum.Font.SourceSansBold
-        checkmark.Parent = equippedBadge
-    end
+    -- Equipped indicator - ALWAYS create but set visibility
+    local equippedBadge = Instance.new("Frame")
+    equippedBadge.Name = "EquippedBadge"
+    equippedBadge.Size = UDim2.new(0, 24, 0, 24)
+    equippedBadge.Position = UDim2.new(1, -30, 0, 5)
+    equippedBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
+    equippedBadge.BorderSizePixel = 0
+    equippedBadge.Visible = petInstance.equipped or false
+    equippedBadge.ZIndex = card.ZIndex + 3
+    equippedBadge.Parent = card
+    
+    local equippedCorner = Instance.new("UICorner")
+    equippedCorner.CornerRadius = UDim.new(0, 12)
+    equippedCorner.Parent = equippedBadge
+    
+    local checkmark = Instance.new("TextLabel")
+    checkmark.Name = "Checkmark"
+    checkmark.Size = UDim2.new(1, 0, 1, 0)
+    checkmark.BackgroundTransparency = 1
+    checkmark.Text = "✓"
+    checkmark.TextScaled = false
+    checkmark.TextSize = 18
+    checkmark.TextColor3 = Color3.new(1, 1, 1)
+    checkmark.Font = Enum.Font.SourceSansBold
+    checkmark.ZIndex = equippedBadge.ZIndex + 1
+    checkmark.Parent = equippedBadge
     
     -- Lock indicator
     if petInstance.locked then
@@ -5546,9 +5568,13 @@ function UIModules.SettingsUI:Open()
         return
     end
     
-    -- Create main settings frame
-    local settingsFrame = UIComponents:CreateFrame(MainUI.MainContainer, "SettingsFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
-    settingsFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    -- Create main settings frame - Parent to MainPanel like other UIs
+    local settingsFrame = UIComponents:CreateFrame(MainUI.MainPanel, "SettingsFrame", UDim2.new(1, -20, 1, -80), UDim2.new(0, 10, 0, 70))
+    settingsFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    settingsFrame.BorderSizePixel = 0
+    settingsFrame.ClipsDescendants = true
+    Utilities:CreateCorner(settingsFrame, 12)
+    Utilities:CreateShadow(settingsFrame, 0.2, 10)
     
     self.Frame = settingsFrame
     
