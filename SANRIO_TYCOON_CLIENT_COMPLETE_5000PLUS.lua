@@ -2341,9 +2341,21 @@ function UIModules.InventoryUI:CreateDropdown(parent, placeholder, options, size
 end
 
 function UIModules.InventoryUI:CreatePetGrid(parent)
-    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    -- Create scrolling frame directly
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Name = "PetGridScrollFrame"
+    scrollFrame.Size = UDim2.new(1, -10, 1, -10)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 5)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.ScrollBarImageColor3 = CLIENT_CONFIG.COLORS.Primary or Color3.fromRGB(0, 170, 255)
+    scrollFrame.ScrollBarImageTransparency = 0.5
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.Parent = parent
     
     local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.Name = "PetGridLayout"
     gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
     gridLayout.CellSize = UDim2.new(0, 150, 0, 180)
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -2361,134 +2373,168 @@ function UIModules.InventoryUI:CreatePetGrid(parent)
 end
 
 function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
+    -- ==========================================================
+    -- COMPLETE REWRITE - CLEAN PET CARD CREATION
+    -- ==========================================================
+    if not petInstance or not petData then
+        return nil
+    end
+    
+    -- Create card container
     local card = Instance.new("Frame")
-    -- Fix: Handle nil id gracefully
-    card.Name = tostring(petInstance.id or petInstance.uniqueId or "pet_" .. tostring(petInstance))
-    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface  -- Changed from White to Surface
+    card.Name = "PetCard_" .. tostring(petInstance.uniqueId or petInstance.id or "unknown")
+    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface or Color3.fromRGB(255, 250, 250)
     card.BorderSizePixel = 0
-    card.BorderMode = Enum.BorderMode.Inset
     card.Parent = parent
     
-    Utilities:CreateCorner(card, 12)
-    Utilities:CreateShadow(card, 0.2)
+    -- Add corner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = card
     
-    -- Rarity background
-    local rarityGradient = Utilities:CreateGradient(card, {
-        ColorSequenceKeypoint.new(0, CLIENT_CONFIG.COLORS.White),
-        ColorSequenceKeypoint.new(1, Utilities:GetRarityColor(petData.rarity))
-    }, 90)
+    -- Add simple shadow
+    local shadowFrame = Instance.new("Frame")
+    shadowFrame.Name = "Shadow"
+    shadowFrame.Size = UDim2.new(1, 4, 1, 4)
+    shadowFrame.Position = UDim2.new(0, 2, 0, 2)
+    shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    shadowFrame.BackgroundTransparency = 0.8
+    shadowFrame.ZIndex = card.ZIndex - 1
+    shadowFrame.Parent = card.Parent
     
-    -- Pet image
-    local petImage = UIComponents:CreateImageLabel(card, petData.imageId, UDim2.new(0, 100, 0, 100), UDim2.new(0.5, -50, 0, 15))
+    local shadowCorner = Instance.new("UICorner")
+    shadowCorner.CornerRadius = UDim.new(0, 12)
+    shadowCorner.Parent = shadowFrame
     
-    -- Variant effect
-    if petInstance.variant ~= "normal" then
-        local variantOverlay = Instance.new("ImageLabel")
-        variantOverlay.Size = UDim2.new(1, 0, 1, 0)
-        variantOverlay.BackgroundTransparency = 1
-        variantOverlay.Image = "rbxassetid://5028857084"
-        variantOverlay.ImageTransparency = 0.7
-        variantOverlay.Parent = petImage
-        
-        if petInstance.variant == "shiny" then
-            variantOverlay.ImageColor3 = Color3.fromRGB(255, 255, 200)
-            
-            -- Sparkle animation
-            spawn(function()
-                while variantOverlay.Parent do
-                    Utilities:Tween(variantOverlay, {ImageTransparency = 0.5}, TweenInfo.new(1, Enum.EasingStyle.Sine))
-                    task.wait(1)
-                    Utilities:Tween(variantOverlay, {ImageTransparency = 0.7}, TweenInfo.new(1, Enum.EasingStyle.Sine))
-                    task.wait(1)
-                end
-            end)
-        elseif petInstance.variant == "golden" then
-            variantOverlay.ImageColor3 = Color3.fromRGB(255, 215, 0)
-        elseif petInstance.variant == "rainbow" then
-            -- Rainbow animation
-            spawn(function()
-                local hue = 0
-                while variantOverlay.Parent do
-                    hue = (hue + 1) % 360
-                    variantOverlay.ImageColor3 = Color3.fromHSV(hue / 360, 1, 1)
-                    Services.RunService.Heartbeat:Wait()
-                end
-            end)
-        elseif petInstance.variant == "dark_matter" then
-            variantOverlay.ImageColor3 = Color3.fromRGB(50, 0, 100)
-            variantOverlay.Image = "rbxassetid://5028857472" -- Different effect
-        end
+    -- Move card above shadow
+    card.ZIndex = 2
+    
+    -- Create pet image directly
+    local petImage = Instance.new("ImageLabel")
+    petImage.Name = "PetImage"
+    petImage.Size = UDim2.new(0, 100, 0, 100)
+    petImage.Position = UDim2.new(0.5, -50, 0, 15)
+    petImage.BackgroundTransparency = 1
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.Image = petData.imageId or "rbxassetid://0"
+    petImage.Parent = card
+    
+    -- Variant effect (simplified)
+    if petInstance.variant and petInstance.variant ~= "normal" then
+        local variantLabel = Instance.new("TextLabel")
+        variantLabel.Size = UDim2.new(1, 0, 0, 15)
+        variantLabel.Position = UDim2.new(0, 0, 0, 0)
+        variantLabel.BackgroundTransparency = 1
+        variantLabel.Text = petInstance.variant:upper()
+        variantLabel.TextScaled = true
+        variantLabel.Font = Enum.Font.SourceSansBold
+        variantLabel.TextColor3 = 
+            petInstance.variant == "shiny" and Color3.fromRGB(255, 255, 200) or
+            petInstance.variant == "golden" and Color3.fromRGB(255, 215, 0) or
+            petInstance.variant == "rainbow" and Color3.fromRGB(255, 100, 255) or
+            Color3.fromRGB(200, 200, 255)
+        variantLabel.Parent = card
     end
     
     -- Level badge
     local levelBadge = Instance.new("Frame")
+    levelBadge.Name = "LevelBadge"
     levelBadge.Size = UDim2.new(0, 40, 0, 20)
     levelBadge.Position = UDim2.new(0, 5, 0, 5)
-    levelBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark
+    levelBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark or Color3.fromRGB(50, 50, 50)
     levelBadge.Parent = card
     
-    Utilities:CreateCorner(levelBadge, 10)
+    local levelCorner = Instance.new("UICorner")
+    levelCorner.CornerRadius = UDim.new(0, 10)
+    levelCorner.Parent = levelBadge
     
-    local levelLabel = UIComponents:CreateLabel(levelBadge, "Lv." .. petInstance.level, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 10)
-    levelLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
-    levelLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    local levelLabel = Instance.new("TextLabel")
+    levelLabel.Size = UDim2.new(1, 0, 1, 0)
+    levelLabel.BackgroundTransparency = 1
+    levelLabel.Text = "Lv." .. (petInstance.level or 1)
+    levelLabel.TextScaled = true
+    levelLabel.TextColor3 = Color3.new(1, 1, 1)
+    levelLabel.Font = Enum.Font.SourceSansBold
+    levelLabel.Parent = levelBadge
     
     -- Equipped indicator
     if petInstance.equipped then
         local equippedBadge = Instance.new("Frame")
+        equippedBadge.Name = "EquippedBadge"
         equippedBadge.Size = UDim2.new(0, 20, 0, 20)
         equippedBadge.Position = UDim2.new(1, -25, 0, 5)
-        equippedBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success
+        equippedBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
         equippedBadge.Parent = card
         
-        Utilities:CreateCorner(equippedBadge, 10)
+        local equippedCorner = Instance.new("UICorner")
+        equippedCorner.CornerRadius = UDim.new(0, 10)
+        equippedCorner.Parent = equippedBadge
         
-        local checkmark = UIComponents:CreateLabel(equippedBadge, "✓", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 14)
-        checkmark.TextColor3 = CLIENT_CONFIG.COLORS.White
-        checkmark.Font = CLIENT_CONFIG.FONTS.Secondary
+        local checkmark = Instance.new("TextLabel")
+        checkmark.Size = UDim2.new(1, 0, 1, 0)
+        checkmark.BackgroundTransparency = 1
+        checkmark.Text = "✓"
+        checkmark.TextScaled = true
+        checkmark.TextColor3 = Color3.new(1, 1, 1)
+        checkmark.Font = Enum.Font.SourceSansBold
+        checkmark.Parent = equippedBadge
     end
     
     -- Lock indicator
     if petInstance.locked then
-        local lockIcon = UIComponents:CreateImageLabel(card, "rbxassetid://10709778200", UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 1, -25))
-        lockIcon.ImageColor3 = CLIENT_CONFIG.COLORS.Error
+        local lockIcon = Instance.new("ImageLabel")
+        lockIcon.Size = UDim2.new(0, 20, 0, 20)
+        lockIcon.Position = UDim2.new(1, -25, 1, -25)
+        lockIcon.BackgroundTransparency = 1
+        lockIcon.Image = "rbxassetid://10709778200"
+        lockIcon.ImageColor3 = CLIENT_CONFIG.COLORS.Error or Color3.fromRGB(255, 0, 0)
+        lockIcon.ScaleType = Enum.ScaleType.Fit
+        lockIcon.Parent = card
     end
     
     -- Pet name
-    local nameLabel = UIComponents:CreateLabel(card, petInstance.nickname or petData.displayName, UDim2.new(1, -10, 0, 20), UDim2.new(0, 5, 0, 120), 14)
-    nameLabel.Font = CLIENT_CONFIG.FONTS.Secondary
-    nameLabel.TextWrapped = true
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -10, 0, 20)
+    nameLabel.Position = UDim2.new(0, 5, 0, 120)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = petInstance.nickname or petData.displayName or "Unknown Pet"
+    nameLabel.TextScaled = true
+    nameLabel.TextColor3 = CLIENT_CONFIG.COLORS.Text or Color3.new(1, 1, 1)
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+    nameLabel.Parent = card
     
-    -- Stats preview
-    local statsText = string.format("⚔️ %s 🛡️ %s", 
-        Utilities:FormatNumber(petInstance.stats.power or 0),
-        Utilities:FormatNumber(petInstance.stats.defense or 0)
-    )
-    local statsLabel = UIComponents:CreateLabel(card, statsText, UDim2.new(1, -10, 0, 20), UDim2.new(0, 5, 1, -25), 12)
-    statsLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+    -- Stats preview (simplified)
+    local statsText = string.format("⚔️ %d", petInstance.power or 0)
+    local statsLabel = Instance.new("TextLabel")
+    statsLabel.Size = UDim2.new(1, -10, 0, 20)
+    statsLabel.Position = UDim2.new(0, 5, 1, -25)
+    statsLabel.BackgroundTransparency = 1
+    statsLabel.Text = statsText
+    statsLabel.TextScaled = true
+    statsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statsLabel.Font = Enum.Font.SourceSans
+    statsLabel.Parent = card
     
     -- Click handler
-    card.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self:ShowPetDetails(petInstance, petData)
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-            self:ShowPetContextMenu(card, petInstance, petData)
-        end
+    local clickButton = Instance.new("TextButton")
+    clickButton.Size = UDim2.new(1, 0, 1, 0)
+    clickButton.BackgroundTransparency = 1
+    clickButton.Text = ""
+    clickButton.Parent = card
+    
+    clickButton.MouseButton1Click:Connect(function()
+        self:ShowPetDetails(petInstance, petData)
     end)
     
     -- Hover effect
     card.MouseEnter:Connect(function()
-        Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Background}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        ParticleSystem:CreateParticle(card, "sparkle", UDim2.new(0.5, 0, 0.5, 0))
+        card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background or Color3.fromRGB(240, 240, 240)
     end)
     
     card.MouseLeave:Connect(function()
-        Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.White}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface or Color3.fromRGB(255, 250, 250)
     end)
-    
-    -- Store pet data for filtering (attributes can't be tables)
-    card:SetAttribute("PetName", petData.displayName or "")
-    card:SetAttribute("PetNickname", petInstance.nickname or "")
     
     return card
 end
