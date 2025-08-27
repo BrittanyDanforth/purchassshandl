@@ -743,7 +743,16 @@ function UIComponents:CreateTab(parent, tabs, size, position)
             end
         end)
         
+        -- Only initialize once
         if tab.Init then
+            local initialized = false
+            local originalInit = tab.Init
+            tab.Init = function(frame)
+                if not initialized then
+                    initialized = true
+                    originalInit(frame)
+                end
+            end
             tab.Init(tabFrame)
         end
     end
@@ -1221,6 +1230,13 @@ end
 function UIModules.ShopUI:CreateEggShop(parent)
     local scrollFrame = UIComponents:CreateScrollingFrame(parent)
     
+    -- Clear any existing content first
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if not child:IsA("UIGridLayout") and not child:IsA("UIListLayout") then
+            child:Destroy()
+        end
+    end
+    
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.CellPadding = UDim2.new(0, 20, 0, 20)
     gridLayout.CellSize = UDim2.new(0, 200, 0, 280)
@@ -1366,7 +1382,7 @@ function UIModules.ShopUI:CreateEggCard(parent, eggData)
     end)
     
     card.MouseLeave:Connect(function()
-        Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.White}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface}, CLIENT_CONFIG.TWEEN_INFO.Fast)
     end)
     
     return card
