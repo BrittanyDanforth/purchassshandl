@@ -289,18 +289,64 @@ local UIModules = {
 -- ========================================
 local Utilities = {}
 
+-- Sound cache to prevent repeated loading attempts
+Utilities.SoundCache = {}
+Utilities.FailedSounds = {}  -- Track sounds that failed to load
+
 function Utilities:PlaySound(soundId)
     if not LocalData.Settings.SFXEnabled then return end
     
+    -- Skip if we've already tried and failed to load this sound
+    if self.FailedSounds[soundId] then
+        return
+    end
+    
+    -- Try to use cached sound
+    local cachedSound = self.SoundCache[soundId]
+    if cachedSound and cachedSound.Parent then
+        cachedSound:Play()
+        return
+    end
+    
+    -- Create new sound
     local sound = Instance.new("Sound")
     sound.SoundId = soundId
-    sound.Volume = 0.5
+    sound.Volume = LocalData.Settings.SFXVolume or 0.5
     sound.Parent = workspace
-    sound:Play()
     
-    sound.Ended:Connect(function()
-        sound:Destroy()
+    -- Preload the sound with error handling
+    local success = pcall(function()
+        Services.ContentProvider:PreloadAsync({sound})
     end)
+    
+    if success and sound.IsLoaded then
+        -- Cache successful sound
+        self.SoundCache[soundId] = sound
+        sound:Play()
+        
+        -- Don't destroy cached sounds, reuse them
+        sound.Ended:Connect(function()
+            -- Just stop, don't destroy
+            sound:Stop()
+        end)
+    else
+        -- Mark as failed to prevent repeated attempts
+        self.FailedSounds[soundId] = true
+        sound:Destroy()
+        
+        -- Use fallback sound if available
+        if soundId == CLIENT_CONFIG.SOUNDS.Click then
+            -- Use Roblox default click sound as fallback
+            local fallback = Instance.new("Sound")
+            fallback.SoundId = "rbxasset://sounds/click.wav"
+            fallback.Volume = LocalData.Settings.SFXVolume or 0.5
+            fallback.Parent = workspace
+            fallback:Play()
+            fallback.Ended:Connect(function()
+                fallback:Destroy()
+            end)
+        end
+    end
 end
 
 function Utilities:FormatNumber(num)
@@ -473,11 +519,37 @@ function UIComponents:CreateButton(parent, text, size, position, callback)
     button.MouseButton1Click:Connect(function()
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Click)
         
-        -- Click animation
+        -- More physical click animation with scale and position
         local originalSize = button.Size
-        Utilities:Tween(button, {Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 8, originalSize.Y.Scale, originalSize.Y.Offset - 8)}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        local originalPosition = button.Position
+        local corner = button:FindFirstChildOfClass("UICorner")
+        
+        -- Squish down with scale for more natural feel
+        Services.TweenService:Create(button, CLIENT_CONFIG.TWEEN_INFO.Fast, {
+            Size = UDim2.new(originalSize.X.Scale * 0.95, originalSize.X.Offset, originalSize.Y.Scale * 0.95, originalSize.Y.Offset),
+            Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, originalPosition.Y.Scale, originalPosition.Y.Offset + 2)
+        }):Play()
+        
+        if corner then
+            -- Make corners slightly rounder on press
+            Services.TweenService:Create(corner, CLIENT_CONFIG.TWEEN_INFO.Fast, {
+                CornerRadius = UDim.new(0, 12)
+            }):Play()
+        end
+        
         task.wait(0.1)
-        Utilities:Tween(button, {Size = originalSize}, CLIENT_CONFIG.TWEEN_INFO.Bounce)
+        
+        -- Bounce back up
+        Services.TweenService:Create(button, CLIENT_CONFIG.TWEEN_INFO.Bounce, {
+            Size = originalSize,
+            Position = originalPosition
+        }):Play()
+        
+        if corner then
+            Services.TweenService:Create(corner, CLIENT_CONFIG.TWEEN_INFO.Bounce, {
+                CornerRadius = UDim.new(0, 8)
+            }):Play()
+        end
         
         if callback then
             callback()
@@ -930,15 +1002,16 @@ function MainUI:Initialize()
     -- Create main UI panel that contains everything else
     local mainPanel = Instance.new("Frame")
     mainPanel.Name = "MainUIPanel"
-    mainPanel.Size = UDim2.new(1, -90, 1, 0)  -- Full height, width minus nav bar
-    mainPanel.Position = UDim2.new(0, 80, 0, 0)  -- Positioned after nav bar
+    mainPanel.Size = UDim2.new(1, -80, 1, 0)  -- Full height, width minus nav bar
+    mainPanel.Position = UDim2.new(0, 80, 0, 0)  -- Positioned right against nav bar
     mainPanel.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
     mainPanel.BackgroundTransparency = 0  -- Solid background
     mainPanel.ZIndex = 5  -- Behind other UI elements but above background
     mainPanel.Parent = mainContainer
     
     -- Add visual polish to main panel
-    Utilities:CreateCorner(mainPanel, 0)  -- No corners since it's full screen
+    Utilities:CreateCorner(mainPanel, 12)  -- Subtle corners for polish
+    Utilities:CreateShadow(mainPanel, 0.3, 20)  -- Add shadow for depth
     
     -- Store reference
     self.MainPanel = mainPanel
@@ -1292,7 +1365,11 @@ function NotificationSystem:SendNotification(title, message, notificationType, d
     notification.Size = UDim2.new(1, 0, 0, 80)
     notification.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     notification.BackgroundTransparency = 1
+    notification.Position = UDim2.new(1, 0, 0, 0)  -- Start off-screen
     notification.Parent = MainUI.NotificationContainer
+    
+    -- Let the UIListLayout calculate position for one frame
+    task.wait()
     
     Utilities:CreateCorner(notification, 12)
     Utilities:CreateShadow(notification, 0.4)
@@ -1345,9 +1422,13 @@ function NotificationSystem:SendNotification(title, message, notificationType, d
     closeButton.TextSize = 20
     closeButton.Parent = content
     
-    -- Animate in
-    notification.Position = UDim2.new(1, 0, 0, 0)
-    Utilities:Tween(notification, {Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0}, CLIENT_CONFIG.TWEEN_INFO.Bounce)
+    -- Animate in from the correct Y position (set by UIListLayout)
+    local finalY = notification.Position.Y
+    notification.Position = UDim2.new(1, 0, finalY.Scale, finalY.Offset)
+    Utilities:Tween(notification, {
+        Position = UDim2.new(0, 0, finalY.Scale, finalY.Offset), 
+        BackgroundTransparency = 0
+    }, CLIENT_CONFIG.TWEEN_INFO.Bounce)
     
     -- Sound
     Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Notification)
@@ -2264,6 +2345,12 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     local petImage = UIComponents:CreateImageLabel(petDisplay, finalPetData.imageId, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0))
     petImage.ZIndex = 104
     
+    -- Add shine effect for rare pets (Epic or higher)
+    if finalPetData.rarity >= 4 then
+        petImage.ClipsDescendants = true
+        SpecialEffects:CreateShineEffect(petImage)
+    end
+    
     -- Rarity effects
     local rarityColor = Utilities:GetRarityColor(finalPetData.rarity)
     
@@ -2368,6 +2455,10 @@ function UIModules.InventoryUI:Open()
         self:RefreshInventory()
         return
     end
+    
+    -- Initialize pet card cache for performance
+    self.PetCardCache = {}
+    self.MaxCacheSize = 100  -- Maximum cards to keep in cache
     
     -- Set up reactive updates if DataManager is available
     if DataManager and not self.PetWatcher then
@@ -3521,11 +3612,10 @@ function UIModules.InventoryUI:RefreshInventory()
     -- Store grid layout reference
     local gridLayout = self.PetGrid:FindFirstChildOfClass("UIGridLayout")
     
-    -- Clear all children except UIGridLayout
-    for _, child in ipairs(self.PetGrid:GetChildren()) do
-        if child ~= gridLayout then
-            child:Destroy()
-        end
+    -- Hide all existing cards instead of destroying them (for recycling)
+    for _, card in ipairs(self.PetCardCache) do
+        card.Visible = false
+        card.Parent = nil  -- Temporarily unparent for performance
     end
     
     -- Get player data
@@ -3670,8 +3760,21 @@ function UIModules.InventoryUI:RefreshInventory()
                     }
                 end
                 
-                -- Create the pet card
-                local card = self:CreatePetCard(self.PetGrid, pet, petData)
+                -- Try to reuse existing card from cache
+                local card = self.PetCardCache[i]
+                if card then
+                    -- Update existing card
+                    self:UpdatePetCard(card, pet, petData)
+                    card.Parent = self.PetGrid
+                    card.Visible = true
+                else
+                    -- Create new card if not enough in cache
+                    card = self:CreatePetCard(self.PetGrid, pet, petData)
+                    if card then
+                        self.PetCardCache[i] = card
+                    end
+                end
+                
                 if card then
                     card.LayoutOrder = i
                 end
@@ -3681,6 +3784,79 @@ function UIModules.InventoryUI:RefreshInventory()
         -- Reset refresh flag
         self.IsRefreshing = false
     end)
+end
+
+function UIModules.InventoryUI:UpdatePetCard(card, petInstance, petData)
+    -- Update card name for identification
+    card.Name = "PetCard_" .. tostring(petInstance.uniqueId or petInstance.id)
+    
+    -- Update pet image
+    local petImage = card:FindFirstChild("PetImage")
+    if petImage then
+        petImage.Image = petData.imageId
+    end
+    
+    -- Update level badge
+    local levelBadge = card:FindFirstChild("LevelBadge")
+    if levelBadge then
+        local levelText = levelBadge:FindFirstChild("TextLabel")
+        if levelText then
+            levelText.Text = "Lv." .. (petInstance.level or 1)
+        end
+    end
+    
+    -- Update name label
+    local nameLabel = card:FindFirstChild("NameLabel")
+    if nameLabel then
+        nameLabel.Text = petInstance.nickname or petData.displayName
+    end
+    
+    -- Update lock icon
+    local lockIcon = card:FindFirstChild("LockIcon")
+    if lockIcon then
+        lockIcon.Visible = petInstance.locked or false
+    end
+    
+    -- Update equipped indicator
+    local equippedBadge = card:FindFirstChild("EquippedBadge")
+    if equippedBadge then
+        equippedBadge.Visible = petInstance.equipped or false
+    end
+    
+    -- Update border color for rarity
+    card.BorderColor3 = Utilities:GetRarityColor(petData.rarity)
+    
+    -- Update variant indicator if exists
+    if petInstance.variant and petInstance.variant ~= "normal" then
+        local variantBadge = card:FindFirstChild("VariantBadge")
+        if not variantBadge then
+            -- Create variant badge if it doesn't exist
+            variantBadge = Instance.new("Frame")
+            variantBadge.Name = "VariantBadge"
+            variantBadge.Size = UDim2.new(0, 30, 0, 30)
+            variantBadge.Position = UDim2.new(1, -35, 1, -35)
+            variantBadge.BackgroundColor3 = CLIENT_CONFIG.COLORS.Warning
+            variantBadge.ZIndex = card.ZIndex + 3
+            variantBadge.Parent = card
+            
+            Utilities:CreateCorner(variantBadge, 15)
+            
+            local variantIcon = Instance.new("TextLabel")
+            variantIcon.Size = UDim2.new(1, 0, 1, 0)
+            variantIcon.BackgroundTransparency = 1
+            variantIcon.Text = "✨"
+            variantIcon.TextScaled = true
+            variantIcon.TextColor3 = CLIENT_CONFIG.COLORS.White
+            variantIcon.ZIndex = card.ZIndex + 4
+            variantIcon.Parent = variantBadge
+        end
+        variantBadge.Visible = true
+    else
+        local variantBadge = card:FindFirstChild("VariantBadge")
+        if variantBadge then
+            variantBadge.Visible = false
+        end
+    end
 end
 
 -- Continue in Part 4...-- ========================================
@@ -5641,6 +5817,21 @@ local function Initialize()
         
         if MainUI.UpdateCurrency then
             MainUI.UpdateCurrency(currencies)
+        end
+    end)
+    
+    -- Handle pet deletion - CRITICAL FOR INVENTORY REFRESH
+    RemoteEvents.PetDeleted.OnClientEvent:Connect(function(deletedPetIds)
+        NotificationSystem:SendNotification("Pets Deleted", #deletedPetIds .. " pets were successfully deleted!", "success")
+        
+        -- Force immediate inventory refresh
+        if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
+            UIModules.InventoryUI:RefreshInventory()
+        end
+        
+        -- Also refresh mass delete if it's open
+        if UIModules.InventoryUI.MassDeleteFrame then
+            UIModules.InventoryUI:RefreshMassDeleteGrid()
         end
     end)
     

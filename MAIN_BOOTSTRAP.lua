@@ -327,6 +327,31 @@ local function connectRemoteHandlers(modules, folders)
     
     -- OpenCase
     RemoteFunctions.OpenCase.OnServerInvoke = function(player, eggId, hatchCount)
+        -- VALIDATION: Check input types
+        if type(eggId) ~= "string" then
+            return {success = false, error = "Invalid egg ID"}
+        end
+        
+        -- VALIDATION: Validate hatch count
+        hatchCount = tonumber(hatchCount) or 1
+        if hatchCount < 1 or hatchCount > 10 then
+            return {success = false, error = "Invalid hatch count (1-10 allowed)"}
+        end
+        
+        -- VALIDATION: Check if hatch count is a valid option
+        local validHatchCounts = {1, 3, 5, 10}
+        local isValid = false
+        for _, validCount in ipairs(validHatchCounts) do
+            if hatchCount == validCount then
+                isValid = true
+                break
+            end
+        end
+        
+        if not isValid then
+            return {success = false, error = "Invalid hatch count"}
+        end
+        
         if modules.CaseSystem then
             local result = modules.CaseSystem:OpenCase(player, eggId, hatchCount)
             
@@ -383,6 +408,19 @@ local function connectRemoteHandlers(modules, folders)
     end
     
     RemoteFunctions.MassDeletePets.OnServerInvoke = function(player, petIds)
+        -- VALIDATION: Check input type and limits
+        if type(petIds) ~= "table" then
+            return {success = false, error = "Invalid input: expected table of pet IDs"}
+        end
+        
+        if #petIds == 0 then
+            return {success = false, error = "No pets selected"}
+        end
+        
+        if #petIds > 100 then  -- Prevent mass deletion abuse
+            return {success = false, error = "Cannot delete more than 100 pets at once"}
+        end
+        
         if modules.PetSystem and modules.DataStoreModule then
             local playerData = modules.DataStoreModule:GetPlayerData(player)
             if not playerData then
@@ -391,16 +429,29 @@ local function connectRemoteHandlers(modules, folders)
             
             local deletedCount = 0
             local errors = {}
+            local deletedIds = {}
             
             for _, petId in ipairs(petIds) do
+                -- VALIDATION: Check pet ID type
+                if type(petId) ~= "string" then
+                    table.insert(errors, "Invalid pet ID type")
+                    continue
+                end
+                
                 local pet = playerData.pets[petId]
                 if pet then
-                    if pet.equipped then
+                    -- VALIDATION: Verify ownership
+                    if pet.ownerId and pet.ownerId ~= player.UserId then
+                        table.insert(errors, "You don't own pet " .. petId)
+                    elseif pet.equipped then
                         table.insert(errors, petId .. " is equipped")
+                    elseif pet.locked then
+                        table.insert(errors, petId .. " is locked")
                     else
                         -- Delete the pet
                         playerData.pets[petId] = nil
                         deletedCount = deletedCount + 1
+                        table.insert(deletedIds, petId)
                     end
                 end
             end
@@ -408,8 +459,10 @@ local function connectRemoteHandlers(modules, folders)
             -- Mark data dirty
             modules.DataStoreModule:MarkPlayerDirty(player.UserId)
             
-            -- Fire update event
-            RemoteEvents.PetDeleted:FireClient(player, petIds)
+            -- Fire update event only with actually deleted pets
+            if #deletedIds > 0 then
+                RemoteEvents.PetDeleted:FireClient(player, deletedIds)
+            end
             
             return {
                 success = true, 
