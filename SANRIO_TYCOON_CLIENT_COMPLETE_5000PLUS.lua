@@ -2687,9 +2687,9 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
     leftLayout.Parent = leftSide
     
-    -- Pet image/model container
+    -- Pet image/model container (smaller to fit everything)
     local petDisplayContainer = Instance.new("Frame")
-    petDisplayContainer.Size = UDim2.new(1, 0, 0, 250)
+    petDisplayContainer.Size = UDim2.new(1, 0, 0, 180)  -- Reduced from 250 to 180
     petDisplayContainer.BackgroundTransparency = 1
     petDisplayContainer.LayoutOrder = 1
     petDisplayContainer.Parent = leftSide
@@ -2709,7 +2709,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     
     -- Variant label (if exists)
     if petInstance.variant and petInstance.variant ~= "normal" then
-        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 30), nil, 18)
+        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 25), nil, 16)
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.ZIndex = 203
@@ -2718,7 +2718,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     
     -- Action buttons frame
     local actionsFrame = Instance.new("Frame")
-    actionsFrame.Size = UDim2.new(1, 0, 0, 100)  -- Height for buttons
+    actionsFrame.Size = UDim2.new(1, 0, 0, 90)  -- Slightly smaller
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 202
     actionsFrame.LayoutOrder = 3
