@@ -2886,7 +2886,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     -- Container for variant label and buttons WITH UIListLayout
     local infoContainer = Instance.new("Frame")
     infoContainer.Name = "InfoContainer"
-    infoContainer.Size = UDim2.new(1, 0, 0, 150)  -- Fixed height
+    infoContainer.Size = UDim2.new(1, 0, 1, -200)  -- Fill remaining space
     infoContainer.Position = UDim2.new(0, 0, 0, 190)  -- Right below pet display
     infoContainer.BackgroundTransparency = 1
     infoContainer.ZIndex = 204
@@ -2914,21 +2914,23 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     -- Action buttons frame - goes in container with layout
     local actionsFrame = Instance.new("Frame")
     actionsFrame.Name = "ActionButtonsFrame"
-    actionsFrame.Size = UDim2.new(1, 0, 0, 90)
+    actionsFrame.Size = UDim2.new(1, -20, 0, 100)  -- Slightly inset for polish
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 205
     actionsFrame.LayoutOrder = 2
     actionsFrame.Parent = infoContainer
     
-    local actionsLayout = Instance.new("UIListLayout")
-    actionsLayout.FillDirection = Enum.FillDirection.Vertical
-    actionsLayout.Padding = UDim.new(0, 10)
-    actionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    actionsLayout.Parent = actionsFrame
+    -- Add padding to the action frame for polish
+    local actionsPadding = Instance.new("UIPadding")
+    actionsPadding.PaddingLeft = UDim.new(0, 10)
+    actionsPadding.PaddingRight = UDim.new(0, 10)
+    actionsPadding.Parent = actionsFrame
     
-    -- Equip/Unequip button (with proper server validation)
+    -- NO UIListLayout! Manual positioning for FULL CONTROL
+    
+    -- Equip/Unequip button at TOP of actions frame
     local equipButton
-    equipButton = UIComponents:CreateButton(actionsFrame, petInstance.equipped and "Unequip" or "Equip", UDim2.new(1, 0, 0, 40), nil, function()
+    equipButton = UIComponents:CreateButton(actionsFrame, petInstance.equipped and "Unequip" or "Equip", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 0), function()
         -- 1. Show the user we are working on it
         if equipButton then
             equipButton.Text = "..."
@@ -2976,12 +2978,11 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
     -- Update the stored original color when we change it
     equipButton:SetAttribute("OriginalColor", equipButton.BackgroundColor3)
-    equipButton.LayoutOrder = 1
-    equipButton.ZIndex = 206  -- Match parent frame
+    equipButton.ZIndex = 206  -- Higher than parent for proper layering
     
-    -- Lock/Unlock button
+    -- Lock/Unlock button positioned BELOW equip button
     local lockButton
-    lockButton = UIComponents:CreateButton(actionsFrame, petInstance.locked and "Unlock" or "Lock", UDim2.new(1, 0, 0, 40), nil, function()
+    lockButton = UIComponents:CreateButton(actionsFrame, petInstance.locked and "Unlock" or "Lock", UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 50), function()
         -- Toggle lock locally for now (server implementation needed)
         petInstance.locked = not petInstance.locked
         if lockButton then
@@ -2996,8 +2997,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
     -- Update the stored original color when we change it
     lockButton:SetAttribute("OriginalColor", lockButton.BackgroundColor3)
-    lockButton.LayoutOrder = 2
-    lockButton.ZIndex = 206  -- Match parent frame
+    lockButton.ZIndex = 206  -- Higher than parent for proper layering
     
     -- Right side - Stats and info
     local rightSide = Instance.new("Frame")
