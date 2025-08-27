@@ -1229,16 +1229,45 @@ end
 
 function UIModules.ShopUI:CreateEggShop(parent)
     -- ==========================================================
-    -- FIX: CLEAR THE PARENT FIRST TO PREVENT DUPLICATE SCROLLFRAMES
+    -- COMPLETE REWRITE - PROPER STATE MANAGEMENT
     -- ==========================================================
+    
+    -- Store reference to current scroll frame
+    if self.CurrentEggScrollFrame and self.CurrentEggScrollFrame.Parent then
+        self.CurrentEggScrollFrame:Destroy()
+    end
+    
+    -- Clear everything in parent
     for _, child in ipairs(parent:GetChildren()) do
         child:Destroy()
     end
-    -- ==========================================================
     
-    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
+    -- Create main container (NOT a scrolling frame yet)
+    local container = Instance.new("Frame")
+    container.Name = "EggShopContainer"
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
     
+    -- Create the actual scrolling frame
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Name = "EggScrollFrame"
+    scrollFrame.Size = UDim2.new(1, -10, 1, -10)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 5)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.ScrollBarImageColor3 = CLIENT_CONFIG.COLORS.Primary
+    scrollFrame.ScrollBarImageTransparency = 0.5
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.Parent = container
+    
+    -- Store reference
+    self.CurrentEggScrollFrame = scrollFrame
+    
+    -- Create grid layout
     local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.Name = "EggGridLayout"
     gridLayout.CellPadding = UDim2.new(0, 20, 0, 20)
     gridLayout.CellSize = UDim2.new(0, 200, 0, 280)
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -1246,165 +1275,211 @@ function UIModules.ShopUI:CreateEggShop(parent)
     gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     gridLayout.Parent = scrollFrame
     
-    -- Show loading indicator
-    local loadingLabel = UIComponents:CreateLabel(scrollFrame, "Loading eggs...", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
-    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
-    loadingLabel.Name = "LoadingLabel"
-    loadingLabel.BackgroundTransparency = 1  -- Make sure it's transparent
+    -- Loading state
+    local loadingFrame = Instance.new("Frame")
+    loadingFrame.Name = "LoadingFrame"
+    loadingFrame.Size = UDim2.new(1, 0, 0, 100)
+    loadingFrame.BackgroundTransparency = 1
+    loadingFrame.Parent = scrollFrame
     
-    -- Get egg data from server
-    spawn(function()
+    local loadingLabel = Instance.new("TextLabel")
+    loadingLabel.Size = UDim2.new(1, 0, 1, 0)
+    loadingLabel.BackgroundTransparency = 1
+    loadingLabel.Text = "Loading eggs..."
+    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+    loadingLabel.TextScaled = true
+    loadingLabel.Font = CLIENT_CONFIG.FONTS.Body
+    loadingLabel.Parent = loadingFrame
+    
+    -- Get egg data
+    task.spawn(function()
+        task.wait(0.1) -- Small delay to ensure UI is ready
+        
         local success, eggs = pcall(function()
             if RemoteFunctions.GetShopData then
                 return RemoteFunctions.GetShopData:InvokeServer("eggs")
-            else
-                -- Fallback data if remote doesn't exist
-                return {
-                    {id = "basic_egg", name = "Basic Egg", price = 100, currency = "coins", imageId = "rbxassetid://10883352204"},
-                    {id = "rare_egg", name = "Rare Egg", price = 500, currency = "gems", imageId = "rbxassetid://10883355122"},
-                    {id = "epic_egg", name = "Epic Egg", price = 1000, currency = "gems", imageId = "rbxassetid://10883356470"},
-                    {id = "legendary_egg", name = "Legendary Egg", price = 2500, currency = "gems", imageId = "rbxassetid://10883357885"}
-                }
             end
         end)
         
-        -- Remove loading label
-        if loadingLabel and loadingLabel.Parent then
-            loadingLabel:Destroy()
+        -- Remove loading
+        if loadingFrame and loadingFrame.Parent then
+            loadingFrame:Destroy()
         end
         
-        if success and eggs then
-            for i, eggData in ipairs(eggs) do
-                if eggData and eggData.id and eggData.name then -- Ensure complete data
-                    local eggCard = self:CreateEggCard(scrollFrame, eggData)
-                    if eggCard then
-                        eggCard.LayoutOrder = i
-                    end
-                end
-            end
-        else
-            local errorLabel = UIComponents:CreateLabel(scrollFrame, "Failed to load eggs", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
-            errorLabel.TextColor3 = CLIENT_CONFIG.COLORS.Error
+        -- Use test data if server call failed
+        if not success or not eggs then
+            eggs = {
+                {id = "basic_egg", name = "Basic Egg", price = 100, currency = "coins", imageId = "rbxassetid://10883352204"},
+                {id = "rare_egg", name = "Rare Egg", price = 500, currency = "gems", imageId = "rbxassetid://10883355122"},
+                {id = "epic_egg", name = "Epic Egg", price = 1000, currency = "gems", imageId = "rbxassetid://10883356470"},
+                {id = "legendary_egg", name = "Legendary Egg", price = 2500, currency = "gems", imageId = "rbxassetid://10883357885"}
+            }
         end
-    end)
-    
-    -- Update canvas size
-    spawn(function()
-        task.wait(0.1) -- Wait for layout to update
-        if gridLayout and gridLayout.Parent then
-            gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
-            end)
-            -- Set initial size
-            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
-            
-            -- Clean up any empty frames
-            task.wait(0.2)
-            for _, child in ipairs(scrollFrame:GetChildren()) do
-                if child:IsA("Frame") then
-                    local hasVisibleContent = false
-                    for _, subChild in ipairs(child:GetChildren()) do
-                        if subChild:IsA("GuiObject") and subChild.Visible and 
-                           (subChild:IsA("TextLabel") or subChild:IsA("ImageLabel") or subChild:IsA("TextButton")) then
-                            hasVisibleContent = true
-                            break
-                        end
-                    end
-                    if not hasVisibleContent or child.Name == "Frame" then
-                        child:Destroy()
+        
+        -- Create egg cards
+        if eggs and type(eggs) == "table" then
+            for i, eggData in ipairs(eggs) do
+                if eggData and eggData.id then
+                    local card = self:CreateEggCard(scrollFrame, eggData)
+                    if card then
+                        card.LayoutOrder = i
                     end
                 end
             end
+        end
+        
+        -- Update canvas size after cards are created
+        task.wait(0.1)
+        if gridLayout and gridLayout.Parent then
+            local updateCanvas = function()
+                scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 40)
+            end
+            
+            gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+            updateCanvas() -- Initial update
         end
     end)
 end
 
 function UIModules.ShopUI:CreateEggCard(parent, eggData)
-    -- Skip invalid egg data
+    -- ==========================================================
+    -- REWRITTEN - CLEAN CARD CREATION
+    -- ==========================================================
     if not eggData or not eggData.id then
-        return
+        return nil
     end
     
+    -- Create card container
     local card = Instance.new("Frame")
-    card.Name = eggData.id .. "Card"
-    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface
+    card.Name = "EggCard_" .. eggData.id
+    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface or Color3.fromRGB(255, 255, 255)
     card.BorderSizePixel = 0
-    card.BorderMode = Enum.BorderMode.Inset
     card.Parent = parent
     
-    Utilities:CreateCorner(card, 12)
-    Utilities:CreateShadow(card, 0.3)
+    -- Add corner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = card
     
-    -- Egg image - only create if valid image exists
-    local imageId = eggData.image or eggData.imageId
-    if imageId and imageId ~= "" and imageId ~= "rbxassetid://0" then
-        local eggImage = UIComponents:CreateImageLabel(card, imageId, UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20))
-        eggImage.BackgroundTransparency = 1
-        eggImage.ScaleType = Enum.ScaleType.Fit
-        
-        -- Only animate if image loaded successfully
-        spawn(function()
-            while card.Parent and eggImage.Parent do
-                Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 15)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-                task.wait(2)
-                if not card.Parent then break end
-                Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 25)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-                task.wait(2)
-            end
-        end)
+    -- Add shadow
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://7024272965"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.7
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(20, 20, 280, 280)
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.ZIndex = 0
+    shadow.Parent = card
+    
+    -- Create egg image
+    local imageId = eggData.image or eggData.imageId or ""
+    local eggImage = Instance.new("ImageLabel")
+    eggImage.Name = "EggImage"
+    eggImage.Size = UDim2.new(0, 120, 0, 120)
+    eggImage.Position = UDim2.new(0.5, -60, 0, 20)
+    eggImage.BackgroundTransparency = 1
+    eggImage.ScaleType = Enum.ScaleType.Fit
+    eggImage.Parent = card
+    
+    if imageId ~= "" and imageId ~= "rbxassetid://0" then
+        eggImage.Image = imageId
     else
-        -- Show placeholder if no valid image
-        local placeholder = UIComponents:CreateLabel(card, "?", UDim2.new(0, 120, 0, 120), UDim2.new(0.5, -60, 0, 20), 60)
-        placeholder.TextColor3 = CLIENT_CONFIG.COLORS.TextSecondary
-        placeholder.Font = CLIENT_CONFIG.FONTS.Display
+        -- Placeholder text
+        eggImage.Image = ""
+        local placeholderText = Instance.new("TextLabel")
+        placeholderText.Size = UDim2.new(1, 0, 1, 0)
+        placeholderText.BackgroundTransparency = 1
+        placeholderText.Text = "?"
+        placeholderText.TextScaled = true
+        placeholderText.TextColor3 = CLIENT_CONFIG.COLORS.TextSecondary or Color3.fromRGB(150, 150, 150)
+        placeholderText.Font = Enum.Font.SourceSansBold
+        placeholderText.Parent = eggImage
     end
     
-    -- Animation moved inside the image creation block above
+    -- Simple floating animation
+    task.spawn(function()
+        local startPos = eggImage.Position
+        while card.Parent do
+            eggImage:TweenPosition(UDim2.new(0.5, -60, 0, 15), "InOut", "Sine", 2, true)
+            task.wait(2)
+            if not card.Parent then break end
+            eggImage:TweenPosition(startPos, "InOut", "Sine", 2, true)
+            task.wait(2)
+        end
+    end)
     
     -- Egg name
-    local nameLabel = UIComponents:CreateLabel(card, eggData.name, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 150), 18)
-    nameLabel.Font = CLIENT_CONFIG.FONTS.Secondary
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -20, 0, 30)
+    nameLabel.Position = UDim2.new(0, 10, 0, 150)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = eggData.name or "Unknown Egg"
+    nameLabel.TextScaled = true
+    nameLabel.TextColor3 = CLIENT_CONFIG.COLORS.Text or Color3.new(1, 1, 1)
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.Parent = card
     
-    -- Price container
-    local priceContainer = Instance.new("Frame")
-    priceContainer.Size = UDim2.new(1, -20, 0, 30)
-    priceContainer.Position = UDim2.new(0, 10, 0, 180)
-    priceContainer.BackgroundTransparency = 1
-    priceContainer.Parent = card
+    -- Price section
+    local priceFrame = Instance.new("Frame")
+    priceFrame.Name = "PriceFrame"
+    priceFrame.Size = UDim2.new(1, -20, 0, 30)
+    priceFrame.Position = UDim2.new(0, 10, 0, 180)
+    priceFrame.BackgroundTransparency = 1
+    priceFrame.Parent = card
     
-    local currencyIcon = UIComponents:CreateImageLabel(priceContainer, 
-        eggData.currency == "Gems" and CLIENT_CONFIG.ICONS.Gem or CLIENT_CONFIG.ICONS.Coin,
-        UDim2.new(0, 24, 0, 24), UDim2.new(0, 0, 0.5, -12))
+    -- Currency icon
+    local currencyIcon = Instance.new("ImageLabel")
+    currencyIcon.Size = UDim2.new(0, 24, 0, 24)
+    currencyIcon.Position = UDim2.new(0, 0, 0.5, -12)
+    currencyIcon.BackgroundTransparency = 1
+    currencyIcon.Image = (eggData.currency == "gems" or eggData.currency == "Gems") and 
+        "rbxassetid://6270808621" or "rbxassetid://6270808400"
+    currencyIcon.Parent = priceFrame
     
-    local priceLabel = UIComponents:CreateLabel(priceContainer, Utilities:FormatNumber(eggData.price), 
-        UDim2.new(1, -30, 1, 0), UDim2.new(0, 30, 0, 0), 16)
-    priceLabel.TextXAlignment = Enum.TextXAlignment.Left
-    priceLabel.Font = CLIENT_CONFIG.FONTS.Numbers
+    -- Price text
+    local priceText = Instance.new("TextLabel")
+    priceText.Size = UDim2.new(1, -30, 1, 0)
+    priceText.Position = UDim2.new(0, 30, 0, 0)
+    priceText.BackgroundTransparency = 1
+    priceText.Text = tostring(eggData.price or 0)
+    priceText.TextScaled = true
+    priceText.TextColor3 = CLIENT_CONFIG.COLORS.Text or Color3.new(1, 1, 1)
+    priceText.TextXAlignment = Enum.TextXAlignment.Left
+    priceText.Font = Enum.Font.SourceSans
+    priceText.Parent = priceFrame
     
     -- Buy button
-    local buyButton = UIComponents:CreateButton(card, "Open", UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 1, -50), function()
+    local buyButton = Instance.new("TextButton")
+    buyButton.Name = "BuyButton"
+    buyButton.Size = UDim2.new(1, -20, 0, 40)
+    buyButton.Position = UDim2.new(0, 10, 1, -50)
+    buyButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Primary or Color3.fromRGB(0, 170, 255)
+    buyButton.Text = "Open"
+    buyButton.TextScaled = true
+    buyButton.TextColor3 = Color3.new(1, 1, 1)
+    buyButton.Font = Enum.Font.SourceSansBold
+    buyButton.Parent = card
+    
+    local buyCorner = Instance.new("UICorner")
+    buyCorner.CornerRadius = UDim.new(0, 8)
+    buyCorner.Parent = buyButton
+    
+    buyButton.MouseButton1Click:Connect(function()
         self:OpenEgg(eggData)
     end)
     
-    -- Multi-hatch buttons
-    if LocalData.PlayerData and LocalData.PlayerData.ownedGamepasses and LocalData.PlayerData.ownedGamepasses[123462] then
-        local multiButton = UIComponents:CreateButton(card, "Open x3", UDim2.new(0.48, -5, 0, 35), UDim2.new(0, 10, 1, -45), function()
-            self:OpenEgg(eggData, 3)
-        end)
-        multiButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Secondary
-        
-        buyButton.Size = UDim2.new(0.48, -5, 0, 35)
-        buyButton.Position = UDim2.new(0.52, 5, 1, -45)
-    end
-    
-    -- Hover effect
+    -- Hover effects
     card.MouseEnter:Connect(function()
-        Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Background}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        ParticleSystem:CreateBurst(card, "sparkle", UDim2.new(0.5, 0, 0.5, 0), 3)
+        card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background or Color3.fromRGB(240, 240, 240)
     end)
     
     card.MouseLeave:Connect(function()
-        Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface or Color3.fromRGB(255, 255, 255)
     end)
     
     return card
@@ -3103,124 +3178,146 @@ end
 
 function UIModules.InventoryUI:RefreshInventory()
     -- ==========================================================
-    -- CLEAR EVERYTHING FIRST TO PREVENT GHOST CARDS
+    -- COMPLETE REWRITE - BULLETPROOF INVENTORY REFRESH
     -- ==========================================================
-    if self.PetGrid then
-        for _, child in ipairs(self.PetGrid:GetChildren()) do
-            if not child:IsA("UIGridLayout") then
-                child:Destroy()
-            end
+    
+    -- Ensure PetGrid exists
+    if not self.PetGrid or not self.PetGrid.Parent then
+        warn("[InventoryUI] PetGrid not found, cannot refresh")
+        return
+    end
+    
+    -- Store grid layout reference
+    local gridLayout = self.PetGrid:FindFirstChildOfClass("UIGridLayout")
+    
+    -- Clear all children except UIGridLayout
+    for _, child in ipairs(self.PetGrid:GetChildren()) do
+        if child ~= gridLayout then
+            child:Destroy()
         end
     end
-    -- ==========================================================
     
-    -- Get data from DataManager if available, fallback to LocalData
+    -- Get player data
     local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
-    if not playerData then return end
+    if not playerData then
+        -- Show error state
+        local errorLabel = Instance.new("TextLabel")
+        errorLabel.Size = UDim2.new(1, 0, 0, 50)
+        errorLabel.Position = UDim2.new(0, 0, 0.5, -25)
+        errorLabel.BackgroundTransparency = 1
+        errorLabel.Text = "No data available"
+        errorLabel.TextScaled = true
+        errorLabel.TextColor3 = CLIENT_CONFIG.COLORS.Error or Color3.fromRGB(255, 0, 0)
+        errorLabel.Font = Enum.Font.SourceSans
+        errorLabel.Parent = self.PetGrid
+        return
+    end
     
-    -- ==========================================================
-    -- ADD LOADING STATE FOR BETTER UX
-    -- ==========================================================
-    local loadingLabel = UIComponents:CreateLabel(self.PetGrid, "Loading pets...", UDim2.new(1, 0, 0, 50), UDim2.new(0, 0, 0.5, -25), 20)
-    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+    -- Show loading state
+    local loadingLabel = Instance.new("TextLabel")
     loadingLabel.Name = "LoadingLabel"
+    loadingLabel.Size = UDim2.new(1, 0, 0, 50)
+    loadingLabel.Position = UDim2.new(0, 0, 0.5, -25)
+    loadingLabel.BackgroundTransparency = 1
+    loadingLabel.Text = "Loading pets..."
+    loadingLabel.TextScaled = true
+    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark or Color3.fromRGB(100, 100, 100)
+    loadingLabel.Font = Enum.Font.SourceSans
+    loadingLabel.Parent = self.PetGrid
     
-    -- Convert dictionary to array for display
-    local pets = {}
-    local equippedCount = 0
+    -- Process pets data
+    task.spawn(function()
+        -- Small delay to show loading
+        task.wait(0.1)
+        
+        local pets = {}
+        local equippedCount = 0
+        
+        -- Safely process pet data
+        if playerData.pets and type(playerData.pets) == "table" then
+            -- Determine if pets is array or dictionary
+            local isArray = true
+            for key, _ in pairs(playerData.pets) do
+                if type(key) ~= "number" then
+                    isArray = false
+                    break
+                end
+            end
+            
+            if isArray then
+                -- Direct array usage
+                pets = playerData.pets
+            else
+                -- Convert dictionary to array
+                for uniqueId, petData in pairs(playerData.pets) do
+                    petData.uniqueId = uniqueId
+                    table.insert(pets, petData)
+                end
+            end
+            
+            -- Count equipped pets
+            for _, pet in pairs(pets) do
+                if pet.equipped then
+                    equippedCount = equippedCount + 1
+                end
+            end
+            
+            -- Sort pets by level (highest first)
+            table.sort(pets, function(a, b)
+                local aLevel = a.level or 1
+                local bLevel = b.level or 1
+                return aLevel > bLevel
+            end)
+        end
     
-    if type(playerData.pets) == "table" then
-        -- Check if it's a dictionary (has non-numeric keys)
-        local isDictionary = false
-        for key, _ in pairs(playerData.pets) do
-            if type(key) ~= "number" then
-                isDictionary = true
-                break
+        -- Remove loading label
+        if loadingLabel and loadingLabel.Parent then
+            loadingLabel:Destroy()
+        end
+        
+        -- Update stats
+        local petCount = #pets
+        if self.StatsLabels then
+            self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. (playerData.maxPetStorage or 500)
+            self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
+            if self.StatsLabels.Storage and self.StatsLabels.Storage.UpdateValue then
+                self.StatsLabels.Storage.UpdateValue(petCount)
             end
         end
         
-        if isDictionary then
-            -- Convert dictionary to array
-            for id, pet in pairs(playerData.pets) do
-                pet.uniqueId = id
-                table.insert(pets, pet)
-                if pet.equipped then
-                    equippedCount = equippedCount + 1
-                end
-            end
-            
-            -- Sort by level, rarity, or obtained time
-            table.sort(pets, function(a, b)
-                if a.level ~= b.level then
-                    return a.level > b.level
-                elseif a.rarity ~= b.rarity then
-                    return a.rarity > b.rarity
-                else
-                    return (a.obtained or 0) > (b.obtained or 0)
-                end
-            end)
+        -- Create pet cards
+        if #pets == 0 then
+            -- Show empty state
+            local emptyLabel = Instance.new("TextLabel")
+            emptyLabel.Size = UDim2.new(1, 0, 0, 100)
+            emptyLabel.Position = UDim2.new(0, 0, 0.5, -50)
+            emptyLabel.BackgroundTransparency = 1
+            emptyLabel.Text = "No pets yet!\nOpen eggs to get started"
+            emptyLabel.TextScaled = true
+            emptyLabel.TextColor3 = CLIENT_CONFIG.COLORS.TextSecondary or Color3.fromRGB(150, 150, 150)
+            emptyLabel.Font = Enum.Font.SourceSans
+            emptyLabel.Parent = self.PetGrid
         else
-            -- Already an array
-            pets = playerData.pets
-            for _, pet in ipairs(pets) do
-                if pet.equipped then
-                    equippedCount = equippedCount + 1
+            -- Create cards for each pet
+            for i, pet in ipairs(pets) do
+                -- Get pet template data
+                local petData = LocalData.PetDatabase and LocalData.PetDatabase[pet.petId]
+                
+                if not petData then
+                    -- Create fallback data if not in database
+                    petData = {
+                        id = pet.petId or "unknown",
+                        displayName = pet.name or pet.petId or "Unknown Pet",
+                        imageId = pet.imageId or "rbxassetid://0",
+                        rarity = pet.rarity or 1,
+                        description = pet.description or "A mysterious pet"
+                    }
                 end
-            end
-        end
-    end
-    
-    local petCount = #pets
-    
-    if self.StatsLabels then
-        self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. (playerData.maxPetStorage or 500)
-        self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
-        if self.StatsLabels.Storage and self.StatsLabels.Storage.UpdateValue then
-            self.StatsLabels.Storage.UpdateValue(petCount)
-        end
-    end
-    
-    -- Add pet cards
-    if self.PetGrid then
-        for i, pet in ipairs(pets) do
-            -- Try to get pet data from database
-            local petData = LocalData.PetDatabase and LocalData.PetDatabase[pet.petId]
-            
-            -- If not found, create basic pet data from the pet instance
-            if not petData then
-                petData = {
-                    id = pet.petId or "unknown",
-                    displayName = pet.name or pet.petId or "Unknown Pet",
-                    imageId = pet.imageId or "rbxassetid://0",
-                    rarity = pet.rarity or 1,
-                    description = pet.description or "A mysterious pet"
-                }
-            end
-            
-            local card = self:CreatePetCard(self.PetGrid, pet, petData)
-            if card then
-                card.LayoutOrder = i
-            end
-        end
-    end
-    
-    -- ==========================================================
-    -- REMOVE LOADING LABEL AFTER PETS ARE LOADED
-    -- ==========================================================
-    if self.PetGrid then
-        local loadingLabel = self.PetGrid:FindFirstChild("LoadingLabel")
-        if loadingLabel then
-            loadingLabel:Destroy()
-        end
-    end
-    
-    -- Clean up any stray frames
-    spawn(function()
-        task.wait(0.1)
-        if self.PetGrid then
-            for _, child in ipairs(self.PetGrid:GetChildren()) do
-                if child:IsA("Frame") and (child.Name == "Frame" or #child:GetChildren() == 0) then
-                    child:Destroy()
+                
+                -- Create the pet card
+                local card = self:CreatePetCard(self.PetGrid, pet, petData)
+                if card then
+                    card.LayoutOrder = i
                 end
             end
         end

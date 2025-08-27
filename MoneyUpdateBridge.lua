@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
 
 -- Wait for remotes to be created
 local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
@@ -34,8 +35,8 @@ local function findPlayerMoneyValue(player)
         player:FindFirstChild("Data") and player.Data:FindFirstChild("Cash"),
     }
     
-    -- Also check PlayerMoney folder (created by UnifiedLeaderboard)
-    local playerMoneyFolder = workspace:FindFirstChild("PlayerMoney")
+    -- Also check PlayerMoney folder in ServerStorage (created by UnifiedLeaderboard)
+    local playerMoneyFolder = game:GetService("ServerStorage"):FindFirstChild("PlayerMoney")
     if playerMoneyFolder then
         local playerFolder = playerMoneyFolder:FindFirstChild(player.Name)
         if playerFolder then
@@ -172,7 +173,7 @@ local playerConnections = {}
 -- ==========================================================
 local function monitorPlayerMoney(player)
     -- Wait a bit for PlayerMoney folder to be created by UnifiedLeaderboard
-    task.wait(1)
+    task.wait(2)
     
     -- Try to find the money value object
     local moneyValue = findPlayerMoneyValue(player)
