@@ -124,17 +124,14 @@ local function findPlayerMoneyValue(player)
     end
     
     -- Return first valid money value found
-    for _, moneyValue in ipairs(locations) do
-        if moneyValue and (moneyValue:IsA("NumberValue") or moneyValue:IsA("IntValue")) then
-            print("[MoneyUpdateBridge] Found money value for", player.Name, "at", moneyValue:GetFullName())
-            return moneyValue
-        end
+    if #locations > 0 then
+        local moneyValue = locations[1]
+        print("[MoneyUpdateBridge] Using money value for", player.Name, "at", moneyValue:GetFullName())
+        return moneyValue
     end
     
-    -- Debug: print search locations
-    if #locations > 0 then
-        print("[MoneyUpdateBridge] Searched", #locations, "locations for", player.Name, "but found no valid NumberValue/IntValue")
-    end
+    -- Debug: no locations found
+    print("[MoneyUpdateBridge] No money values found for", player.Name)
     
     return nil
 end

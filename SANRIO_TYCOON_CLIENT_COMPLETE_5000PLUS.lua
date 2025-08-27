@@ -1813,16 +1813,18 @@ function UIModules.CaseOpeningUI:Open(results)
         task.wait(0.3)
         overlay:Destroy()
     end)
-    closeButton.AutoButtonColor = true
-    closeButton.Parent = container -- Ensure parent is set
     
-    -- Add visual feedback
+    -- Add hover effects (but only if not clicked)
     closeButton.MouseEnter:Connect(function()
-        Utilities:Tween(closeButton, {BackgroundColor3 = CLIENT_CONFIG.COLORS.SuccessHover or CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        if not clicked then
+            closeButton.BackgroundColor3 = Color3.fromRGB(0, 235, 0)
+        end
     end)
     
     closeButton.MouseLeave:Connect(function()
-        Utilities:Tween(closeButton, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        if not clicked then
+            closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
+        end
     end)
 end
 
@@ -3260,9 +3262,17 @@ function UIModules.InventoryUI:RefreshInventory()
     -- COMPLETE REWRITE - BULLETPROOF INVENTORY REFRESH
     -- ==========================================================
     
+    -- Prevent multiple refreshes
+    if self.IsRefreshing then
+        print("[DEBUG] Already refreshing, skipping")
+        return
+    end
+    self.IsRefreshing = true
+    
     -- Ensure PetGrid exists
     if not self.PetGrid or not self.PetGrid.Parent then
         warn("[InventoryUI] PetGrid not found, cannot refresh")
+        self.IsRefreshing = false
         return
     end
     
@@ -3314,25 +3324,50 @@ function UIModules.InventoryUI:RefreshInventory()
         
         -- Safely process pet data
         if playerData.pets and type(playerData.pets) == "table" then
+            -- DEBUG: Check structure
+            local petCount = 0
+            for k, v in pairs(playerData.pets) do
+                petCount = petCount + 1
+            end
+            print("[DEBUG] Total pets in data:", petCount)
+            
             -- Determine if pets is array or dictionary
             local isArray = true
+            local hasNumberKeys = false
+            local hasStringKeys = false
+            
             for key, _ in pairs(playerData.pets) do
-                if type(key) ~= "number" then
+                if type(key) == "number" then
+                    hasNumberKeys = true
+                else
+                    hasStringKeys = true
                     isArray = false
-                    break
                 end
             end
             
+            print("[DEBUG] Pet data structure - Array:", isArray, "Has numbers:", hasNumberKeys, "Has strings:", hasStringKeys)
+            
+            -- Clear pets array to avoid duplicates
+            pets = {}
+            
             if isArray then
                 -- Direct array usage
-                pets = playerData.pets
+                for i, pet in ipairs(playerData.pets) do
+                    if pet and type(pet) == "table" then
+                        table.insert(pets, pet)
+                    end
+                end
             else
                 -- Convert dictionary to array
                 for uniqueId, petData in pairs(playerData.pets) do
-                    petData.uniqueId = uniqueId
-                    table.insert(pets, petData)
+                    if type(petData) == "table" then
+                        petData.uniqueId = uniqueId
+                        table.insert(pets, petData)
+                    end
                 end
             end
+            
+            print("[DEBUG] Processed pets:", #pets)
             
             -- Count equipped pets
             for _, pet in pairs(pets) do
@@ -3400,6 +3435,9 @@ function UIModules.InventoryUI:RefreshInventory()
                 end
             end
         end
+        
+        -- Reset refresh flag
+        self.IsRefreshing = false
     end)
 end
 
