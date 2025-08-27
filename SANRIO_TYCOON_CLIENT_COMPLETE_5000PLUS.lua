@@ -182,7 +182,7 @@ local CLIENT_CONFIG = {
     
     -- Sounds (all tested and working)
     SOUNDS = {
-        Click = "rbxasset://sounds/click.wav",         -- Default click sound
+        Click = "rbxasset://sounds/clickfast.wav",     -- Working click sound
         Open = "rbxasset://sounds/uuhhh.mp3",          -- Default open sound
         Close = "rbxasset://sounds/switch.mp3",        -- Default close sound  
         Success = "rbxasset://sounds/victory.wav",     -- Default success sound
@@ -426,30 +426,8 @@ function Utilities:CreatePadding(parent, padding)
 end
 
 function Utilities:CreateShadow(parent, transparency, size)
-    -- Skip shadows for main UI elements that cause overlap
-    if parent.Name == "CurrencyDisplay" or parent.Name == "NavigationBar" then
-        return {Destroy = function() end}
-    end
-    
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://1316045217"
-    shadow.ImageTransparency = transparency or 0.5
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    shadow.Size = UDim2.new(1, size or 20, 1, size or 20)
-    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    
-    -- CRITICAL FIX: Make sure shadow has lower ZIndex than parent
-    parent.ZIndex = parent.ZIndex or 10
-    shadow.ZIndex = 1
-    
-    -- Parent to same parent as the frame
-    shadow.Parent = parent.Parent
-    
-    return shadow
+    -- COMPLETELY DISABLE ALL SHADOWS - They're causing too many issues
+    return {Destroy = function() end}  -- Return dummy object
 end
 
 function Utilities:Tween(object, properties, tweenInfo)
@@ -1000,11 +978,11 @@ function MainUI:Initialize()
     -- Create navigation bar FIRST (so we know its width)
     self:CreateNavigationBar()
     
-    -- Create main UI panel that contains everything else - FIXED to cover entire screen except nav bar
+    -- Create main UI panel that contains everything else - NO GAP
     local mainPanel = Instance.new("Frame")
     mainPanel.Name = "MainUIPanel"
-    mainPanel.Size = UDim2.new(1, -90, 1, 0)  -- Full height, width minus nav bar (90px for nav + padding)
-    mainPanel.Position = UDim2.new(0, 90, 0, 0)  -- Positioned right against nav bar with padding
+    mainPanel.Size = UDim2.new(1, -80, 1, 0)  -- Full height, width minus nav bar exactly
+    mainPanel.Position = UDim2.new(0, 80, 0, 0)  -- Positioned directly against nav bar, no gap
     mainPanel.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
     mainPanel.BackgroundTransparency = 0  -- Solid background
     mainPanel.BorderSizePixel = 0
@@ -1067,7 +1045,7 @@ function MainUI:CreateCurrencyDisplay()
     currencyFrame.BorderSizePixel = 0
     currencyFrame.ZIndex = CLIENT_CONFIG.ZINDEX.Default + 10
     Utilities:CreateCorner(currencyFrame, 8)
-    Utilities:CreateShadow(currencyFrame, 0.2, 10)
+    -- Shadow disabled to prevent overlap issues
     
     local layout = Instance.new("UIListLayout")
     layout.FillDirection = Enum.FillDirection.Horizontal
@@ -2366,7 +2344,13 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     -- Add shine effect for rare pets (Epic or higher)
     if finalPetData.rarity >= 4 then
         petImage.ClipsDescendants = true
-        SpecialEffects:CreateShineEffect(petImage)
+        -- Delay shine effect creation to avoid nil reference
+        spawn(function()
+            wait(0.1)
+            if _G.SpecialEffects and _G.SpecialEffects.CreateShineEffect then
+                _G.SpecialEffects:CreateShineEffect(petImage)
+            end
+        end)
     end
     
     -- Rarity effects
@@ -5573,13 +5557,14 @@ function UIModules.SettingsUI:Open()
     settingsFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     settingsFrame.BorderSizePixel = 0
     settingsFrame.ClipsDescendants = true
+    settingsFrame.ZIndex = 100  -- High ZIndex to ensure it's fully visible
     Utilities:CreateCorner(settingsFrame, 12)
-    Utilities:CreateShadow(settingsFrame, 0.2, 10)
     
     self.Frame = settingsFrame
     
     -- Header
     local header = UIComponents:CreateFrame(settingsFrame, "Header", UDim2.new(1, 0, 0, 60), UDim2.new(0, 0, 0, 0), CLIENT_CONFIG.COLORS.Primary)
+    header.ZIndex = settingsFrame.ZIndex + 1
     
     local headerLabel = UIComponents:CreateLabel(header, "⚙️ Settings ⚙️", UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 24)
     headerLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
@@ -7299,6 +7284,7 @@ end
 -- SPECIAL EFFECTS MODULE
 -- ========================================
 local SpecialEffects = {}
+_G.SpecialEffects = SpecialEffects  -- Make it globally accessible
 
 function SpecialEffects:CreateRainbowText(textLabel)
     spawn(function()
