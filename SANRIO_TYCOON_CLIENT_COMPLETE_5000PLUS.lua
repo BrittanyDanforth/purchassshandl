@@ -1358,9 +1358,18 @@ function UIModules.ShopUI:CreateEggCard(parent, eggData)
 end
 
 function UIModules.ShopUI:OpenEgg(eggData, count)
-    -- Request egg opening from server
-    local result = RemoteFunctions.OpenCase:InvokeServer(eggData.id, count)
+    -- Request egg opening from server with pcall protection
+    local success, result = pcall(function()
+        return RemoteFunctions.OpenCase:InvokeServer(eggData.id, count)
+    end)
     
+    if not success then
+        -- If it failed, result is the error message
+        NotificationSystem:SendNotification("Error", "Could not connect to server. Please try again.", "error")
+        return -- Stop the function
+    end
+    
+    -- Now the rest of your code can run safely
     if result.success then
         -- Open case opening UI
         UIModules.CaseOpeningUI:Open(result.results)
@@ -2449,10 +2458,30 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     actionsLayout.Padding = UDim.new(0, 10)
     actionsLayout.Parent = actionsFrame
     
-    -- Equip/Unequip button
+    -- Equip/Unequip button (with proper server validation)
     local equipButton = UIComponents:CreateButton(actionsFrame, petInstance.equipped and "Unequip" or "Equip", UDim2.new(1, 0, 0, 40), nil, function()
-        self:ToggleEquip(petInstance)
-        equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+        -- 1. Show the user we are working on it
+        equipButton.Text = "..."
+        equipButton.Active = false
+        
+        -- 2. Ask the server to do the action
+        local remote = petInstance.equipped and RemoteFunctions.UnequipPet or RemoteFunctions.EquipPet
+        local success, result = pcall(function()
+            return remote:InvokeServer(petInstance.id)
+        end)
+        
+        -- 3. The server will respond with a DataUpdated event which will automatically
+        --    refresh the inventory and fix the button text. We just re-enable it here.
+        --    No need to manually set the text; the automatic refresh will handle it!
+        equipButton.Active = true
+        
+        if not success or (result and not result.success) then
+            -- If it failed, show an error and the refresh will fix the button text
+            NotificationSystem:SendNotification("Error", result and result.error or "Action failed", "error")
+        else
+            -- Close the details window since the inventory will refresh
+            overlay:Destroy()
+        end
     end)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
     
@@ -4881,6 +4910,31 @@ local function Initialize()
             -- Request quest generation
         end
     end)
+    
+    -- ==========================================================
+    -- ADD THIS CODE BLOCK TO FIX THE INVENTORY NOT UPDATING
+    -- ==========================================================
+    RemoteEvents.DataUpdated.OnClientEvent:Connect(function(playerData)
+        print("[Client] Received data update from server!")
+        LocalData.PlayerData = playerData
+        
+        -- Update DataManager if you use it
+        if DataManager then
+            DataManager:SetData(playerData)
+        end
+        
+        -- Refresh the inventory UI if it's currently open
+        if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
+            UIModules.InventoryUI:RefreshInventory()
+            print("[Client] Inventory UI refreshed.")
+        end
+        
+        -- Update currency display
+        if MainUI.UpdateCurrency and playerData.currencies then
+            MainUI.UpdateCurrency(playerData.currencies)
+        end
+    end)
+    -- ==========================================================
     
     -- Handle currency updates
     RemoteEvents.CurrencyUpdated.OnClientEvent:Connect(function(currencies)

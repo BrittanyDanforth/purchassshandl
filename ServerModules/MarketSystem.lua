@@ -63,13 +63,8 @@ function MarketSystem:Init()
         end
     end)
     
-    -- Start price history update
-    spawn(function()
-        while true do
-            wait(300) -- Update every 5 minutes
-            self:UpdatePriceHistory()
-        end
-    end)
+    -- Price history is now updated efficiently on each sale
+    -- No need for the inefficient UpdatePriceHistory loop
     
     print("[MarketSystem] Initialized")
 end
@@ -349,6 +344,32 @@ function MarketSystem:PurchaseListing(player, listingId)
     if #self.RecentSales > 100 then
         self.RecentSales = {unpack(self.RecentSales, 1, 100)}
     end
+    
+    -- ==========================================================
+    -- ADD THIS CODE TO EFFICIENTLY UPDATE PRICE HISTORY
+    -- ==========================================================
+    -- Record this sale for price history
+    if listing.itemType == CATEGORIES.PETS then
+        local petType = listing.itemData.petType
+        local key = CATEGORIES.PETS .. "_" .. petType
+        
+        if not self.PriceHistory[key] then
+            self.PriceHistory[key] = {}
+        end
+        
+        table.insert(self.PriceHistory[key], 1, {
+            timestamp = os.time(),
+            price = listing.price,
+            level = listing.itemData.level,
+            variant = listing.itemData.variant
+        })
+        
+        -- Keep only the last 50-100 sales per item to save space
+        if #self.PriceHistory[key] > 50 then
+            self.PriceHistory[key] = {unpack(self.PriceHistory[key], 1, 50)}
+        end
+    end
+    -- ==========================================================
     
     -- Remove from active listings
     self.ActiveListings[listingId] = nil
@@ -634,57 +655,7 @@ function MarketSystem:CleanupExpiredListings()
     end
 end
 
-function MarketSystem:UpdatePriceHistory()
-    -- Track average prices for popular items
-    local priceData = {}
-    
-    for _, listing in pairs(self.ActiveListings) do
-        if listing.status == "active" and listing.itemType == CATEGORIES.PETS then
-            local petType = listing.itemData.petType
-            if not priceData[petType] then
-                priceData[petType] = {
-                    prices = {},
-                    count = 0,
-                    total = 0
-                }
-            end
-            
-            table.insert(priceData[petType].prices, listing.price)
-            priceData[petType].count = priceData[petType].count + 1
-            priceData[petType].total = priceData[petType].total + listing.price
-        end
-    end
-    
-    -- Update history
-    for petType, data in pairs(priceData) do
-        local key = CATEGORIES.PETS .. "_" .. petType
-        
-        if not self.PriceHistory[key] then
-            self.PriceHistory[key] = {}
-        end
-        
-        local average = math.floor(data.total / data.count)
-        table.insert(self.PriceHistory[key], {
-            timestamp = os.time(),
-            averagePrice = average,
-            sampleSize = data.count,
-            minPrice = math.min(unpack(data.prices)),
-            maxPrice = math.max(unpack(data.prices))
-        })
-        
-        -- Keep only last 7 days of data
-        local cutoff = os.time() - (7 * 24 * 60 * 60)
-        local filtered = {}
-        
-        for _, entry in ipairs(self.PriceHistory[key]) do
-            if entry.timestamp > cutoff then
-                table.insert(filtered, entry)
-            end
-        end
-        
-        self.PriceHistory[key] = filtered
-    end
-end
+-- UpdatePriceHistory function removed - price history is now recorded on each sale
 
 function MarketSystem:CalculateAveragePrice(history)
     if #history == 0 then return 0 end
@@ -783,25 +754,39 @@ function MarketSystem:LoadMarketData()
     end
 end
 
+-- ==========================================================
+-- REPLACE THE OLD SaveListing FUNCTION WITH THIS
+-- ==========================================================
 function MarketSystem:SaveListing(listing)
-    -- Save individual listing
     spawn(function()
-        pcall(function()
-            local allListings = self.MarketDataStore:GetAsync("ActiveListings") or {}
-            allListings[listing.id] = listing
-            self.MarketDataStore:SetAsync("ActiveListings", allListings)
+        local success, err = pcall(function()
+            self.MarketDataStore:UpdateAsync("ActiveListings", function(oldData)
+                local allListings = oldData or {}
+                allListings[listing.id] = listing
+                return allListings
+            end)
         end)
+        if not success then
+            warn("[MarketSystem] Failed to save listing " .. listing.id .. ": " .. err)
+        end
     end)
 end
 
+-- ==========================================================
+-- REPLACE THE OLD RemoveListing FUNCTION WITH THIS
+-- ==========================================================
 function MarketSystem:RemoveListing(listingId)
-    -- Remove individual listing
     spawn(function()
-        pcall(function()
-            local allListings = self.MarketDataStore:GetAsync("ActiveListings") or {}
-            allListings[listingId] = nil
-            self.MarketDataStore:SetAsync("ActiveListings", allListings)
+        local success, err = pcall(function()
+            self.MarketDataStore:UpdateAsync("ActiveListings", function(oldData)
+                local allListings = oldData or {}
+                allListings[listingId] = nil
+                return allListings
+            end)
         end)
+        if not success then
+            warn("[MarketSystem] Failed to remove listing " .. listingId .. ": " .. err)
+        end
     end)
 end
 

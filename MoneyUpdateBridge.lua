@@ -139,61 +139,56 @@ local function updatePlayerCurrencies(player, newCoins)
     CurrencyUpdated:FireClient(player, currencies)
 end
 
--- Monitor player money changes
+-- Track player money OBJECTS, not just values
+local playerMoneyObjects = {}
+local playerConnections = {}
+
+-- ==========================================================
+-- REPLACE THE OLD monitorPlayerMoney FUNCTION WITH THIS NEW ONE
+-- ==========================================================
 local function monitorPlayerMoney(player)
-    -- Try to find money value immediately
+    -- Try to find the money value object
     local moneyValue = findPlayerMoneyValue(player)
-    
-    -- If not found, wait a bit and try again (money value might be created after player joins)
+
     if not moneyValue then
-        wait(2) -- Wait for tycoon initialization
-        moneyValue = findPlayerMoneyValue(player)
+        -- If not found, wait for tycoon setup and try again
+        for i = 1, 5 do
+            task.wait(2)
+            moneyValue = findPlayerMoneyValue(player)
+            if moneyValue then break end
+        end
     end
-    
+
     if not moneyValue then
-        -- Try one more time after another delay
-        wait(3)
-        moneyValue = findPlayerMoneyValue(player)
-    end
-    
-    if not moneyValue then
-        warn("[MoneyUpdateBridge] Could not find money value for player after retries:", player.Name)
+        warn("[MoneyUpdateBridge] Could not find money value for player after several retries:", player.Name)
         return
     end
-    
-    print("[MoneyUpdateBridge] Monitoring money for player:", player.Name)
-    
-    -- Store initial value
-    playerMoneyValues[player] = moneyValue.Value
-    lastUpdateTime[player] = tick()
-    
-    -- Connect to value changes
+
+    print("[MoneyUpdateBridge] Successfully found and now monitoring money for:", player.Name)
+    playerMoneyObjects[player] = moneyValue
+
+    -- Send the initial value right away
+    updatePlayerCurrencies(player, moneyValue.Value)
+
+    -- Connect to the .Changed event. This is VERY efficient.
     local connection = moneyValue.Changed:Connect(function(newValue)
-        local currentTime = tick()
-        
-        -- Throttle updates to prevent spam (max 10 updates per second)
-        if currentTime - lastUpdateTime[player] < 0.1 then
-            return
-        end
-        
-        -- Only update if value actually changed
-        if playerMoneyValues[player] ~= newValue then
-            playerMoneyValues[player] = newValue
-            lastUpdateTime[player] = currentTime
-            
-            -- Update currencies
-            updatePlayerCurrencies(player, newValue)
-        end
+        updatePlayerCurrencies(player, newValue)
     end)
-    
-    -- Clean up on player leaving
-    player.AncestryChanged:Connect(function()
-        if not player.Parent then
-            connection:Disconnect()
-            playerMoneyValues[player] = nil
-            lastUpdateTime[player] = nil
-        end
-    end)
+
+    -- Store the connection so we can disconnect it later
+    playerConnections[player] = connection
+end
+
+local function stopMonitoringPlayer(player)
+    if playerConnections[player] then
+        playerConnections[player]:Disconnect()
+        playerConnections[player] = nil
+    end
+    if playerMoneyObjects[player] then
+        playerMoneyObjects[player] = nil
+    end
+    playerMoneyValues[player] = nil
+    lastUpdateTime[player] = nil
 end
 
 -- Connect existing players
@@ -204,25 +199,19 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 -- Connect new players
-Players.PlayerAdded:Connect(function(player)
-    spawn(function()
-        -- Wait for character and tycoon to be set up
-        wait(5)
-        monitorPlayerMoney(player)
-    end)
-end)
+Players.PlayerAdded:Connect(monitorPlayerMoney)
 
--- Also update periodically in case we missed any changes
-RunService.Heartbeat:Connect(function()
-    for player, lastValue in pairs(playerMoneyValues) do
-        if player.Parent then
-            local moneyValue = findPlayerMoneyValue(player)
-            if moneyValue and moneyValue.Value ~= lastValue then
-                playerMoneyValues[player] = moneyValue.Value
-                updatePlayerCurrencies(player, moneyValue.Value)
-            end
-        end
-    end
-end)
+-- Handle existing players in the game
+for _, player in ipairs(Players:GetPlayers()) do
+    task.spawn(monitorPlayerMoney, player)
+end
 
-print("[MoneyUpdateBridge] Initialized - Monitoring real-time money changes")
+-- Clean up when a player leaves
+Players.PlayerRemoving:Connect(stopMonitoringPlayer)
+
+-- ==========================================================
+-- DELETE THE OLD RunService.Heartbeat CONNECTION ENTIRELY
+-- ==========================================================
+-- RunService.Heartbeat:Connect(function() ... end) -- DELETE THIS WHOLE BLOCK
+
+print("[MoneyUpdateBridge] Initialized - Monitoring real-time money changes efficiently.")

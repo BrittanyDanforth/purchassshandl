@@ -172,6 +172,7 @@ function CaseSystem:GetShopEggs()
                 price = eggData.price,
                 currency = eggData.currency,
                 icon = eggData.icon,
+                imageId = eggData.icon,  -- Client expects imageId
                 -- Calculate average rarity for display
                 averageRarity = self:CalculateAverageRarity(eggData.dropRates),
                 -- Show if it's limited time
@@ -484,7 +485,8 @@ function CaseSystem:GetShopEggs()
                 description = data.description,
                 price = data.price,
                 currency = data.currency,
-                icon = data.icon
+                icon = data.icon,
+                imageId = data.icon  -- Client expects imageId
             })
         end
     end
