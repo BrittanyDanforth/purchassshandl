@@ -2860,7 +2860,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     content.ZIndex = 202
     content.Parent = detailsFrame
     
-    -- Left side - Pet display WITH PROPER LAYOUT
+    -- Left side - Pet display WITHOUT LAYOUT CONTROLLING EVERYTHING
     local leftSide = Instance.new("Frame")
     leftSide.Name = "PetDetailsLeftSide"
     leftSide.Size = UDim2.new(0.4, -10, 1, 0)
@@ -2868,30 +2868,14 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     leftSide.ZIndex = 202
     leftSide.Parent = content
     
-    -- ADD UILISTLAYOUT TO LEFT SIDE FOR PROPER STACKING
-    local leftLayout = Instance.new("UIListLayout")
-    leftLayout.Name = "LeftSideLayout"
-    leftLayout.FillDirection = Enum.FillDirection.Vertical
-    leftLayout.Padding = UDim.new(0, 10)
-    leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    leftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    leftLayout.Parent = leftSide
-    
-    -- Pet image/model container
-    local petDisplayContainer = Instance.new("Frame")
-    petDisplayContainer.Name = "PetDisplayContainer"
-    petDisplayContainer.Size = UDim2.new(1, 0, 0, 180)
-    petDisplayContainer.BackgroundTransparency = 1
-    petDisplayContainer.LayoutOrder = 1
-    petDisplayContainer.Parent = leftSide
-    
+    -- Pet display at the TOP with MANUAL positioning
     local petDisplay = Instance.new("ViewportFrame")
     petDisplay.Name = "PetDisplay"
-    petDisplay.Size = UDim2.new(1, 0, 1, 0)
-    petDisplay.Position = UDim2.new(0, 0, 0, 0)
+    petDisplay.Size = UDim2.new(1, 0, 0, 180)
+    petDisplay.Position = UDim2.new(0, 0, 0, 0)  -- AT THE TOP!
     petDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     petDisplay.ZIndex = 202
-    petDisplay.Parent = petDisplayContainer
+    petDisplay.Parent = leftSide
     
     Utilities:CreateCorner(petDisplay, 12)
     
@@ -2899,25 +2883,42 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     local petImage = UIComponents:CreateImageLabel(petDisplay, petData.imageId, UDim2.new(0.8, 0, 0.8, 0), UDim2.new(0.1, 0, 0.1, 0))
     petImage.ZIndex = 203
     
-    -- Variant label (if exists)
+    -- Container for variant label and buttons WITH UIListLayout
+    local infoContainer = Instance.new("Frame")
+    infoContainer.Name = "InfoContainer"
+    infoContainer.Size = UDim2.new(1, 0, 0, 150)  -- Fixed height
+    infoContainer.Position = UDim2.new(0, 0, 0, 190)  -- Right below pet display
+    infoContainer.BackgroundTransparency = 1
+    infoContainer.ZIndex = 204
+    infoContainer.Parent = leftSide
+    
+    -- UIListLayout ONLY for the info container
+    local infoLayout = Instance.new("UIListLayout")
+    infoLayout.Name = "InfoLayout"
+    infoLayout.FillDirection = Enum.FillDirection.Vertical
+    infoLayout.Padding = UDim.new(0, 10)
+    infoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    infoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    infoLayout.Parent = infoContainer
+    
+    -- Variant label (if exists) - goes in container
     if petInstance.variant and petInstance.variant ~= "normal" then
-        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 25), nil, 16)
+        local variantLabel = UIComponents:CreateLabel(infoContainer, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 25), nil, 16)
         variantLabel.Name = "VariantLabel"
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.ZIndex = 204
-        variantLabel.LayoutOrder = 2
+        variantLabel.LayoutOrder = 1
     end
     
-    -- Action buttons frame - NO MANUAL POSITIONING NEEDED
+    -- Action buttons frame - goes in container with layout
     local actionsFrame = Instance.new("Frame")
     actionsFrame.Name = "ActionButtonsFrame"
     actionsFrame.Size = UDim2.new(1, 0, 0, 90)
-    -- NO POSITION PROPERTY - LET UILISTLAYOUT HANDLE IT
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 205
-    actionsFrame.LayoutOrder = 3
-    actionsFrame.Parent = leftSide
+    actionsFrame.LayoutOrder = 2
+    actionsFrame.Parent = infoContainer
     
     local actionsLayout = Instance.new("UIListLayout")
     actionsLayout.FillDirection = Enum.FillDirection.Vertical
