@@ -877,6 +877,19 @@ function MainUI:Initialize()
     
     self.ScreenGui = screenGui
     
+    -- Clean up any lingering overlays
+    spawn(function()
+        wait(0.1) -- Small delay to ensure everything is loaded
+        for _, child in ipairs(screenGui:GetChildren()) do
+            if string.find(child.Name, "Overlay") or 
+               (child:IsA("Frame") and child.Size == UDim2.new(1, 0, 1, 0) and 
+                child.BackgroundTransparency < 1) then
+                print("[DEBUG] Cleaning up lingering overlay:", child.Name)
+                child:Destroy()
+            end
+        end
+    end)
+    
     -- Create main container
     local mainContainer = Instance.new("Frame")
     mainContainer.Name = "MainContainer"
@@ -899,6 +912,29 @@ function MainUI:Initialize()
     local uiScale = Instance.new("UIScale")
     uiScale.Scale = LocalData.Settings.UIScale
     uiScale.Parent = mainContainer
+    
+    -- Periodic cleanup for stuck tooltips and overlays
+    spawn(function()
+        while self.ScreenGui and self.ScreenGui.Parent do
+            wait(2) -- Check every 2 seconds
+            for _, child in ipairs(self.ScreenGui:GetChildren()) do
+                -- Clean up stuck tooltips
+                if string.find(child.Name, "NavTooltip_") then
+                    child:Destroy()
+                end
+                -- Clean up any overlay that shouldn't be there
+                if string.find(child.Name, "Overlay") and child.BackgroundTransparency < 0.9 then
+                    -- Check if it's been there for too long
+                    if not child:GetAttribute("CreatedTime") then
+                        child:SetAttribute("CreatedTime", tick())
+                    elseif tick() - child:GetAttribute("CreatedTime") > 10 then
+                        print("[DEBUG] Removing stuck overlay:", child.Name)
+                        child:Destroy()
+                    end
+                end
+            end
+        end
+    end)
     
     return self
 end
@@ -1306,7 +1342,8 @@ function UIModules.ShopUI:Open()
     
     -- Create main shop frame
     local shopFrame = UIComponents:CreateFrame(MainUI.MainContainer, "ShopFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
-    shopFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    shopFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    shopFrame.BackgroundTransparency = 0
     
     self.Frame = shopFrame
     
@@ -2297,7 +2334,8 @@ function UIModules.InventoryUI:Open()
     
     -- Create main inventory frame
     local inventoryFrame = UIComponents:CreateFrame(MainUI.MainContainer, "InventoryFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
-    inventoryFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    inventoryFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    inventoryFrame.BackgroundTransparency = 0
     
     self.Frame = inventoryFrame
     
