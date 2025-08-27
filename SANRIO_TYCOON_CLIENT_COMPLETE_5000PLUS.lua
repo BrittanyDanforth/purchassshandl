@@ -445,15 +445,29 @@ function UIComponents:CreateButton(parent, text, size, position, callback)
     
     local shadow = Utilities:CreateShadow(button)
     
+    -- Store original properties for hover state
+    button:SetAttribute("OriginalColor", button.BackgroundColor3)
+    button:SetAttribute("OriginalSize", size or UDim2.new(0, 200, 0, 50))
+    
+    -- Track hover state
+    local isHovering = false
+    local currentTween = nil
+    
     -- Hover effect
     button.MouseEnter:Connect(function()
-        Utilities:Tween(button, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Secondary}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        isHovering = true
+        if currentTween then currentTween:Cancel() end
+        currentTween = Utilities:Tween(button, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Secondary}, CLIENT_CONFIG.TWEEN_INFO.Fast)
         Utilities:Tween(button, {Size = UDim2.new(button.Size.X.Scale, button.Size.X.Offset + 4, button.Size.Y.Scale, button.Size.Y.Offset + 4)}, CLIENT_CONFIG.TWEEN_INFO.Fast)
     end)
     
     button.MouseLeave:Connect(function()
-        Utilities:Tween(button, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Primary}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        Utilities:Tween(button, {Size = size or UDim2.new(0, 200, 0, 50)}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        isHovering = false
+        if currentTween then currentTween:Cancel() end
+        -- Use stored original color instead of hardcoded Primary
+        local originalColor = button:GetAttribute("OriginalColor") or CLIENT_CONFIG.COLORS.Primary
+        currentTween = Utilities:Tween(button, {BackgroundColor3 = originalColor}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+        Utilities:Tween(button, {Size = button:GetAttribute("OriginalSize") or size or UDim2.new(0, 200, 0, 50)}, CLIENT_CONFIG.TWEEN_INFO.Fast)
     end)
     
     button.MouseButton1Click:Connect(function()
@@ -2846,20 +2860,38 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     content.ZIndex = 202
     content.Parent = detailsFrame
     
-    -- Left side - Pet display
+    -- Left side - Pet display WITH PROPER LAYOUT
     local leftSide = Instance.new("Frame")
+    leftSide.Name = "PetDetailsLeftSide"
     leftSide.Size = UDim2.new(0.4, -10, 1, 0)
     leftSide.BackgroundTransparency = 1
     leftSide.ZIndex = 202
     leftSide.Parent = content
     
-    -- Pet image/model
+    -- ADD UILISTLAYOUT TO LEFT SIDE FOR PROPER STACKING
+    local leftLayout = Instance.new("UIListLayout")
+    leftLayout.Name = "LeftSideLayout"
+    leftLayout.FillDirection = Enum.FillDirection.Vertical
+    leftLayout.Padding = UDim.new(0, 10)
+    leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    leftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    leftLayout.Parent = leftSide
+    
+    -- Pet image/model container
+    local petDisplayContainer = Instance.new("Frame")
+    petDisplayContainer.Name = "PetDisplayContainer"
+    petDisplayContainer.Size = UDim2.new(1, 0, 0, 180)
+    petDisplayContainer.BackgroundTransparency = 1
+    petDisplayContainer.LayoutOrder = 1
+    petDisplayContainer.Parent = leftSide
+    
     local petDisplay = Instance.new("ViewportFrame")
-    petDisplay.Size = UDim2.new(1, 0, 0, 180)
+    petDisplay.Name = "PetDisplay"
+    petDisplay.Size = UDim2.new(1, 0, 1, 0)
     petDisplay.Position = UDim2.new(0, 0, 0, 0)
     petDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     petDisplay.ZIndex = 202
-    petDisplay.Parent = leftSide
+    petDisplay.Parent = petDisplayContainer
     
     Utilities:CreateCorner(petDisplay, 12)
     
@@ -2867,22 +2899,24 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     local petImage = UIComponents:CreateImageLabel(petDisplay, petData.imageId, UDim2.new(0.8, 0, 0.8, 0), UDim2.new(0.1, 0, 0.1, 0))
     petImage.ZIndex = 203
     
-    -- Variant label position
-    local variantYPos = 190
+    -- Variant label (if exists)
     if petInstance.variant and petInstance.variant ~= "normal" then
-        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 25), UDim2.new(0, 0, 0, variantYPos), 16)
+        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 25), nil, 16)
+        variantLabel.Name = "VariantLabel"
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.ZIndex = 204
-        variantYPos = variantYPos + 35  -- Add space for next element
+        variantLabel.LayoutOrder = 2
     end
     
-    -- Action buttons frame - positioned after variant
+    -- Action buttons frame - NO MANUAL POSITIONING NEEDED
     local actionsFrame = Instance.new("Frame")
+    actionsFrame.Name = "ActionButtonsFrame"
     actionsFrame.Size = UDim2.new(1, 0, 0, 90)
-    actionsFrame.Position = UDim2.new(0, 0, 0, variantYPos)
+    -- NO POSITION PROPERTY - LET UILISTLAYOUT HANDLE IT
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 205
+    actionsFrame.LayoutOrder = 3
     actionsFrame.Parent = leftSide
     
     local actionsLayout = Instance.new("UIListLayout")
@@ -2931,6 +2965,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
             if equipButton then
                 equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
                 equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
+                equipButton:SetAttribute("OriginalColor", equipButton.BackgroundColor3)
             end
             
             -- Show success notification
@@ -2938,6 +2973,8 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         end
     end)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
+    -- Update the stored original color when we change it
+    equipButton:SetAttribute("OriginalColor", equipButton.BackgroundColor3)
     equipButton.LayoutOrder = 1
     equipButton.ZIndex = 206  -- Match parent frame
     
@@ -2949,17 +2986,21 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         if lockButton then
             lockButton.Text = petInstance.locked and "Unlock" or "Lock"
             lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
+            lockButton:SetAttribute("OriginalColor", lockButton.BackgroundColor3)
         end
         
         -- TODO: Add server call when lock/unlock remote is available
         NotificationSystem:SendNotification("Info", petInstance.locked and "Pet locked!" or "Pet unlocked!", "info")
     end)
     lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
+    -- Update the stored original color when we change it
+    lockButton:SetAttribute("OriginalColor", lockButton.BackgroundColor3)
     lockButton.LayoutOrder = 2
     lockButton.ZIndex = 206  -- Match parent frame
     
     -- Right side - Stats and info
     local rightSide = Instance.new("Frame")
+    rightSide.Name = "PetDetailsRightSide"
     rightSide.Size = UDim2.new(0.6, -10, 1, 0)
     rightSide.Position = UDim2.new(0.4, 10, 0, 0)
     rightSide.BackgroundTransparency = 1
