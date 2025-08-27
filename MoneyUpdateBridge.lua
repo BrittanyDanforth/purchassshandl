@@ -126,8 +126,10 @@ local function findPlayerMoneyValue(player)
     -- Return first valid money value found
     if #locations > 0 then
         local moneyValue = locations[1]
-        print("[MoneyUpdateBridge] Using money value for", player.Name, "at", moneyValue:GetFullName())
-        return moneyValue
+        if moneyValue and moneyValue.Parent then
+            print("[MoneyUpdateBridge] Using money value for", player.Name, "at", moneyValue:GetFullName())
+            return moneyValue
+        end
     end
     
     -- Debug: no locations found

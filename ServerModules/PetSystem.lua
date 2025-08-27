@@ -155,14 +155,24 @@ function PetSystem:EquipPet(player, uniqueId)
     -- Mark data as dirty
     DataStoreModule:MarkPlayerDirty(player.UserId)
     
-    -- Fire event to client
+    -- Fire events to client
     local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-    if RemoteEvents and RemoteEvents:FindFirstChild("PetUpdated") then
-        RemoteEvents.PetUpdated:FireClient(player, {
-            action = "equipped",
-            petId = uniqueId,
-            pet = pet
-        })
+    if RemoteEvents then
+        -- Send pet update
+        local PetUpdated = RemoteEvents:FindFirstChild("PetUpdated")
+        if PetUpdated then
+            PetUpdated:FireClient(player, {
+                action = "equipped",
+                petId = uniqueId,
+                pet = pet
+            })
+        end
+        
+        -- Send full data update for immediate UI refresh
+        local DataUpdated = RemoteEvents:FindFirstChild("DataUpdated")
+        if DataUpdated then
+            DataUpdated:FireClient(player, playerData)
+        end
     end
     
     return true
@@ -191,14 +201,24 @@ function PetSystem:UnequipPet(player, uniqueId)
     -- Mark data as dirty
     DataStoreModule:MarkPlayerDirty(player.UserId)
     
-    -- Fire event to client
+    -- Fire events to client
     local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-    if RemoteEvents and RemoteEvents:FindFirstChild("PetUpdated") then
-        RemoteEvents.PetUpdated:FireClient(player, {
-            action = "unequipped",
-            petId = uniqueId,
-            pet = pet
-        })
+    if RemoteEvents then
+        -- Send pet update
+        local PetUpdated = RemoteEvents:FindFirstChild("PetUpdated")
+        if PetUpdated then
+            PetUpdated:FireClient(player, {
+                action = "unequipped",
+                petId = uniqueId,
+                pet = pet
+            })
+        end
+        
+        -- Send full data update for immediate UI refresh
+        local DataUpdated = RemoteEvents:FindFirstChild("DataUpdated")
+        if DataUpdated then
+            DataUpdated:FireClient(player, playerData)
+        end
     end
     
     return true

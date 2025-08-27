@@ -584,7 +584,9 @@ local function connectRemoteHandlers(modules, folders)
                     playerData.currencies[currencyType] = (playerData.currencies[currencyType] or 0) + amount
                     modules.DataStoreModule:MarkPlayerDirty(player.UserId)
                     
+                    -- Send both currency and full data update
                     RemoteEvents.CurrencyUpdated:FireClient(player, playerData.currencies)
+                    RemoteEvents.DataUpdated:FireClient(player, playerData)
                     return {success = true}
                 end
             end

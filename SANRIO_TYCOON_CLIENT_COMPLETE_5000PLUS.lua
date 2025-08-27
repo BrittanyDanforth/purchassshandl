@@ -292,6 +292,11 @@ function Utilities:PlaySound(soundId)
 end
 
 function Utilities:FormatNumber(num)
+    -- Handle nil or non-number values
+    if not num or type(num) ~= "number" then
+        return "0"
+    end
+    
     if num >= 1e12 then
         return string.format("%.2fT", num / 1e12)
     elseif num >= 1e9 then
@@ -1721,17 +1726,26 @@ end
 UIModules.CaseOpeningUI = {}
 
 function UIModules.CaseOpeningUI:Open(results)
+    -- ==========================================================
+    -- COMPLETE REWRITE - PREVENT DOUBLE BUTTON CREATION
+    -- ==========================================================
+    
+    -- First, destroy any existing case opening UI to prevent duplicates
+    local existingOverlay = MainUI.ScreenGui:FindFirstChild("CaseOpeningOverlay")
+    if existingOverlay then
+        existingOverlay:Destroy()
+    end
+    
     -- Create fullscreen overlay
     local overlay = Instance.new("Frame")
     overlay.Name = "CaseOpeningOverlay"
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.3
+    overlay.BackgroundTransparency = 1  -- Start transparent
     overlay.ZIndex = 100
     overlay.Parent = MainUI.ScreenGui
     
-    -- Fade in
-    overlay.BackgroundTransparency = 1
+    -- Fade in overlay
     Utilities:Tween(overlay, {BackgroundTransparency = 0.3}, CLIENT_CONFIG.TWEEN_INFO.Normal)
     
     -- Create main container
@@ -1739,92 +1753,81 @@ function UIModules.CaseOpeningUI:Open(results)
     container.Name = "CaseOpeningContainer"
     container.Size = UDim2.new(0, 800, 0, 600)
     container.Position = UDim2.new(0.5, -400, 0.5, -300)
-    container.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    container.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background or Color3.fromRGB(255, 255, 255)
+    container.BorderSizePixel = 0
     container.ZIndex = 101
     container.Parent = overlay
     
-    Utilities:CreateCorner(container, 20)
-    Utilities:CreateShadow(container, 0.5, 30)
+    -- Add corner radius
+    local containerCorner = Instance.new("UICorner")
+    containerCorner.CornerRadius = UDim.new(0, 20)
+    containerCorner.Parent = container
     
-    -- Animate in
-    container.Position = UDim2.new(0.5, -400, 0.5, -300)
+    -- Animate container in
     container.Size = UDim2.new(0, 0, 0, 0)
+    container.Position = UDim2.new(0.5, 0, 0.5, 0)
     Utilities:Tween(container, {
         Size = UDim2.new(0, 800, 0, 600),
         Position = UDim2.new(0.5, -400, 0.5, -300)
     }, CLIENT_CONFIG.TWEEN_INFO.Elastic)
     
     -- Process each result
-    for i, result in ipairs(results) do
-        task.wait(0.5) -- Delay between multiple opens
-        self:ShowCaseAnimation(container, result, i, #results)
-    end
-    
-    -- Close button (shown after all animations)
-    task.wait(1)
-    
-    -- Make sure we don't create duplicate buttons
-    local existingButton = container:FindFirstChild("CollectButton")
-    if existingButton then
-        existingButton:Destroy()
-    end
-    
-    -- Create collect button directly
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CollectButton"
-    closeButton.Size = UDim2.new(0, 200, 0, 50)
-    closeButton.Position = UDim2.new(0.5, -100, 1, -70)
-    closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
-    closeButton.Text = "Collect"
-    closeButton.TextScaled = true
-    closeButton.TextColor3 = Color3.new(1, 1, 1)
-    closeButton.Font = Enum.Font.SourceSansBold
-    closeButton.ZIndex = 105
-    closeButton.Active = true
-    closeButton.AutoButtonColor = false
-    closeButton.Parent = container
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 8)
-    closeCorner.Parent = closeButton
-    
-    -- Single click handler with proper debounce
-    local clicked = false
-    closeButton.MouseButton1Click:Connect(function()
-        if clicked then return end
-        clicked = true
-        
-        -- Immediately disable button
-        closeButton.Active = false
-        closeButton.Text = "Collecting..."
-        closeButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-        
-        -- Play sound
-        if CLIENT_CONFIG and CLIENT_CONFIG.SOUNDS and CLIENT_CONFIG.SOUNDS.Close then
-            Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
+    spawn(function()
+        for i, result in ipairs(results) do
+            task.wait(0.5) -- Delay between multiple opens
+            self:ShowCaseAnimation(container, result, i, #results)
         end
         
-        -- Animate out
-        if Utilities and Utilities.Tween then
+        -- After all animations, create the collect button
+        task.wait(1)
+        
+        -- Only create button if container still exists
+        if not container or not container.Parent then return end
+        
+        -- Make sure we don't create duplicate buttons
+        local existingButton = container:FindFirstChild("CollectButton")
+        if existingButton then
+            existingButton:Destroy()
+        end
+        
+        -- Create collect button ONCE
+        local closeButton = Instance.new("TextButton")
+        closeButton.Name = "CollectButton"
+        closeButton.Size = UDim2.new(0, 200, 0, 50)
+        closeButton.Position = UDim2.new(0.5, -100, 1, -70)
+        closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
+        closeButton.Text = "Collect"
+        closeButton.TextScaled = true
+        closeButton.TextColor3 = Color3.new(1, 1, 1)
+        closeButton.Font = Enum.Font.SourceSansBold
+        closeButton.ZIndex = 105
+        closeButton.Active = true
+        closeButton.AutoButtonColor = true  -- Let Roblox handle hover
+        closeButton.Parent = container
+        
+        local closeCorner = Instance.new("UICorner")
+        closeCorner.CornerRadius = UDim.new(0, 8)
+        closeCorner.Parent = closeButton
+        
+        -- Single connection with immediate action
+        closeButton.Activated:Connect(function()
+            -- Immediately destroy button to prevent double clicks
+            closeButton:Destroy()
+            
+            -- Play sound
+            if CLIENT_CONFIG and CLIENT_CONFIG.SOUNDS and CLIENT_CONFIG.SOUNDS.Close then
+                Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
+            end
+            
+            -- Animate out and destroy
             Utilities:Tween(container, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
             Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        end
-        
-        task.wait(0.3)
-        overlay:Destroy()
-    end)
-    
-    -- Add hover effects (but only if not clicked)
-    closeButton.MouseEnter:Connect(function()
-        if not clicked then
-            closeButton.BackgroundColor3 = Color3.fromRGB(0, 235, 0)
-        end
-    end)
-    
-    closeButton.MouseLeave:Connect(function()
-        if not clicked then
-            closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
-        end
+            
+            task.wait(0.3)
+            if overlay and overlay.Parent then
+                overlay:Destroy()
+            end
+        end)
     end)
 end
 
@@ -5049,14 +5052,14 @@ function UIModules.QuestUI:RefreshQuests()
     end
     
     -- Add daily quests
-    if self.DailyQuestContainer and LocalData.PlayerData.quests.daily then
+    if self.DailyQuestContainer and LocalData.PlayerData.quests and LocalData.PlayerData.quests.daily then
         for _, quest in ipairs(LocalData.PlayerData.quests.daily) do
             self:CreateQuestCard(self.DailyQuestContainer, quest)
         end
     end
     
     -- Add weekly quests
-    if self.WeeklyQuestContainer and LocalData.PlayerData.quests.weekly then
+    if self.WeeklyQuestContainer and LocalData.PlayerData.quests and LocalData.PlayerData.quests.weekly then
         for _, quest in ipairs(LocalData.PlayerData.quests.weekly) do
             self:CreateQuestCard(self.WeeklyQuestContainer, quest)
         end

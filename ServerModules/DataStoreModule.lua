@@ -351,17 +351,29 @@ function DataStoreModule:StartAutoSave()
         while true do
             wait(Configuration.CONFIG.DATA_AUTOSAVE_INTERVAL)
             
-            -- Save dirty players
+            -- Batch save dirty players to reduce throttling
+            local playersToSave = {}
             local savedCount = 0
+            
+            -- Collect players to save
             for userId, _ in pairs(self.DirtyPlayers) do
                 local player = Players:GetPlayerByUserId(userId)
                 if player then
-                    if self:SavePlayerData(player) then
-                        savedCount = savedCount + 1
-                    end
+                    table.insert(playersToSave, player)
                 else
                     -- Player left, remove from dirty list
                     self.DirtyPlayers[userId] = nil
+                end
+            end
+            
+            -- Save with delay between each to prevent throttling
+            for i, player in ipairs(playersToSave) do
+                if self:SavePlayerData(player) then
+                    savedCount = savedCount + 1
+                end
+                -- Small delay between saves to prevent throttling
+                if i < #playersToSave then
+                    wait(0.5)
                 end
             end
             

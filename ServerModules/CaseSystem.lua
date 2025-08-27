@@ -368,6 +368,13 @@ function CaseSystem:OpenCase(player, eggType, hatchCount)
     playerData.currencies[currencyType] = playerData.currencies[currencyType] - totalCost
     DataStoreModule:MarkPlayerDirty(player.UserId)
     
+    -- Send immediate currency update to client
+    local RemoteEvents = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents")
+    local CurrencyUpdated = RemoteEvents:FindFirstChild("CurrencyUpdated")
+    if CurrencyUpdated then
+        CurrencyUpdated:FireClient(player, playerData.currencies)
+    end
+    
     local results = {}
     
     for i = 1, hatchCount do
