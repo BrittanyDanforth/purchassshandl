@@ -34,7 +34,7 @@ local function findPlayerMoneyValue(player)
         player:FindFirstChild("Data") and player.Data:FindFirstChild("Cash"),
     }
     
-    -- Also check PlayerMoney folder
+    -- Also check PlayerMoney folder (created by UnifiedLeaderboard)
     local playerMoneyFolder = workspace:FindFirstChild("PlayerMoney")
     if playerMoneyFolder then
         local playerFolder = playerMoneyFolder:FindFirstChild(player.Name)
@@ -42,6 +42,12 @@ local function findPlayerMoneyValue(player)
             table.insert(locations, playerFolder:FindFirstChild("Money"))
             table.insert(locations, playerFolder:FindFirstChild("Cash"))
             table.insert(locations, playerFolder:FindFirstChild("Value"))
+            
+            -- UnifiedLeaderboard creates a "Value" NumberValue
+            local valueObj = playerFolder:FindFirstChild("Value")
+            if valueObj and valueObj:IsA("NumberValue") then
+                table.insert(locations, valueObj)
+            end
         end
     end
     
@@ -165,6 +171,9 @@ local playerConnections = {}
 -- REPLACE THE OLD monitorPlayerMoney FUNCTION WITH THIS NEW ONE
 -- ==========================================================
 local function monitorPlayerMoney(player)
+    -- Wait a bit for PlayerMoney folder to be created by UnifiedLeaderboard
+    task.wait(1)
+    
     -- Try to find the money value object
     local moneyValue = findPlayerMoneyValue(player)
 

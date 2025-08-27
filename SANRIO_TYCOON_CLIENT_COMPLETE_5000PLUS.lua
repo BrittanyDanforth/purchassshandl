@@ -216,7 +216,22 @@ local CLIENT_CONFIG = {
 -- LOCAL DATA STORAGE
 -- ========================================
 local LocalData = {
-    PlayerData = nil,
+    PlayerData = {
+        -- Initialize with default values to prevent nil errors
+        currencies = {
+            coins = 0,
+            gems = 0,
+            tickets = 0
+        },
+        pets = {},
+        equippedPets = {},
+        inventory = {},
+        statistics = {},
+        dailyRewards = {
+            lastClaimed = 0,
+            streak = 0
+        }
+    },
     PetDatabase = {},
     EggDatabase = {},
     GamepassDatabase = {},
@@ -1621,7 +1636,12 @@ function UIModules.CaseOpeningUI:Open(results)
         existingButton:Destroy()
     end
     
+    local isClosing = false
     local closeButton = UIComponents:CreateButton(container, "Collect", UDim2.new(0, 200, 0, 50), UDim2.new(0.5, -100, 1, -70), function()
+        -- Prevent double clicks
+        if isClosing then return end
+        isClosing = true
+        
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
         Utilities:Tween(container, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
@@ -1631,7 +1651,18 @@ function UIModules.CaseOpeningUI:Open(results)
     closeButton.Name = "CollectButton"
     closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success
     closeButton.ZIndex = 105
+    closeButton.Active = true
+    closeButton.AutoButtonColor = true
     closeButton.Parent = container -- Ensure parent is set
+    
+    -- Add visual feedback
+    closeButton.MouseEnter:Connect(function()
+        Utilities:Tween(closeButton, {BackgroundColor3 = CLIENT_CONFIG.COLORS.SuccessHover or CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+    end)
+    
+    closeButton.MouseLeave:Connect(function()
+        Utilities:Tween(closeButton, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+    end)
 end
 
 function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, total)
@@ -2325,11 +2356,9 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
         Utilities:Tween(card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.White}, CLIENT_CONFIG.TWEEN_INFO.Fast)
     end)
     
-    -- Store pet data for filtering
-    card:SetAttribute("PetData", {
-        name = petData.displayName,
-        nickname = petInstance.nickname
-    })
+    -- Store pet data for filtering (attributes can't be tables)
+    card:SetAttribute("PetName", petData.displayName or "")
+    card:SetAttribute("PetNickname", petInstance.nickname or "")
     
     return card
 end
@@ -2468,7 +2497,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         -- 2. Ask the server to do the action
         local remote = petInstance.equipped and RemoteFunctions.UnequipPet or RemoteFunctions.EquipPet
         local success, result = pcall(function()
-            return remote:InvokeServer(petInstance.id)
+            return remote:InvokeServer(petInstance.uniqueId or petInstance.id)
         end)
         
         -- 3. The server will respond with a DataUpdated event which will automatically
@@ -2476,12 +2505,22 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         --    No need to manually set the text; the automatic refresh will handle it!
         equipButton.Active = true
         
-        if not success or (result and not result.success) then
-            -- If it failed, show an error and the refresh will fix the button text
-            NotificationSystem:SendNotification("Error", result and result.error or "Action failed", "error")
+        if not success then
+            -- Connection error
+            NotificationSystem:SendNotification("Error", "Failed to connect to server", "error")
+            equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+        elseif result and not result.success then
+            -- Server returned error
+            NotificationSystem:SendNotification("Error", result.error or "Action failed", "error")
+            equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
         else
-            -- Close the details window since the inventory will refresh
-            overlay:Destroy()
+            -- Success! Update the local state
+            petInstance.equipped = not petInstance.equipped
+            equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+            equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
+            
+            -- Show success notification
+            NotificationSystem:SendNotification("Success", petInstance.equipped and "Pet equipped!" or "Pet unequipped!", "success")
         end
     end)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
@@ -2769,12 +2808,11 @@ function UIModules.InventoryUI:FilterPets(searchText)
     
     for _, child in ipairs(self.PetGrid:GetChildren()) do
         if child:IsA("Frame") and child.Name ~= "UIGridLayout" then
-            local petData = child:GetAttribute("PetData")
-            if petData then
-                local petName = (petData.nickname or petData.name or ""):lower()
-                local isVisible = searchText == "" or petName:find(searchText, 1, true) ~= nil
-                child.Visible = isVisible
-            end
+            local petName = child:GetAttribute("PetName") or ""
+            local petNickname = child:GetAttribute("PetNickname") or ""
+            local searchName = (petNickname ~= "" and petNickname or petName):lower()
+            local isVisible = searchText == "" or searchName:find(searchText, 1, true) ~= nil
+            child.Visible = isVisible
         end
     end
 end
@@ -5030,6 +5068,11 @@ local function Initialize()
     
     -- Initialize main UI
     MainUI:Initialize()
+    
+    -- Update currency display with initial values
+    if MainUI.UpdateCurrency then
+        MainUI.UpdateCurrency(LocalData.PlayerData.currencies)
+    end
     
     -- Show loading screen
     local loadingScreen = Instance.new("Frame")
