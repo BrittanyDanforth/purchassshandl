@@ -1228,15 +1228,15 @@ function UIModules.ShopUI:Close()
 end
 
 function UIModules.ShopUI:CreateEggShop(parent)
-    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
-    
     -- ==========================================================
-    -- PROPERLY CLEAR ALL EXISTING CONTENT TO FIX DUPLICATES
+    -- FIX: CLEAR THE PARENT FIRST TO PREVENT DUPLICATE SCROLLFRAMES
     -- ==========================================================
-    for _, child in ipairs(scrollFrame:GetChildren()) do
+    for _, child in ipairs(parent:GetChildren()) do
         child:Destroy()
     end
     -- ==========================================================
+    
+    local scrollFrame = UIComponents:CreateScrollingFrame(parent)
     
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.CellPadding = UDim2.new(0, 20, 0, 20)
@@ -2106,8 +2106,23 @@ function UIModules.InventoryUI:Open()
     
     -- Search box
     local searchBox = UIComponents:CreateTextBox(controlsBar, "Search pets...", UDim2.new(0, 200, 0, 35), UDim2.new(0, 10, 0.5, -17.5))
+    
+    -- ==========================================================
+    -- DEBOUNCED SEARCH TO PREVENT LAG
+    -- ==========================================================
+    local searchDebounce = nil
     searchBox.Changed:Connect(function()
-        self:FilterPets(searchBox.Text)
+        -- Cancel any pending search
+        if searchDebounce then
+            task.cancel(searchDebounce)
+        end
+        
+        -- Wait 0.3 seconds after user stops typing
+        searchDebounce = task.spawn(function()
+            task.wait(0.3)
+            self:FilterPets(searchBox.Text)
+            searchDebounce = nil
+        end)
     end)
     
     -- Sort dropdown
@@ -3103,6 +3118,13 @@ function UIModules.InventoryUI:RefreshInventory()
     local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
     if not playerData then return end
     
+    -- ==========================================================
+    -- ADD LOADING STATE FOR BETTER UX
+    -- ==========================================================
+    local loadingLabel = UIComponents:CreateLabel(self.PetGrid, "Loading pets...", UDim2.new(1, 0, 0, 50), UDim2.new(0, 0, 0.5, -25), 20)
+    loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+    loadingLabel.Name = "LoadingLabel"
+    
     -- Convert dictionary to array for display
     local pets = {}
     local equippedCount = 0
@@ -3179,6 +3201,16 @@ function UIModules.InventoryUI:RefreshInventory()
             if card then
                 card.LayoutOrder = i
             end
+        end
+    end
+    
+    -- ==========================================================
+    -- REMOVE LOADING LABEL AFTER PETS ARE LOADED
+    -- ==========================================================
+    if self.PetGrid then
+        local loadingLabel = self.PetGrid:FindFirstChild("LoadingLabel")
+        if loadingLabel then
+            loadingLabel:Destroy()
         end
     end
     
@@ -3412,7 +3444,15 @@ function UIModules.TradingUI:CreatePlayerResult(player)
 end
 
 function UIModules.TradingUI:InitiateTrade(targetPlayer)
-    local result = RemoteFunctions.RequestTrade:InvokeServer(targetPlayer)
+    -- Wrap in pcall for safety
+    local success, result = pcall(function()
+        return RemoteFunctions.RequestTrade:InvokeServer(targetPlayer)
+    end)
+    
+    if not success then
+        NotificationSystem:SendNotification("Error", "Failed to connect to server", "error")
+        return
+    end
     
     if result.success then
         self:OpenTradeWindow(result.trade)
@@ -3813,11 +3853,21 @@ function UIModules.TradingUI:ToggleReady()
         not self.CurrentTrade.player1.ready or 
         not self.CurrentTrade.player2.ready
     
-    RemoteFunctions.UpdateTrade:InvokeServer(self.CurrentTrade.id, "set_ready", {ready = ready})
+    -- Wrap in pcall
+    pcall(function()
+        RemoteFunctions.UpdateTrade:InvokeServer(self.CurrentTrade.id, "set_ready", {ready = ready})
+    end)
 end
 
 function UIModules.TradingUI:ConfirmTrade()
-    RemoteFunctions.ConfirmTrade:InvokeServer(self.CurrentTrade.id)
+    -- Wrap in pcall
+    local success = pcall(function()
+        RemoteFunctions.ConfirmTrade:InvokeServer(self.CurrentTrade.id)
+    end)
+    
+    if not success then
+        NotificationSystem:SendNotification("Error", "Failed to confirm trade", "error")
+    end
 end
 
 function UIModules.TradingUI:CancelTrade()
@@ -5076,45 +5126,29 @@ local function Initialize()
     end)
     
     -- ==========================================================
-    -- THROTTLED DATA UPDATE TO PREVENT REFRESH SPAM
+    -- PROPERLY THROTTLED DATA UPDATE TO PREVENT REFRESH SPAM
     -- ==========================================================
-    local lastRefreshTime = 0
-    local pendingRefresh = false
+    local lastInventoryRefresh = 0
     
     RemoteEvents.DataUpdated.OnClientEvent:Connect(function(playerData)
+        -- Always update the raw data immediately
         LocalData.PlayerData = playerData
         
-        -- Update DataManager if you use it
         if DataManager then
             DataManager:SetData(playerData)
         end
         
-        -- Update currency display immediately (lightweight)
+        -- Always update currency display immediately (it's lightweight)
         if MainUI.UpdateCurrency and playerData.currencies then
             MainUI.UpdateCurrency(playerData.currencies)
         end
         
-        -- Throttle inventory refresh to max once per second
+        -- But only refresh the HEAVY inventory UI at most once per second
         local now = tick()
-        if now - lastRefreshTime < 1 then
-            -- Too soon, mark as pending
-            pendingRefresh = true
-            return
-        end
-        
-        -- Refresh the inventory UI if it's currently open
-        if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
-            UIModules.InventoryUI:RefreshInventory()
-            lastRefreshTime = now
-            pendingRefresh = false
-            
-            -- Handle any pending refresh after delay
-            if pendingRefresh then
-                task.task.wait(1)
-                if pendingRefresh and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
-                    UIModules.InventoryUI:RefreshInventory()
-                    pendingRefresh = false
-                end
+        if now - lastInventoryRefresh > 1 then
+            lastInventoryRefresh = now
+            if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
+                UIModules.InventoryUI:RefreshInventory()
             end
         end
     end)
