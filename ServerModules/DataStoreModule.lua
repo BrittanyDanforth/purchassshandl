@@ -288,7 +288,19 @@ end
 -- ========================================
 -- MARK DATA AS DIRTY
 -- ========================================
+-- Track last dirty mark time to prevent spam
+DataStoreModule.LastDirtyMark = {}
+
 function DataStoreModule:MarkPlayerDirty(userId)
+    -- Rate limit dirty marks to once per second per player
+    local now = tick()
+    local lastMark = self.LastDirtyMark[userId] or 0
+    
+    if now - lastMark < 1 then
+        return -- Ignore if marked dirty less than 1 second ago
+    end
+    
+    self.LastDirtyMark[userId] = now
     self.DirtyPlayers[userId] = true
 end
 

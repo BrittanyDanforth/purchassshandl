@@ -172,11 +172,11 @@ local CLIENT_CONFIG = {
     SOUNDS = {
         Click = "rbxassetid://6895079853",         -- Working click sound
         Open = "rbxassetid://9119719038",          -- Working open sound
-        Close = "rbxassetid://9119719159",         -- Updated close sound  
+        Close = "rbxassetid://6895079734",         -- Working close sound  
         Success = "rbxassetid://4809574295",       -- Working success sound
         Error = "rbxassetid://4809574409",         -- Working error sound
-        Notification = "rbxassetid://9119713737",  -- Updated notification
-        CaseOpen = "rbxassetid://9119713896",      -- Updated case open
+        Notification = "rbxassetid://4590662191",  -- Working notification
+        CaseOpen = "rbxassetid://9119713038",      -- Working case open
         Legendary = "rbxassetid://1837879082",     -- Working legendary sound
         Purchase = "rbxassetid://4809574522",      -- Working purchase sound
         LevelUp = "rbxassetid://4809574836"        -- Working level up sound
@@ -2468,8 +2468,8 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     petImage.ZIndex = 203
     
     -- Variant label
-    if petInstance.variant ~= "normal" then
-        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. petInstance.variant:upper() .. " ✨", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 260), 18)
+    if petInstance.variant and petInstance.variant ~= "normal" then
+        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 260), 18)
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.ZIndex = 203
@@ -2489,10 +2489,13 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     actionsLayout.Parent = actionsFrame
     
     -- Equip/Unequip button (with proper server validation)
-    local equipButton = UIComponents:CreateButton(actionsFrame, petInstance.equipped and "Unequip" or "Equip", UDim2.new(1, 0, 0, 40), nil, function()
+    local equipButton
+    equipButton = UIComponents:CreateButton(actionsFrame, petInstance.equipped and "Unequip" or "Equip", UDim2.new(1, 0, 0, 40), nil, function()
         -- 1. Show the user we are working on it
-        equipButton.Text = "..."
-        equipButton.Active = false
+        if equipButton then
+            equipButton.Text = "..."
+            equipButton.Active = false
+        end
         
         -- 2. Ask the server to do the action
         local remote = petInstance.equipped and RemoteFunctions.UnequipPet or RemoteFunctions.EquipPet
@@ -2503,21 +2506,29 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         -- 3. The server will respond with a DataUpdated event which will automatically
         --    refresh the inventory and fix the button text. We just re-enable it here.
         --    No need to manually set the text; the automatic refresh will handle it!
-        equipButton.Active = true
+        if equipButton then
+            equipButton.Active = true
+        end
         
         if not success then
             -- Connection error
             NotificationSystem:SendNotification("Error", "Failed to connect to server", "error")
-            equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+            if equipButton then
+                equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+            end
         elseif result and not result.success then
             -- Server returned error
             NotificationSystem:SendNotification("Error", result.error or "Action failed", "error")
-            equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+            if equipButton then
+                equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+            end
         else
             -- Success! Update the local state
             petInstance.equipped = not petInstance.equipped
-            equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
-            equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
+            if equipButton then
+                equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
+                equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
+            end
             
             -- Show success notification
             NotificationSystem:SendNotification("Success", petInstance.equipped and "Pet equipped!" or "Pet unequipped!", "success")
@@ -2526,9 +2537,17 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
     
     -- Lock/Unlock button
-    local lockButton = UIComponents:CreateButton(actionsFrame, petInstance.locked and "Unlock" or "Lock", UDim2.new(1, 0, 0, 40), nil, function()
-        self:ToggleLock(petInstance)
-        lockButton.Text = petInstance.locked and "Unlock" or "Lock"
+    local lockButton
+    lockButton = UIComponents:CreateButton(actionsFrame, petInstance.locked and "Unlock" or "Lock", UDim2.new(1, 0, 0, 40), nil, function()
+        -- Toggle lock locally for now (server implementation needed)
+        petInstance.locked = not petInstance.locked
+        if lockButton then
+            lockButton.Text = petInstance.locked and "Unlock" or "Lock"
+            lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
+        end
+        
+        -- TODO: Add server call when lock/unlock remote is available
+        NotificationSystem:SendNotification("Info", petInstance.locked and "Pet locked!" or "Pet unlocked!", "info")
     end)
     lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
     
@@ -2589,8 +2608,13 @@ function UIModules.InventoryUI:ShowPetStats(parent, petInstance, petData)
     levelLabel.Font = CLIENT_CONFIG.FONTS.Secondary
     levelLabel.TextXAlignment = Enum.TextXAlignment.Left
     
+    local xpRequired = 99999  -- Default XP requirement
+    if petData.xpRequirements and petData.xpRequirements[petInstance.level] then
+        xpRequired = petData.xpRequirements[petInstance.level]
+    end
+    
     local xpBar = UIComponents:CreateProgressBar(levelFrame, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 30), 
-        petInstance.experience, petData.xpRequirements[petInstance.level] or 99999)
+        petInstance.experience or 0, xpRequired)
     
     yOffset = yOffset + 70
     
@@ -2983,10 +3007,11 @@ function UIModules.InventoryUI:RefreshInventory()
     local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
     if not playerData then return end
     
-    -- Clear existing
+    -- Clear existing cards (more thorough to prevent duplicates)
     if self.PetGrid then
         for _, child in ipairs(self.PetGrid:GetChildren()) do
-            if child:IsA("Frame") then
+            -- Keep only the UIGridLayout
+            if not child:IsA("UIGridLayout") then
                 child:Destroy()
             end
         end
