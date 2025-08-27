@@ -1248,6 +1248,8 @@ function UIModules.ShopUI:CreateEggShop(parent)
     -- Show loading indicator
     local loadingLabel = UIComponents:CreateLabel(scrollFrame, "Loading eggs...", UDim2.new(1, -20, 0, 50), UDim2.new(0, 10, 0, 10), 20)
     loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+    loadingLabel.Name = "LoadingLabel"
+    loadingLabel.BackgroundTransparency = 1  -- Make sure it's transparent
     
     -- Get egg data from server
     spawn(function()
@@ -1257,12 +1259,10 @@ function UIModules.ShopUI:CreateEggShop(parent)
             else
                 -- Fallback data if remote doesn't exist
                 return {
-                    {id = "basic", name = "Basic Egg", price = 100, currency = "Coins", image = "rbxassetid://10000001001"},
-                    {id = "premium", name = "Premium Egg", price = 250, currency = "Gems", image = "rbxassetid://10000001003"},
-                    {id = "rare", name = "Rare Egg", price = 500, currency = "Gems", image = "rbxassetid://10000001005"},
-                    {id = "epic", name = "Epic Egg", price = 1000, currency = "Gems", image = "rbxassetid://10000001007"},
-                    {id = "legendary", name = "Legendary Egg", price = 2500, currency = "Gems", image = "rbxassetid://10000001009"},
-                    {id = "mythical", name = "Mythical Egg", price = 10000, currency = "Gems", image = "rbxassetid://10000001011"}
+                    {id = "basic_egg", name = "Basic Egg", price = 100, currency = "coins", imageId = "rbxassetid://10883352204"},
+                    {id = "rare_egg", name = "Rare Egg", price = 500, currency = "gems", imageId = "rbxassetid://10883355122"},
+                    {id = "epic_egg", name = "Epic Egg", price = 1000, currency = "gems", imageId = "rbxassetid://10883356470"},
+                    {id = "legendary_egg", name = "Legendary Egg", price = 2500, currency = "gems", imageId = "rbxassetid://10883357885"}
                 }
             end
         end)
@@ -1274,9 +1274,11 @@ function UIModules.ShopUI:CreateEggShop(parent)
         
         if success and eggs then
             for i, eggData in ipairs(eggs) do
-                if eggData and eggData.id then -- Only create card if egg data is valid
+                if eggData and eggData.id and eggData.name then -- Ensure complete data
                     local eggCard = self:CreateEggCard(scrollFrame, eggData)
-                    eggCard.LayoutOrder = i
+                    if eggCard then
+                        eggCard.LayoutOrder = i
+                    end
                 end
             end
         else
@@ -1294,6 +1296,24 @@ function UIModules.ShopUI:CreateEggShop(parent)
             end)
             -- Set initial size
             scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+            
+            -- Clean up any empty frames
+            wait(0.2)
+            for _, child in ipairs(scrollFrame:GetChildren()) do
+                if child:IsA("Frame") then
+                    local hasVisibleContent = false
+                    for _, subChild in ipairs(child:GetChildren()) do
+                        if subChild:IsA("GuiObject") and subChild.Visible and 
+                           (subChild:IsA("TextLabel") or subChild:IsA("ImageLabel") or subChild:IsA("TextButton")) then
+                            hasVisibleContent = true
+                            break
+                        end
+                    end
+                    if not hasVisibleContent or child.Name == "Frame" then
+                        child:Destroy()
+                    end
+                end
+            end
         end
     end)
 end
@@ -1308,6 +1328,7 @@ function UIModules.ShopUI:CreateEggCard(parent, eggData)
     card.Name = eggData.id .. "Card"
     card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface
     card.BorderSizePixel = 0
+    card.BorderMode = Enum.BorderMode.Inset
     card.Parent = parent
     
     Utilities:CreateCorner(card, 12)
@@ -2252,7 +2273,9 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
     local card = Instance.new("Frame")
     -- Fix: Handle nil id gracefully
     card.Name = tostring(petInstance.id or petInstance.uniqueId or "pet_" .. tostring(petInstance))
-    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    card.BackgroundColor3 = CLIENT_CONFIG.COLORS.Surface  -- Changed from White to Surface
+    card.BorderSizePixel = 0
+    card.BorderMode = Enum.BorderMode.Inset
     card.Parent = parent
     
     Utilities:CreateCorner(card, 12)
@@ -3027,7 +3050,7 @@ function UIModules.InventoryUI:RefreshInventory()
     if self.PetGrid then
         for _, child in ipairs(self.PetGrid:GetChildren()) do
             -- Keep only the UIGridLayout
-            if not child:IsA("UIGridLayout") then
+            if not child:IsA("UIGridLayout") and not child:IsA("UIListLayout") then
                 child:Destroy()
             end
         end
@@ -3106,9 +3129,23 @@ function UIModules.InventoryUI:RefreshInventory()
             end
             
             local card = self:CreatePetCard(self.PetGrid, pet, petData)
-            card.LayoutOrder = i
+            if card then
+                card.LayoutOrder = i
+            end
         end
     end
+    
+    -- Clean up any stray frames
+    spawn(function()
+        wait(0.1)
+        if self.PetGrid then
+            for _, child in ipairs(self.PetGrid:GetChildren()) do
+                if child:IsA("Frame") and (child.Name == "Frame" or #child:GetChildren() == 0) then
+                    child:Destroy()
+                end
+            end
+        end
+    end)
 end
 
 -- Continue in Part 4...-- ========================================

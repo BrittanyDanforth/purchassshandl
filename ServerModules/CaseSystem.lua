@@ -471,36 +471,6 @@ function CaseSystem:GenerateCaseItems(eggType, winnerPet, player)
     return items
 end
 
--- ========================================
--- GET SHOP DATA
--- ========================================
-function CaseSystem:GetShopEggs()
-    local eggs = {}
-    
-    for id, data in pairs(self.EggCases) do
-        if not data.hidden then
-            table.insert(eggs, {
-                id = id,
-                name = data.name,
-                description = data.description,
-                price = data.price,
-                currency = data.currency,
-                icon = data.icon,
-                imageId = data.icon  -- Client expects imageId
-            })
-        end
-    end
-    
-    -- Sort by price
-    table.sort(eggs, function(a, b)
-        if a.currency == b.currency then
-            return a.price < b.price
-        else
-            return a.currency == "coins"
-        end
-    end)
-    
-    return eggs
-end
+-- Duplicate GetShopEggs function removed
 
 return CaseSystem
