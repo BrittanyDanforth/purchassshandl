@@ -2680,13 +2680,26 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     leftSide.ZIndex = 202
     leftSide.Parent = content
     
+    -- Create a container with UIListLayout for proper arrangement
+    local leftLayout = Instance.new("UIListLayout")
+    leftLayout.FillDirection = Enum.FillDirection.Vertical
+    leftLayout.Padding = UDim.new(0, 10)
+    leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    leftLayout.Parent = leftSide
+    
+    -- Pet image/model container
+    local petDisplayContainer = Instance.new("Frame")
+    petDisplayContainer.Size = UDim2.new(1, 0, 0, 250)
+    petDisplayContainer.BackgroundTransparency = 1
+    petDisplayContainer.LayoutOrder = 1
+    petDisplayContainer.Parent = leftSide
+    
     -- Pet image/model
     local petDisplay = Instance.new("ViewportFrame")
-    petDisplay.Size = UDim2.new(1, 0, 0, 250)
-    petDisplay.Position = UDim2.new(0, 0, 0, 0)  -- Explicitly at top
+    petDisplay.Size = UDim2.new(1, 0, 1, 0)
     petDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     petDisplay.ZIndex = 202
-    petDisplay.Parent = leftSide
+    petDisplay.Parent = petDisplayContainer
     
     Utilities:CreateCorner(petDisplay, 12)
     
@@ -2694,22 +2707,21 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     local petImage = UIComponents:CreateImageLabel(petDisplay, petData.imageId, UDim2.new(0.8, 0, 0.8, 0), UDim2.new(0.1, 0, 0.1, 0))
     petImage.ZIndex = 203
     
-    -- Variant label
-    local variantOffset = 260
+    -- Variant label (if exists)
     if petInstance.variant and petInstance.variant ~= "normal" then
-        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 30), UDim2.new(0, 0, 0, 260), 18)
+        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 30), nil, 18)
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
         variantLabel.ZIndex = 203
-        variantOffset = 290  -- Add extra space when variant label exists
+        variantLabel.LayoutOrder = 2
     end
     
-    -- Action buttons - positioned below pet display and variant label
+    -- Action buttons frame
     local actionsFrame = Instance.new("Frame")
     actionsFrame.Size = UDim2.new(1, 0, 0, 100)  -- Height for buttons
-    actionsFrame.Position = UDim2.new(0, 0, 0, variantOffset)  -- Position below pet + variant
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 202
+    actionsFrame.LayoutOrder = 3
     actionsFrame.Parent = leftSide
     
     local actionsLayout = Instance.new("UIListLayout")
@@ -5860,7 +5872,7 @@ function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
     
     -- Auto close with fade
     task.wait(2.5)
-    Utilities:Tween(rewardDisplay, {
+    local closeTween = Utilities:Tween(rewardDisplay, {
         Size = UDim2.new(0, 0, 0, 0), 
         Position = UDim2.new(0.5, 0, 0.2, 0),
         BackgroundTransparency = 1
@@ -5875,7 +5887,10 @@ function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
         end
     end
     
-    task.wait(0.3)
+    -- Wait for the close tween to complete
+    closeTween.Completed:Wait()
+    
+    -- Now safe to destroy
     rewardDisplay:Destroy()
 end
 
