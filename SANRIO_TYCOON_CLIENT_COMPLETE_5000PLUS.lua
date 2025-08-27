@@ -132,6 +132,18 @@ local CLIENT_CONFIG = {
     MAX_PARTICLES = 100,
     NOTIFICATION_DURATION = 5,
     
+    -- ZIndex layers for proper UI stacking
+    ZINDEX = {
+        Background = 1,
+        Default = 10,
+        Card = 20,
+        Window = 50,
+        Modal = 100,
+        Overlay = 200,
+        Tooltip = 999,
+        Debug = 1000
+    },
+    
     -- Colors
     COLORS = {
         Primary = Color3.fromRGB(255, 182, 193),      -- Light Pink (Hello Kitty)
@@ -1021,12 +1033,14 @@ function MainUI:CreateNavigationBar()
             tooltip.Size = UDim2.new(0, 100, 0, 30)
             tooltip.Position = UDim2.new(1, 10, 0.5, -15)
             tooltip.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark
+            tooltip.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip  -- Highest ZIndex to appear above everything
             tooltip.Parent = button
             
             Utilities:CreateCorner(tooltip, 6)
             
             local tooltipText = UIComponents:CreateLabel(tooltip, nav.Name, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 14)
             tooltipText.TextColor3 = CLIENT_CONFIG.COLORS.White
+            tooltipText.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip + 1  -- Even higher for text
             
             Utilities:Tween(tooltip, {BackgroundTransparency = 0}, CLIENT_CONFIG.TWEEN_INFO.Fast)
         end)
@@ -2680,55 +2694,36 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     leftSide.ZIndex = 202
     leftSide.Parent = content
     
-    -- Create a container with UIListLayout for proper arrangement
-    local leftLayout = Instance.new("UIListLayout")
-    leftLayout.FillDirection = Enum.FillDirection.Vertical
-    leftLayout.Padding = UDim.new(0, 10)
-    leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    leftLayout.Parent = leftSide
-    
-    -- Pet image/model container (smaller to fit everything)
-    local petDisplayContainer = Instance.new("Frame")
-    petDisplayContainer.Size = UDim2.new(1, 0, 0, 180)  -- Reduced from 250 to 180
-    petDisplayContainer.BackgroundTransparency = 1
-    petDisplayContainer.LayoutOrder = 1
-    petDisplayContainer.ZIndex = 202
-    petDisplayContainer.Parent = leftSide
-    
     -- Pet image/model
     local petDisplay = Instance.new("ViewportFrame")
-    petDisplay.Size = UDim2.new(1, 0, 1, 0)
+    petDisplay.Size = UDim2.new(1, 0, 0, 180)
+    petDisplay.Position = UDim2.new(0, 0, 0, 0)
     petDisplay.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
-    petDisplay.ZIndex = 203  -- Higher than container
-    petDisplay.Parent = petDisplayContainer
+    petDisplay.ZIndex = 202
+    petDisplay.Parent = leftSide
     
     Utilities:CreateCorner(petDisplay, 12)
     
     -- For now, show image
     local petImage = UIComponents:CreateImageLabel(petDisplay, petData.imageId, UDim2.new(0.8, 0, 0.8, 0), UDim2.new(0.1, 0, 0.1, 0))
-    petImage.ZIndex = 204  -- Even higher
+    petImage.ZIndex = 203
     
-    -- Variant label (if exists)
+    -- Variant label position
+    local variantYPos = 190
     if petInstance.variant and petInstance.variant ~= "normal" then
-        local variantContainer = Instance.new("Frame")
-        variantContainer.Size = UDim2.new(1, 0, 0, 25)
-        variantContainer.BackgroundTransparency = 1
-        variantContainer.LayoutOrder = 2
-        variantContainer.ZIndex = 205  -- Above pet display
-        variantContainer.Parent = leftSide
-        
-        local variantLabel = UIComponents:CreateLabel(variantContainer, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 1, 0), nil, 16)
+        local variantLabel = UIComponents:CreateLabel(leftSide, "✨ " .. (petInstance.variant or ""):upper() .. " ✨", UDim2.new(1, 0, 0, 25), UDim2.new(0, 0, 0, variantYPos), 16)
         variantLabel.TextColor3 = Utilities:GetRarityColor(petData.rarity)
         variantLabel.Font = CLIENT_CONFIG.FONTS.Secondary
-        variantLabel.ZIndex = 206
+        variantLabel.ZIndex = 204
+        variantYPos = variantYPos + 35  -- Add space for next element
     end
     
-    -- Action buttons frame - ensure it's properly positioned
+    -- Action buttons frame - positioned after variant
     local actionsFrame = Instance.new("Frame")
-    actionsFrame.Size = UDim2.new(1, 0, 0, 90)  -- Height for buttons
-    actionsFrame.BackgroundTransparency = 1  -- Fully transparent container
-    actionsFrame.ZIndex = 207  -- Highest ZIndex
-    actionsFrame.LayoutOrder = 3
+    actionsFrame.Size = UDim2.new(1, 0, 0, 90)
+    actionsFrame.Position = UDim2.new(0, 0, 0, variantYPos)
+    actionsFrame.BackgroundTransparency = 1
+    actionsFrame.ZIndex = 205
     actionsFrame.Parent = leftSide
     
     local actionsLayout = Instance.new("UIListLayout")
@@ -2785,7 +2780,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     end)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
     equipButton.LayoutOrder = 1
-    equipButton.ZIndex = 208  -- Ensure button is on top
+    equipButton.ZIndex = 206  -- Match parent frame
     
     -- Lock/Unlock button
     local lockButton
@@ -2802,7 +2797,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     end)
     lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
     lockButton.LayoutOrder = 2
-    lockButton.ZIndex = 208  -- Ensure button is on top
+    lockButton.ZIndex = 206  -- Match parent frame
     
     -- Right side - Stats and info
     local rightSide = Instance.new("Frame")
