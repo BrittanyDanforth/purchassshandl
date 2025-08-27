@@ -38,16 +38,11 @@ local function findPlayerMoneyValue(player)
     -- Also check PlayerMoney folder in ServerStorage (created by UnifiedLeaderboard)
     local playerMoneyFolder = game:GetService("ServerStorage"):FindFirstChild("PlayerMoney")
     if playerMoneyFolder then
-        local playerFolder = playerMoneyFolder:FindFirstChild(player.Name)
-        if playerFolder then
-            table.insert(locations, playerFolder:FindFirstChild("Money"))
-            table.insert(locations, playerFolder:FindFirstChild("Cash"))
-            table.insert(locations, playerFolder:FindFirstChild("Value"))
-            
-            -- UnifiedLeaderboard creates a "Value" NumberValue
-            local valueObj = playerFolder:FindFirstChild("Value")
-            if valueObj and valueObj:IsA("NumberValue") then
-                table.insert(locations, valueObj)
+        -- UnifiedLeaderboard creates an IntValue with the player's name
+        local playerValue = playerMoneyFolder:FindFirstChild(player.Name)
+        if playerValue and (playerValue:IsA("IntValue") or playerValue:IsA("NumberValue")) then
+            print("[MoneyUpdateBridge] Found player money value in ServerStorage:", playerValue:GetFullName())
+            table.insert(locations, playerValue)
             end
         end
     end

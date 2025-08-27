@@ -1288,7 +1288,7 @@ function UIModules.ShopUI:CreateEggShop(parent)
     loadingLabel.Text = "Loading eggs..."
     loadingLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
     loadingLabel.TextScaled = true
-    loadingLabel.Font = CLIENT_CONFIG.FONTS.Body
+    loadingLabel.Font = CLIENT_CONFIG.FONTS.Primary or Enum.Font.Gotham
     loadingLabel.Parent = loadingFrame
     
     -- Get egg data
