@@ -99,6 +99,24 @@ local function findPlayerMoneyValue(player)
                             table.insert(locations, essentialCash)
                         end
                     end
+                    
+                    -- Check for PlayerMoney inside tycoon
+                    local tycoonPlayerMoney = tycoon:FindFirstChild("PlayerMoney")
+                    if tycoonPlayerMoney then
+                        local playerValue = tycoonPlayerMoney:FindFirstChild("Value") or tycoonPlayerMoney:FindFirstChild("Money") or tycoonPlayerMoney:FindFirstChild("Cash")
+                        if playerValue then
+                            table.insert(locations, playerValue)
+                        end
+                    end
+                    
+                    -- Check Values folder
+                    local values = tycoon:FindFirstChild("Values")
+                    if values then
+                        local money = values:FindFirstChild("Money") or values:FindFirstChild("Cash") or values:FindFirstChild("PlayerMoney")
+                        if money then
+                            table.insert(locations, money)
+                        end
+                    end
                 end
             end
         end

@@ -172,11 +172,11 @@ local CLIENT_CONFIG = {
     SOUNDS = {
         Click = "rbxassetid://6895079853",         -- Working click sound
         Open = "rbxassetid://9119719038",          -- Working open sound
-        Close = "rbxassetid://6895079734",         -- Working close sound  
+        Close = "rbxassetid://9119719159",         -- Updated close sound  
         Success = "rbxassetid://4809574295",       -- Working success sound
         Error = "rbxassetid://4809574409",         -- Working error sound
-        Notification = "rbxassetid://4590657433",  -- Working notification
-        CaseOpen = "rbxassetid://4584023152",      -- Working case open
+        Notification = "rbxassetid://9119713737",  -- Updated notification
+        CaseOpen = "rbxassetid://9119713896",      -- Updated case open
         Legendary = "rbxassetid://1837879082",     -- Working legendary sound
         Purchase = "rbxassetid://4809574522",      -- Working purchase sound
         LevelUp = "rbxassetid://4809574836"        -- Working level up sound
@@ -2090,7 +2090,7 @@ function UIModules.InventoryUI:Close()
     end
 end
 
-function UIModules.InventoryUI:CreateDropdown(parent, placeholder, options, size, position)
+function UIModules.InventoryUI:CreateDropdown(parent, placeholder, options, size, position, onSelectCallback)
     local dropdown = Instance.new("Frame")
     dropdown.Size = size
     dropdown.Position = position
@@ -2167,8 +2167,8 @@ function UIModules.InventoryUI:CreateDropdown(parent, placeholder, options, size
                     arrow.Text = "▼"
                     
                     -- Callback
-                    if dropdown.OnSelect then
-                        dropdown.OnSelect(option)
+                    if onSelectCallback then
+                        onSelectCallback(option)
                     end
                 end)
             end
@@ -2203,7 +2203,8 @@ end
 
 function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
     local card = Instance.new("Frame")
-    card.Name = petInstance.id
+    -- Fix: Handle nil id gracefully
+    card.Name = tostring(petInstance.id or petInstance.uniqueId or "pet_" .. tostring(petInstance))
     card.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     card.Parent = parent
     
@@ -7187,7 +7188,7 @@ Services.Players.PlayerRemoving:Connect(function(player)
         end
         
         -- Clean up data manager
-        if DataManager then
+        if DataManager and DataManager.Cleanup then
             DataManager:Cleanup()
         end
         

@@ -21,6 +21,8 @@ local PetDatabase = require(script.Parent.PetDatabase)
 -- Battle Storage
 BattleSystem.ActiveBattles = {}
 BattleSystem.BattleQueue = {}
+BattleSystem.PlayerBattles = {}  -- Track which battle each player is in
+BattleSystem.BattleTeams = {}    -- Track player teams
 
 -- ========================================
 -- BATTLE CONFIGURATION
