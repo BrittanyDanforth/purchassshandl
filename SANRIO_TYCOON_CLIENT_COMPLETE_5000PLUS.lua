@@ -993,6 +993,7 @@ end
 function MainUI:CreateNavigationBar()
     local navBar = UIComponents:CreateFrame(self.MainContainer, "NavigationBar", UDim2.new(0, 80, 1, -140), UDim2.new(0, 10, 0, 80))
     navBar.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    navBar.ZIndex = CLIENT_CONFIG.ZINDEX.Default
     Utilities:CreateShadow(navBar, 0.3)
     
     local layout = Instance.new("UIListLayout")
@@ -1012,52 +1013,155 @@ function MainUI:CreateNavigationBar()
         {Name = "Settings", Icon = CLIENT_CONFIG.ICONS.Settings, Module = "SettingsUI"}
     }
     
+    -- Track hover states to prevent stuck pink buttons
+    self.NavHoverStates = self.NavHoverStates or {}
+    
     for _, nav in ipairs(navButtons) do
         local button = Instance.new("TextButton")
         button.Name = nav.Name .. "NavButton"
         button.Size = UDim2.new(1, 0, 0, 60)
         button.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
         button.Text = ""
+        button.AutoButtonColor = false -- Disable Roblox hover effects
+        button.ZIndex = CLIENT_CONFIG.ZINDEX.Default + 1
         button.Parent = navBar
         
         Utilities:CreateCorner(button, 8)
         
         local icon = UIComponents:CreateImageLabel(button, nav.Icon, UDim2.new(0, 40, 0, 40), UDim2.new(0.5, -20, 0.5, -20))
+        icon.ZIndex = CLIENT_CONFIG.ZINDEX.Default + 2
+        
+        -- Store hover state for this button
+        self.NavHoverStates[button] = {
+            originalColor = CLIENT_CONFIG.COLORS.Background,
+            isHovered = false,
+            activeTween = nil
+        }
         
         button.MouseEnter:Connect(function()
-            Utilities:Tween(button, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Primary}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            local state = self.NavHoverStates[button]
+            if state.activeTween then
+                state.activeTween:Cancel()
+            end
             
-            -- Show tooltip
+            state.isHovered = true
+            state.activeTween = Utilities:Tween(button, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Primary}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            
+            -- Create tooltip at screen level for proper layering
+            local screenGui = self.ScreenGui
+            local absolutePos = button.AbsolutePosition
+            local absoluteSize = button.AbsoluteSize
+            
             local tooltip = Instance.new("Frame")
-            tooltip.Name = "Tooltip"
-            tooltip.Size = UDim2.new(0, 100, 0, 30)
-            tooltip.Position = UDim2.new(1, 10, 0.5, -15)
+            tooltip.Name = "NavTooltip_" .. nav.Name
+            tooltip.Size = UDim2.new(0, 120, 0, 35)
+            tooltip.Position = UDim2.new(0, absolutePos.X + absoluteSize.X + 10, 0, absolutePos.Y + (absoluteSize.Y - 35) / 2)
             tooltip.BackgroundColor3 = CLIENT_CONFIG.COLORS.Dark
-            tooltip.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip  -- Highest ZIndex to appear above everything
-            tooltip.Parent = button
+            tooltip.BackgroundTransparency = 0.05
+            tooltip.BorderSizePixel = 0
+            tooltip.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip
+            tooltip.Parent = screenGui
             
-            Utilities:CreateCorner(tooltip, 6)
+            -- Create shadow for depth
+            local shadow = Instance.new("ImageLabel")
+            shadow.Name = "Shadow"
+            shadow.Size = UDim2.new(1, 10, 1, 10)
+            shadow.Position = UDim2.new(0, -5, 0, -5)
+            shadow.BackgroundTransparency = 1
+            shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+            shadow.ImageColor3 = Color3.new(0, 0, 0)
+            shadow.ImageTransparency = 0.7
+            shadow.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip - 1
+            shadow.Parent = tooltip
             
-            local tooltipText = UIComponents:CreateLabel(tooltip, nav.Name, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), 14)
+            Utilities:CreateCorner(tooltip, 8)
+            Utilities:CreateCorner(shadow, 8)
+            
+            local tooltipText = UIComponents:CreateLabel(tooltip, nav.Name, UDim2.new(1, -10, 1, 0), UDim2.new(0, 5, 0, 0), 16)
             tooltipText.TextColor3 = CLIENT_CONFIG.COLORS.White
-            tooltipText.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip + 1  -- Even higher for text
+            tooltipText.TextXAlignment = Enum.TextXAlignment.Center
+            tooltipText.Font = CLIENT_CONFIG.FONTS.Secondary
+            tooltipText.ZIndex = CLIENT_CONFIG.ZINDEX.Tooltip + 1
             
-            Utilities:Tween(tooltip, {BackgroundTransparency = 0}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            -- Animate in
+            tooltip.BackgroundTransparency = 1
+            tooltipText.TextTransparency = 1
+            shadow.ImageTransparency = 1
+            
+            Utilities:Tween(tooltip, {BackgroundTransparency = 0.05}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            Utilities:Tween(tooltipText, {TextTransparency = 0}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            Utilities:Tween(shadow, {ImageTransparency = 0.7}, CLIENT_CONFIG.TWEEN_INFO.Fast)
         end)
         
         button.MouseLeave:Connect(function()
-            Utilities:Tween(button, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Background}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            local state = self.NavHoverStates[button]
+            if state.activeTween then
+                state.activeTween:Cancel()
+            end
             
-            local tooltip = button:FindFirstChild("Tooltip")
+            state.isHovered = false
+            state.activeTween = Utilities:Tween(button, {BackgroundColor3 = state.originalColor}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            
+            -- Find and remove tooltip from screen
+            local screenGui = self.ScreenGui
+            local tooltip = screenGui:FindFirstChild("NavTooltip_" .. nav.Name)
             if tooltip then
-                tooltip:Destroy()
+                -- Fade out then destroy
+                local fadeOut = Utilities:Tween(tooltip, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+                local textLabel = tooltip:FindFirstChildWhichIsA("TextLabel")
+                if textLabel then
+                    Utilities:Tween(textLabel, {TextTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+                end
+                fadeOut.Completed:Connect(function()
+                    if tooltip and tooltip.Parent then
+                        tooltip:Destroy()
+                    end
+                end)
             end
         end)
         
         button.MouseButton1Click:Connect(function()
             Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Click)
+            
+            -- Force clear hover state on click
+            local state = self.NavHoverStates[button]
+            if state then
+                if state.activeTween then
+                    state.activeTween:Cancel()
+                end
+                state.isHovered = false
+                button.BackgroundColor3 = state.originalColor
+            end
+            
+            -- Remove any lingering tooltip
+            local screenGui = self.ScreenGui
+            local tooltip = screenGui:FindFirstChild("NavTooltip_" .. nav.Name)
+            if tooltip then
+                tooltip:Destroy()
+            end
+            
             self:OpenModule(nav.Module)
         end)
+    end
+    
+    -- Function to clean up all hover states
+    self.CleanupNavigation = function()
+        for btn, state in pairs(self.NavHoverStates) do
+            if state.activeTween then
+                state.activeTween:Cancel()
+            end
+            if btn and btn.Parent then
+                btn.BackgroundColor3 = state.originalColor
+            end
+        end
+        
+        -- Remove all navigation tooltips
+        local screenGui = self.ScreenGui
+        for _, child in ipairs(screenGui:GetChildren()) do
+            if string.find(child.Name, "NavTooltip_") then
+                child:Destroy()
+            end
+        end
     end
     
     self.NavigationBar = navBar
@@ -1082,6 +1186,11 @@ function MainUI:CreateNotificationContainer()
 end
 
 function MainUI:OpenModule(moduleName)
+    -- Clean up any lingering hover states and tooltips
+    if self.CleanupNavigation then
+        self.CleanupNavigation()
+    end
+    
     -- Close all modules first
     for name, module in pairs(UIModules) do
         if module.Close then
@@ -3013,7 +3122,7 @@ function UIModules.InventoryUI:ShowPetInfo(parent, petInstance, petData)
         {label = "Variant", value = petInstance.variant and petInstance.variant:gsub("_", " "):gsub("^%l", string.upper) or "Normal"},
         {label = "Obtained", value = os.date("%m/%d/%Y", petInstance.obtained or os.time())},
         {label = "Source", value = petInstance.source and petInstance.source:gsub("_", " "):gsub("^%l", string.upper) or "Unknown"},
-        {label = "Value", value = Utilities:FormatNumber(petData.baseValue * ((petData.variants and petData.variants[petInstance.variant or "normal"] and petData.variants[petInstance.variant or "normal"].multiplier) or 1))},
+        {label = "Value", value = Utilities:FormatNumber((petData.baseValue or 100) * ((petData.variants and petData.variants[petInstance.variant or "normal"] and petData.variants[petInstance.variant or "normal"].multiplier) or 1))},
         {label = "Tradeable", value = petData.tradeable and "Yes" or "No"},
         {label = "Nickname", value = petInstance.nickname or "None"}
     }

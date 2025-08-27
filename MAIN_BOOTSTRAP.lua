@@ -707,13 +707,17 @@ local function setupPlayerHandlers(modules, folders)
             -- Wait for data to load
             wait(0.5)
             
-            -- Send initial data
-            local playerData = modules.DataStoreModule:GetPlayerData(player)
-            if playerData then
-                folders.RemoteEvents.DataLoaded:FireClient(player, playerData)
-                -- Also send DataUpdated for reactive UI
-                folders.RemoteEvents.DataUpdated:FireClient(player, playerData)
-            end
+                -- Send initial data
+    local playerData = modules.DataStoreModule:GetPlayerData(player)
+    if playerData then
+        folders.RemoteEvents.DataLoaded:FireClient(player, playerData)
+        -- Also send DataUpdated for reactive UI
+        folders.RemoteEvents.DataUpdated:FireClient(player, playerData)
+        -- Send currency update specifically
+        if folders.RemoteEvents.CurrencyUpdated then
+            folders.RemoteEvents.CurrencyUpdated:FireClient(player, playerData.currencies)
+        end
+    end
             
             -- Check daily rewards
             if modules.DailyRewardSystem then

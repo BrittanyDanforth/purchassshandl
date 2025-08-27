@@ -37,10 +37,11 @@ local SORT_OPTIONS = {
 
 -- Initialize
 function MarketSystem:Init()
-    self.Configuration = _G.Configuration
-    self.DataStoreModule = _G.DataStoreModule
-    self.PetSystem = _G.PetSystem
-    self.PetDatabase = _G.PetDatabase
+    -- Use proper module requires instead of globals
+    self.Configuration = require(script.Parent.Configuration)
+    self.DataStoreModule = require(script.Parent.DataStoreModule)
+    self.PetSystem = require(script.Parent.PetSystem)
+    self.PetDatabase = require(script.Parent.PetDatabase)
     
     -- Market data
     self.ActiveListings = {}

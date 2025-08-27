@@ -168,6 +168,16 @@ function QuestSystem:GenerateDailyQuests(player)
     local playerData = DataStoreModule.PlayerData[player.UserId]
     if not playerData then return end
     
+    -- Ensure quest structure exists
+    if not playerData.quests then
+        playerData.quests = {
+            daily = {},
+            weekly = {},
+            special = {},
+            completed = {}
+        }
+    end
+    
     -- Check if new day
     local currentDay = math.floor(os.time() / 86400)
     local lastQuestDay = playerData.quests.lastDailyGeneration or 0
