@@ -2703,15 +2703,17 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     
     -- Action buttons
     local actionsFrame = Instance.new("Frame")
-    actionsFrame.Size = UDim2.new(1, 0, 0, 200)  -- Increased height for all buttons
-    actionsFrame.Position = UDim2.new(0, 0, 1, -200)  -- Adjusted position
+    actionsFrame.Size = UDim2.new(1, 0, 0, 0)  -- AutomaticSize will handle this
+    actionsFrame.Position = UDim2.new(0, 0, 0, 300)  -- Position below pet display + variant
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 202
+    actionsFrame.AutomaticSize = Enum.AutomaticSize.Y  -- Auto size based on content
     actionsFrame.Parent = leftSide
     
     local actionsLayout = Instance.new("UIListLayout")
     actionsLayout.FillDirection = Enum.FillDirection.Vertical
     actionsLayout.Padding = UDim.new(0, 10)
+    actionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     actionsLayout.Parent = actionsFrame
     
     -- Equip/Unequip button (with proper server validation)
@@ -2761,6 +2763,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         end
     end)
     equipButton.BackgroundColor3 = petInstance.equipped and CLIENT_CONFIG.COLORS.Error or CLIENT_CONFIG.COLORS.Success
+    equipButton.LayoutOrder = 1
     
     -- Lock/Unlock button
     local lockButton
@@ -2776,6 +2779,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         NotificationSystem:SendNotification("Info", petInstance.locked and "Pet locked!" or "Pet unlocked!", "info")
     end)
     lockButton.BackgroundColor3 = petInstance.locked and CLIENT_CONFIG.COLORS.Success or CLIENT_CONFIG.COLORS.Warning
+    lockButton.LayoutOrder = 2
     
     -- Right side - Stats and info
     local rightSide = Instance.new("Frame")
