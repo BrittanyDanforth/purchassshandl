@@ -380,19 +380,10 @@ function Utilities:CreatePadding(parent, padding)
 end
 
 function Utilities:CreateShadow(parent, transparency, size)
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://1316045217"
-    shadow.ImageTransparency = transparency or 0.5
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    shadow.Size = UDim2.new(1, size or 20, 1, size or 20)
-    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.ZIndex = parent.ZIndex - 1
-    shadow.Parent = parent.Parent
-    return shadow
+    -- DON'T CREATE SHADOWS - They're causing overlapping grey fog!
+    -- Shadows were being parented to parent.Parent and overlapping everything
+    -- Just return a dummy object so nothing breaks
+    return {Destroy = function() end}
 end
 
 function Utilities:Tween(object, properties, tweenInfo)
