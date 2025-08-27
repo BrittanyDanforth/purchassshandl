@@ -5381,8 +5381,11 @@ local function Initialize()
     -- Show welcome notification
     NotificationSystem:SendNotification("Welcome!", "Welcome to Sanrio Tycoon Shop! 🎀", "info", 8)
     
-    -- Open shop by default
-    UIModules.ShopUI:Open()
+    -- Open shop by default after a small delay to ensure everything is loaded
+    task.wait(0.5)
+    if UIModules.ShopUI then
+        UIModules.ShopUI:Open()
+    end
 end
 
 -- Start initialization
@@ -6261,11 +6264,11 @@ end
 function UIModules.ProfileUI:ShowProfilePets(parent, player)
     local scrollFrame = UIComponents:CreateScrollingFrame(parent)
     
-    local petsGrid = Instance.new("UIGridLayout")
-    petsGrid.CellPadding = UDim2.new(0, 10, 0, 10)
-    petsGrid.CellSize = UDim2.new(0, 120, 0, 140)
-    petsGrid.FillDirection = Enum.FillDirection.Horizontal
-    petsGrid.Parent = scrollFrame
+    local petGrid = Instance.new("UIGridLayout")
+    petGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+    petGrid.CellSize = UDim2.new(0, 120, 0, 140)
+    petGrid.FillDirection = Enum.FillDirection.Horizontal
+    petGrid.Parent = scrollFrame
     
     -- Note for other players
     if player ~= LocalPlayer then
@@ -7181,7 +7184,12 @@ function UIModules.MinigameUI:StartMemoryGame()
     end)
 end
 
-function UIModules.MinigameUI:EndMinigame(overlay, score, won)
+function UIModules.MinigameUI:EndMinigame(overlay, score, won, gameStats)
+    -- Default game stats
+    gameStats = gameStats or {}
+    local attempts = gameStats.attempts or 1
+    local timeElapsed = gameStats.timeElapsed or 0
+    
     -- Show results
     local resultFrame = Instance.new("Frame")
     resultFrame.Size = UDim2.new(0, 400, 0, 300)

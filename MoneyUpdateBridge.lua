@@ -43,7 +43,6 @@ local function findPlayerMoneyValue(player)
         if playerValue and (playerValue:IsA("IntValue") or playerValue:IsA("NumberValue")) then
             print("[MoneyUpdateBridge] Found player money value in ServerStorage:", playerValue:GetFullName())
             table.insert(locations, playerValue)
-            end
         end
     end
     
