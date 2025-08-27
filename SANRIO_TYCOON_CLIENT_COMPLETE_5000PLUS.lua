@@ -434,7 +434,7 @@ function UIComponents:CreateButton(parent, text, size, position, callback)
         -- Click animation
         local originalSize = button.Size
         Utilities:Tween(button, {Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 8, originalSize.Y.Scale, originalSize.Y.Offset - 8)}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-        wait(0.1)
+        task.wait(0.1)
         Utilities:Tween(button, {Size = originalSize}, CLIENT_CONFIG.TWEEN_INFO.Bounce)
         
         if callback then
@@ -822,7 +822,7 @@ end
 function ParticleSystem:CreateBurst(parent, particleType, position, count)
     for i = 1, count or 10 do
         spawn(function()
-            wait(i * 0.05)
+            task.wait(i * 0.05)
             self:CreateParticle(parent, particleType, position)
         end)
     end
@@ -832,7 +832,7 @@ function ParticleSystem:CreateTrail(parent, particleType, startPos, endPos, coun
     local steps = count or 10
     for i = 1, steps do
         spawn(function()
-            wait(i * 0.05)
+            task.wait(i * 0.05)
             local t = i / steps
             local pos = UDim2.new(
                 startPos.X.Scale + (endPos.X.Scale - startPos.X.Scale) * t,
@@ -938,7 +938,7 @@ function MainUI:CreateCurrencyDisplay()
             -- Animation
             Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             spawn(function()
-                wait(0.3)
+                task.wait(0.3)
                 Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             end)
         end)
@@ -950,7 +950,7 @@ function MainUI:CreateCurrencyDisplay()
             -- Animation
             Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             spawn(function()
-                wait(0.3)
+                task.wait(0.3)
                 Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             end)
         end)
@@ -963,7 +963,7 @@ function MainUI:CreateCurrencyDisplay()
             -- Animation
             Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-            wait(0.3)
+            task.wait(0.3)
             Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
         end
@@ -1159,7 +1159,7 @@ function NotificationSystem:SendNotification(title, message, notificationType, d
         dismissed = true
         
         Utilities:Tween(notification, {Position = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        wait(0.3)
+        task.wait(0.3)
         notification:Destroy()
     end
     
@@ -1230,12 +1230,13 @@ end
 function UIModules.ShopUI:CreateEggShop(parent)
     local scrollFrame = UIComponents:CreateScrollingFrame(parent)
     
-    -- Clear any existing content first
+    -- ==========================================================
+    -- PROPERLY CLEAR ALL EXISTING CONTENT TO FIX DUPLICATES
+    -- ==========================================================
     for _, child in ipairs(scrollFrame:GetChildren()) do
-        if not child:IsA("UIGridLayout") and not child:IsA("UIListLayout") then
-            child:Destroy()
-        end
+        child:Destroy()
     end
+    -- ==========================================================
     
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.CellPadding = UDim2.new(0, 20, 0, 20)
@@ -1289,7 +1290,7 @@ function UIModules.ShopUI:CreateEggShop(parent)
     
     -- Update canvas size
     spawn(function()
-        wait(0.1) -- Wait for layout to update
+        task.wait(0.1) -- Wait for layout to update
         if gridLayout and gridLayout.Parent then
             gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
@@ -1298,7 +1299,7 @@ function UIModules.ShopUI:CreateEggShop(parent)
             scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
             
             -- Clean up any empty frames
-            wait(0.2)
+            task.wait(0.2)
             for _, child in ipairs(scrollFrame:GetChildren()) do
                 if child:IsA("Frame") then
                     local hasVisibleContent = false
@@ -1345,10 +1346,10 @@ function UIModules.ShopUI:CreateEggCard(parent, eggData)
         spawn(function()
             while card.Parent and eggImage.Parent do
                 Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 15)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-                wait(2)
+                task.wait(2)
                 if not card.Parent then break end
                 Utilities:Tween(eggImage, {Position = UDim2.new(0.5, -60, 0, 25)}, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-                wait(2)
+                task.wait(2)
             end
         end)
     else
@@ -1486,7 +1487,7 @@ function UIModules.ShopUI:CreateGamepassShop(parent)
     
     -- Update canvas size
     spawn(function()
-        wait(0.1) -- Wait for layout to update
+        task.wait(0.1) -- Wait for layout to update
         if listLayout and listLayout.Parent then
             listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
@@ -1660,12 +1661,12 @@ function UIModules.CaseOpeningUI:Open(results)
     
     -- Process each result
     for i, result in ipairs(results) do
-        wait(0.5) -- Delay between multiple opens
+        task.wait(0.5) -- Delay between multiple opens
         self:ShowCaseAnimation(container, result, i, #results)
     end
     
     -- Close button (shown after all animations)
-    wait(1)
+    task.wait(1)
     
     -- Make sure we don't create duplicate buttons
     local existingButton = container:FindFirstChild("CollectButton")
@@ -1682,7 +1683,7 @@ function UIModules.CaseOpeningUI:Open(results)
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
         Utilities:Tween(container, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        wait(0.3)
+        task.wait(0.3)
         overlay:Destroy()
     end)
     closeButton.Name = "CollectButton"
@@ -1824,14 +1825,14 @@ function UIModules.CaseOpeningUI:ShowCaseAnimation(container, result, index, tot
     spinTween.Completed:Wait()
     
     -- Flash winner
-    wait(0.5)
+    task.wait(0.5)
     local winnerItem = itemContainer:GetChildren()[50]
     if winnerItem then
         for i = 1, 3 do
             Utilities:Tween(winnerItem, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Warning}, TweenInfo.new(0.2))
-            wait(0.2)
+            task.wait(0.2)
             Utilities:Tween(winnerItem, {BackgroundColor3 = CLIENT_CONFIG.COLORS.White}, TweenInfo.new(0.2))
-            wait(0.2)
+            task.wait(0.2)
         end
     end
     
@@ -1902,7 +1903,7 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
         end
     end
     
-    wait(0.3)
+    task.wait(0.3)
     
     -- Show result
     local resultFrame = Instance.new("Frame")
@@ -1956,9 +1957,9 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     spawn(function()
         while glow.Parent do
             Utilities:Tween(glow, {Size = UDim2.new(1, 120, 1, 120), ImageTransparency = 0.3}, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(1)
+            task.wait(1)
             Utilities:Tween(glow, {Size = UDim2.new(1, 100, 1, 100), ImageTransparency = 0.5}, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(1)
+            task.wait(1)
         end
     end)
     
@@ -2004,7 +2005,7 @@ function UIModules.CaseOpeningUI:ShowResult(container, result)
     if finalPetData.rarity >= 4 then
         for i = 1, 50 do
             spawn(function()
-                wait(i * 0.05)
+                task.wait(i * 0.05)
                 ParticleSystem:CreateParticle(resultFrame, "star", UDim2.new(math.random(), 0, 1, 0))
             end)
         end
@@ -2306,9 +2307,9 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
             spawn(function()
                 while variantOverlay.Parent do
                     Utilities:Tween(variantOverlay, {ImageTransparency = 0.5}, TweenInfo.new(1, Enum.EasingStyle.Sine))
-                    wait(1)
+                    task.wait(1)
                     Utilities:Tween(variantOverlay, {ImageTransparency = 0.7}, TweenInfo.new(1, Enum.EasingStyle.Sine))
-                    wait(1)
+                    task.wait(1)
                 end
             end)
         elseif petInstance.variant == "golden" then
@@ -2403,6 +2404,15 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
 end
 
 function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
+    -- ==========================================================
+    -- REUSABLE DETAILS WINDOW TO FIX BREAKING ON REFRESH
+    -- ==========================================================
+    
+    -- Close any existing details window first
+    if self.DetailsOverlay and self.DetailsOverlay.Parent then
+        self.DetailsOverlay:Destroy()
+    end
+    
     -- Create modal overlay
     local overlay = Instance.new("Frame")
     overlay.Name = "PetDetailsOverlay"
@@ -2411,6 +2421,9 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     overlay.BackgroundTransparency = 0.3
     overlay.ZIndex = 200
     overlay.Parent = MainUI.ScreenGui
+    
+    -- Store reference so we can clean it up
+    self.DetailsOverlay = overlay
     
     -- Fade in
     overlay.BackgroundTransparency = 1
@@ -2474,7 +2487,7 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
         Utilities:Tween(detailsFrame, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        wait(0.3)
+        task.wait(0.3)
         overlay:Destroy()
     end)
     
@@ -2624,6 +2637,22 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
 end
 
 function UIModules.InventoryUI:ShowPetStats(parent, petInstance, petData)
+    -- ==========================================================
+    -- VALIDATE DATA TO PREVENT NIL ERRORS
+    -- ==========================================================
+    if not petInstance or not petData then
+        local errorLabel = UIComponents:CreateLabel(parent, "Pet data unavailable", UDim2.new(1, 0, 0, 50), UDim2.new(0, 0, 0.5, -25), 20)
+        errorLabel.TextColor3 = CLIENT_CONFIG.COLORS.Error
+        return
+    end
+    
+    -- Ensure required fields exist with defaults
+    petInstance.level = petInstance.level or 1
+    petInstance.experience = petInstance.experience or 0
+    petInstance.power = petInstance.power or 0
+    petInstance.speed = petInstance.speed or 0
+    petInstance.luck = petInstance.luck or 0
+    
     local scrollFrame = UIComponents:CreateScrollingFrame(parent, UDim2.new(1, -10, 1, -10), UDim2.new(0, 5, 0, 5))
     
     local statsContainer = Instance.new("Frame")
@@ -2648,12 +2677,12 @@ function UIModules.InventoryUI:ShowPetStats(parent, petInstance, petData)
     levelLabel.TextXAlignment = Enum.TextXAlignment.Left
     
     local xpRequired = 99999  -- Default XP requirement
-    if petData.xpRequirements and petData.xpRequirements[petInstance.level] then
+    if petData.xpRequirements and type(petData.xpRequirements) == "table" and petData.xpRequirements[petInstance.level] then
         xpRequired = petData.xpRequirements[petInstance.level]
     end
     
     local xpBar = UIComponents:CreateProgressBar(levelFrame, UDim2.new(1, 0, 0, 20), UDim2.new(0, 0, 0, 30), 
-        petInstance.experience or 0, xpRequired)
+        petInstance.experience, xpRequired)
     
     yOffset = yOffset + 70
     
@@ -2695,6 +2724,13 @@ function UIModules.InventoryUI:ShowPetStats(parent, petInstance, petData)
 end
 
 function UIModules.InventoryUI:ShowPetAbilities(parent, petInstance, petData)
+    -- Validate data
+    if not petData then
+        local errorLabel = UIComponents:CreateLabel(parent, "No ability data available", UDim2.new(1, 0, 0, 50), UDim2.new(0, 0, 0.5, -25), 20)
+        errorLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+        return
+    end
+    
     local scrollFrame = UIComponents:CreateScrollingFrame(parent, UDim2.new(1, -10, 1, -10), UDim2.new(0, 5, 0, 5))
     
     local abilitiesContainer = Instance.new("Frame")
@@ -2704,7 +2740,16 @@ function UIModules.InventoryUI:ShowPetAbilities(parent, petInstance, petData)
     
     local yOffset = 0
     
-    for _, ability in ipairs(petData.abilities or {}) do
+    local abilities = petData.abilities
+    if not abilities or type(abilities) ~= "table" or #abilities == 0 then
+        -- Show placeholder if no abilities
+        local placeholderLabel = UIComponents:CreateLabel(abilitiesContainer, "This pet has no special abilities yet", UDim2.new(1, 0, 0, 100), UDim2.new(0, 0, 0, 0), 18)
+        placeholderLabel.TextColor3 = CLIENT_CONFIG.COLORS.Dark
+        placeholderLabel.TextTransparency = 0.5
+        return
+    end
+    
+    for _, ability in ipairs(abilities) do
         local abilityFrame = Instance.new("Frame")
         abilityFrame.Size = UDim2.new(1, 0, 0, 100)
         abilityFrame.Position = UDim2.new(0, 0, 0, yOffset)
@@ -2944,7 +2989,7 @@ function UIModules.InventoryUI:OpenMassDelete()
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
         Utilities:Tween(deleteWindow, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        wait(0.3)
+        task.wait(0.3)
         overlay:Destroy()
     end)
     
@@ -3042,19 +3087,21 @@ function UIModules.InventoryUI:OpenMassDelete()
 end
 
 function UIModules.InventoryUI:RefreshInventory()
-    -- Get data from DataManager if available, fallback to LocalData
-    local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
-    if not playerData then return end
-    
-    -- Clear existing cards (more thorough to prevent duplicates)
+    -- ==========================================================
+    -- CLEAR EVERYTHING FIRST TO PREVENT GHOST CARDS
+    -- ==========================================================
     if self.PetGrid then
         for _, child in ipairs(self.PetGrid:GetChildren()) do
-            -- Keep only the UIGridLayout
-            if not child:IsA("UIGridLayout") and not child:IsA("UIListLayout") then
+            if not child:IsA("UIGridLayout") then
                 child:Destroy()
             end
         end
     end
+    -- ==========================================================
+    
+    -- Get data from DataManager if available, fallback to LocalData
+    local playerData = DataManager and DataManager:GetData() or LocalData.PlayerData
+    if not playerData then return end
     
     -- Convert dictionary to array for display
     local pets = {}
@@ -3137,7 +3184,7 @@ function UIModules.InventoryUI:RefreshInventory()
     
     -- Clean up any stray frames
     spawn(function()
-        wait(0.1)
+        task.wait(0.1)
         if self.PetGrid then
             for _, child in ipairs(self.PetGrid:GetChildren()) do
                 if child:IsA("Frame") and (child.Name == "Frame" or #child:GetChildren() == 0) then
@@ -5029,10 +5076,12 @@ local function Initialize()
     end)
     
     -- ==========================================================
-    -- ADD THIS CODE BLOCK TO FIX THE INVENTORY NOT UPDATING
+    -- THROTTLED DATA UPDATE TO PREVENT REFRESH SPAM
     -- ==========================================================
+    local lastRefreshTime = 0
+    local pendingRefresh = false
+    
     RemoteEvents.DataUpdated.OnClientEvent:Connect(function(playerData)
-        print("[Client] Received data update from server!")
         LocalData.PlayerData = playerData
         
         -- Update DataManager if you use it
@@ -5040,15 +5089,33 @@ local function Initialize()
             DataManager:SetData(playerData)
         end
         
+        -- Update currency display immediately (lightweight)
+        if MainUI.UpdateCurrency and playerData.currencies then
+            MainUI.UpdateCurrency(playerData.currencies)
+        end
+        
+        -- Throttle inventory refresh to max once per second
+        local now = tick()
+        if now - lastRefreshTime < 1 then
+            -- Too soon, mark as pending
+            pendingRefresh = true
+            return
+        end
+        
         -- Refresh the inventory UI if it's currently open
         if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
             UIModules.InventoryUI:RefreshInventory()
-            print("[Client] Inventory UI refreshed.")
-        end
-        
-        -- Update currency display
-        if MainUI.UpdateCurrency and playerData.currencies then
-            MainUI.UpdateCurrency(playerData.currencies)
+            lastRefreshTime = now
+            pendingRefresh = false
+            
+            -- Handle any pending refresh after delay
+            if pendingRefresh then
+                task.task.wait(1)
+                if pendingRefresh and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
+                    UIModules.InventoryUI:RefreshInventory()
+                    pendingRefresh = false
+                end
+            end
         end
     end)
     -- ==========================================================
@@ -5077,7 +5144,7 @@ local function Initialize()
             -- The inventory will auto-refresh if using DataManager reactive updates
             -- But we also ensure it refreshes after a delay for animation
             spawn(function()
-                wait(2) -- Wait for animation to finish
+                task.wait(2) -- Wait for animation to finish
                 if UIModules.InventoryUI and UIModules.InventoryUI.Frame and UIModules.InventoryUI.Frame.Visible then
                     UIModules.InventoryUI:RefreshInventory()
                 end
@@ -5167,17 +5234,17 @@ local function Initialize()
         while loadingScreen.Parent do
             dots = (dots % 3) + 1
             loadingLabel.Text = "Loading Sanrio Tycoon Shop" .. string.rep(".", dots)
-            wait(0.5)
+            task.wait(0.5)
         end
     end)
     
     -- Wait for data
-    wait(2)
+    task.wait(2)
     
     -- Fade out loading screen
     Utilities:Tween(loadingScreen, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Slow)
     Utilities:Tween(loadingLabel, {TextTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Slow)
-    wait(0.5)
+    task.wait(0.5)
     loadingScreen:Destroy()
     
     -- Show welcome notification
@@ -5303,7 +5370,7 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
         }, CLIENT_CONFIG.TWEEN_INFO.Fast)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
         
-        wait(0.3)
+        task.wait(0.3)
         overlay:Destroy()
     end)
     streakLabel.ZIndex = 603
@@ -5351,9 +5418,9 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
     spawn(function()
         while claimButton.Parent do
             Utilities:Tween(claimButton, {Size = UDim2.new(0, 260, 0, 65)}, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
-            wait(0.5)
+            task.wait(0.5)
             Utilities:Tween(claimButton, {Size = UDim2.new(0, 250, 0, 60)}, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
-            wait(0.5)
+            task.wait(0.5)
         end
     end)
     
@@ -5389,9 +5456,9 @@ function UIModules.DailyRewardUI:CreateDayCard(parent, reward, isClaimed, isToda
         spawn(function()
             while glow.Parent do
                 Utilities:Tween(glow, {Size = UDim2.new(1, 30, 1, 30), ImageTransparency = 0.7}, TweenInfo.new(1, Enum.EasingStyle.Sine))
-                wait(1)
+                task.wait(1)
                 Utilities:Tween(glow, {Size = UDim2.new(1, 20, 1, 20), ImageTransparency = 0.5}, TweenInfo.new(1, Enum.EasingStyle.Sine))
-                wait(1)
+                task.wait(1)
             end
         end)
         
@@ -5453,13 +5520,13 @@ function UIModules.DailyRewardUI:ClaimDailyReward(overlay)
         end
         
         -- Close window after delay
-        wait(2)
+        task.wait(2)
         local rewardWindow = overlay:FindFirstChild("DailyRewardWindow")
         if rewardWindow then
             Utilities:Tween(rewardWindow, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         end
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        wait(0.3)
+        task.wait(0.3)
         overlay:Destroy()
     else
         NotificationSystem:SendNotification("Error", rewards or "Failed to claim daily reward", "error")
@@ -5525,7 +5592,7 @@ function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
     }, CLIENT_CONFIG.TWEEN_INFO.Bounce)
     
     -- Auto close with fade
-    wait(2.5)
+    task.wait(2.5)
     Utilities:Tween(rewardDisplay, {
         Size = UDim2.new(0, 0, 0, 0), 
         Position = UDim2.new(0.5, 0, 0.2, 0),
@@ -5541,7 +5608,7 @@ function UIModules.DailyRewardUI:ShowRewardAnimation(rewards)
         end
     end
     
-    wait(0.3)
+    task.wait(0.3)
     rewardDisplay:Destroy()
 end
 
@@ -5604,7 +5671,7 @@ function UIModules.LeaderboardUI:Open()
     -- Refresh timer
     spawn(function()
         while self.Frame and self.Frame.Parent do
-            wait(30) -- Refresh every 30 seconds
+            task.wait(30) -- Refresh every 30 seconds
             self:RefreshLeaderboards()
         end
     end)
@@ -5923,7 +5990,7 @@ function UIModules.ProfileUI:ShowProfile(player)
         Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
         Utilities:Tween(profileWindow, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
         Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        wait(0.3)
+        task.wait(0.3)
         overlay:Destroy()
     end)
     
@@ -6254,7 +6321,7 @@ function UIModules.ProfileUI:ShowProfileBadges(parent, player)
     
     -- Update canvas size
     spawn(function()
-        wait(0.1)
+        task.wait(0.1)
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
     end)
 end
@@ -6515,12 +6582,12 @@ function SpecialEffects:CreateGlowEffect(frame, color)
                 Size = UDim2.new(1, 40, 1, 40),
                 ImageTransparency = 0.7
             }, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(1)
+            task.wait(1)
             Utilities:Tween(glow, {
                 Size = UDim2.new(1, 30, 1, 30),
                 ImageTransparency = 0.5
             }, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(1)
+            task.wait(1)
         end
     end)
     
@@ -6554,9 +6621,9 @@ function SpecialEffects:CreateShineEffect(frame)
     spawn(function()
         while shine.Parent do
             shine.Position = UDim2.new(-0.5, 0, -0.5, 0)
-            wait(3)
+            task.wait(3)
             Utilities:Tween(shine, {Position = UDim2.new(1.5, 0, -0.5, 0)}, TweenInfo.new(0.5, Enum.EasingStyle.Linear))
-            wait(0.5)
+            task.wait(0.5)
         end
     end)
     
@@ -6595,14 +6662,14 @@ function SpecialEffects:CreatePulseEffect(frame, scale)
                 frame.Size.Y.Scale * scale,
                 frame.Size.Y.Offset * scale
             )}, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(0.5)
+            task.wait(0.5)
             Utilities:Tween(frame, {Size = UDim2.new(
                 frame.Size.X.Scale / scale,
                 frame.Size.X.Offset / scale,
                 frame.Size.Y.Scale / scale,
                 frame.Size.Y.Offset / scale
             )}, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
-            wait(0.5)
+            task.wait(0.5)
         end
     end)
 end
@@ -6934,7 +7001,7 @@ function UIModules.MinigameUI:StartMemoryGame()
                     end
                 else
                     -- No match
-                    wait(1)
+                    task.wait(1)
                     
                     for _, cardData in ipairs(flippedCards) do
                         Utilities:Tween(cardData.card, {BackgroundColor3 = CLIENT_CONFIG.COLORS.Primary}, TweenInfo.new(0.2))
@@ -6952,7 +7019,7 @@ function UIModules.MinigameUI:StartMemoryGame()
     local timeLeft = 60
     spawn(function()
         while timeLeft > 0 and overlay.Parent do
-            wait(1)
+            task.wait(1)
             timeLeft = timeLeft - 1
             timerLabel.Text = "Time: " .. timeLeft .. "s"
             
