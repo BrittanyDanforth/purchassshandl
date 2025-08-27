@@ -711,6 +711,8 @@ local function setupPlayerHandlers(modules, folders)
             local playerData = modules.DataStoreModule:GetPlayerData(player)
             if playerData then
                 folders.RemoteEvents.DataLoaded:FireClient(player, playerData)
+                -- Also send DataUpdated for reactive UI
+                folders.RemoteEvents.DataUpdated:FireClient(player, playerData)
             end
             
             -- Check daily rewards
@@ -803,6 +805,21 @@ local function main()
     
     -- Step 7: Start auto-save
     startAutoSave(modules)
+    
+    -- Handle players already in game
+    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+        print("[BOOTSTRAP] Handling existing player:", player.Name)
+        if modules.DataStoreModule then
+            modules.DataStoreModule:LoadPlayerData(player)
+            wait(0.5)
+            local playerData = modules.DataStoreModule:GetPlayerData(player)
+            if playerData then
+                folders.RemoteEvents.DataLoaded:FireClient(player, playerData)
+                -- Also send DataUpdated for reactive UI
+                folders.RemoteEvents.DataUpdated:FireClient(player, playerData)
+            end
+        end
+    end
     
     print("=" .. string.rep("=", 50))
     print("✨ [BOOTSTRAP] SANRIO TYCOON FULLY INITIALIZED!")

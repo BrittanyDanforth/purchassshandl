@@ -282,7 +282,14 @@ function DataStoreModule:LoadPlayerData(player)
     -- Store in memory
     self.PlayerData[userId] = data
     
+    print("[DataStore] Loaded data for", player.Name, "- Currencies:", data.currencies)
+    
     return data
+end
+
+-- Get player data from memory
+function DataStoreModule:GetPlayerData(player)
+    return self.PlayerData[player.UserId]
 end
 
 -- ========================================

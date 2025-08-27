@@ -26,7 +26,10 @@ local lastUpdateTime = {}
 -- Function to find player's money value
 local function findPlayerMoneyValue(player)
     -- Check common locations for money values
-    local locations = {
+    local locations = {}
+    
+    -- Add valid money values from common locations
+    local checkLocations = {
         player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Money"),
         player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Cash"),
         player:FindFirstChild("Stats") and player.Stats:FindFirstChild("Money"),
@@ -34,6 +37,12 @@ local function findPlayerMoneyValue(player)
         player:FindFirstChild("Data") and player.Data:FindFirstChild("Money"),
         player:FindFirstChild("Data") and player.Data:FindFirstChild("Cash"),
     }
+    
+    for _, value in ipairs(checkLocations) do
+        if value and (value:IsA("IntValue") or value:IsA("NumberValue")) then
+            table.insert(locations, value)
+        end
+    end
     
     -- Also check PlayerMoney folder in ServerStorage (created by UnifiedLeaderboard)
     local playerMoneyFolder = game:GetService("ServerStorage"):FindFirstChild("PlayerMoney")
