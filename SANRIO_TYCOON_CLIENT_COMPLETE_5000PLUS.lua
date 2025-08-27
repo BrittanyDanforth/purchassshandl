@@ -924,11 +924,27 @@ function MainUI:Initialize()
     
     self.MainContainer = mainContainer
     
-    -- Create currency display
-    self:CreateCurrencyDisplay()
-    
-    -- Create navigation bar
+    -- Create navigation bar FIRST (so we know its width)
     self:CreateNavigationBar()
+    
+    -- Create main UI panel that contains everything else
+    local mainPanel = Instance.new("Frame")
+    mainPanel.Name = "MainUIPanel"
+    mainPanel.Size = UDim2.new(1, -90, 1, 0)  -- Full height, width minus nav bar
+    mainPanel.Position = UDim2.new(0, 80, 0, 0)  -- Positioned after nav bar
+    mainPanel.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
+    mainPanel.BackgroundTransparency = 0  -- Solid background
+    mainPanel.ZIndex = 5  -- Behind other UI elements but above background
+    mainPanel.Parent = mainContainer
+    
+    -- Add visual polish to main panel
+    Utilities:CreateCorner(mainPanel, 0)  -- No corners since it's full screen
+    
+    -- Store reference
+    self.MainPanel = mainPanel
+    
+    -- Create currency display INSIDE the main panel
+    self:CreateCurrencyDisplay()
     
     -- Create notification container
     self:CreateNotificationContainer()
@@ -970,7 +986,7 @@ function MainUI:Initialize()
 end
 
 function MainUI:CreateCurrencyDisplay()
-    local currencyFrame = UIComponents:CreateFrame(self.MainContainer, "CurrencyDisplay", UDim2.new(0, 400, 0, 60), UDim2.new(0, 10, 0, 10))
+    local currencyFrame = UIComponents:CreateFrame(self.MainPanel or self.MainContainer, "CurrencyDisplay", UDim2.new(0, 400, 0, 60), UDim2.new(0, 10, 0, 10))
     currencyFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     Utilities:CreateShadow(currencyFrame, 0.3)
     
@@ -1370,8 +1386,8 @@ function UIModules.ShopUI:Open()
         return
     end
     
-    -- Create main shop frame
-    local shopFrame = UIComponents:CreateFrame(MainUI.MainContainer, "ShopFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
+    -- Create main shop frame inside the main panel
+    local shopFrame = UIComponents:CreateFrame(MainUI.MainPanel or MainUI.MainContainer, "ShopFrame", UDim2.new(1, -20, 1, -90), UDim2.new(0, 10, 0, 80))
     shopFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     shopFrame.BackgroundTransparency = 0
     
@@ -2362,8 +2378,8 @@ function UIModules.InventoryUI:Open()
         end)
     end
     
-    -- Create main inventory frame
-    local inventoryFrame = UIComponents:CreateFrame(MainUI.MainContainer, "InventoryFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
+    -- Create main inventory frame inside the main panel
+    local inventoryFrame = UIComponents:CreateFrame(MainUI.MainPanel or MainUI.MainContainer, "InventoryFrame", UDim2.new(1, -20, 1, -90), UDim2.new(0, 10, 0, 80))
     inventoryFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
     inventoryFrame.BackgroundTransparency = 0
     
@@ -3678,8 +3694,8 @@ function UIModules.TradingUI:Open()
         return
     end
     
-    -- Create main trading frame
-    local tradingFrame = UIComponents:CreateFrame(MainUI.MainContainer, "TradingFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
+    -- Create main trading frame inside the main panel
+    local tradingFrame = UIComponents:CreateFrame(MainUI.MainPanel or MainUI.MainContainer, "TradingFrame", UDim2.new(1, -20, 1, -90), UDim2.new(0, 10, 0, 80))
     tradingFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
     
     self.Frame = tradingFrame
@@ -4662,8 +4678,8 @@ function UIModules.BattleUI:Open()
         return
     end
     
-    -- Create main battle frame
-    local battleFrame = UIComponents:CreateFrame(MainUI.MainContainer, "BattleFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
+    -- Create main battle frame inside the main panel
+    local battleFrame = UIComponents:CreateFrame(MainUI.MainPanel or MainUI.MainContainer, "BattleFrame", UDim2.new(1, -20, 1, -90), UDim2.new(0, 10, 0, 80))
     battleFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
     
     self.Frame = battleFrame
@@ -5123,8 +5139,8 @@ function UIModules.QuestUI:Open()
         return
     end
     
-    -- Create main quest frame
-    local questFrame = UIComponents:CreateFrame(MainUI.MainContainer, "QuestFrame", UDim2.new(1, -110, 1, -90), UDim2.new(0, 100, 0, 80))
+    -- Create main quest frame inside the main panel
+    local questFrame = UIComponents:CreateFrame(MainUI.MainPanel or MainUI.MainContainer, "QuestFrame", UDim2.new(1, -20, 1, -90), UDim2.new(0, 10, 0, 80))
     questFrame.BackgroundColor3 = CLIENT_CONFIG.COLORS.Background
     
     self.Frame = questFrame
@@ -5172,8 +5188,10 @@ function UIModules.QuestUI:CreateQuestList(parent, questType)
     local scrollFrame = UIComponents:CreateScrollingFrame(parent)
     
     local questContainer = Instance.new("Frame")
+    questContainer.Name = "QuestContainer"
     questContainer.Size = UDim2.new(1, -20, 0, 500)
-    questContainer.BackgroundTransparency = 1
+    questContainer.BackgroundColor3 = CLIENT_CONFIG.COLORS.White
+    questContainer.BackgroundTransparency = 0.95  -- Slightly visible background
     questContainer.Parent = scrollFrame
     
     local layout = Instance.new("UIListLayout")
@@ -5831,8 +5849,13 @@ function UIModules.DailyRewardUI:ShowDailyRewardWindow()
     titleLabel.Font = CLIENT_CONFIG.FONTS.Display
     titleLabel.ZIndex = 603
     
-    -- Streak info
-    local streakLabel = UIComponents:CreateLabel(header, "Day 1 • Keep your streak going!", UDim2.new(1, -50, 0, 25), UDim2.new(0, 0, 0, 45), 16)
+    -- Streak info - calculate current streak FIRST
+    local currentStreak = 1
+    if LocalData.PlayerData and LocalData.PlayerData.dailyReward then
+        currentStreak = LocalData.PlayerData.dailyReward.streak or 1
+    end
+    
+    local streakLabel = UIComponents:CreateLabel(header, string.format("Day %d • Keep your streak going!", currentStreak), UDim2.new(1, -50, 0, 25), UDim2.new(0, 0, 0, 45), 16)
     streakLabel.TextColor3 = CLIENT_CONFIG.COLORS.White
     streakLabel.Font = CLIENT_CONFIG.FONTS.Secondary
     
