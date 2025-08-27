@@ -1102,21 +1102,13 @@ function MainUI:CreateNavigationBar()
             state.isHovered = false
             state.activeTween = Utilities:Tween(button, {BackgroundColor3 = state.originalColor}, CLIENT_CONFIG.TWEEN_INFO.Fast)
             
-            -- Find and remove tooltip from screen
+            -- Find and remove ALL tooltips with this name from screen
             local screenGui = self.ScreenGui
-            local tooltip = screenGui:FindFirstChild("NavTooltip_" .. nav.Name)
-            if tooltip then
-                -- Fade out then destroy
-                local fadeOut = Utilities:Tween(tooltip, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-                local textLabel = tooltip:FindFirstChildWhichIsA("TextLabel")
-                if textLabel then
-                    Utilities:Tween(textLabel, {TextTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            for _, child in ipairs(screenGui:GetChildren()) do
+                if child.Name == "NavTooltip_" .. nav.Name then
+                    -- Immediately destroy without animation to prevent lingering
+                    child:Destroy()
                 end
-                fadeOut.Completed:Connect(function()
-                    if tooltip and tooltip.Parent then
-                        tooltip:Destroy()
-                    end
-                end)
             end
         end)
         
@@ -2869,14 +2861,14 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
             if equipButton then
                 equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
             end
-        elseif result and not result.success then
+        elseif type(result) == "table" and result.success == false then
             -- Server returned error
             NotificationSystem:SendNotification("Error", result.error or "Action failed", "error")
             if equipButton then
                 equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
             end
-        else
-            -- Success! Update the local state
+        elseif result then
+            -- Success! Update the local state (result is true or a success table)
             petInstance.equipped = not petInstance.equipped
             if equipButton then
                 equipButton.Text = petInstance.equipped and "Unequip" or "Equip"
