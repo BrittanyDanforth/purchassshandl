@@ -957,15 +957,18 @@ function MainUI:CreateCurrencyDisplay()
     else
         -- Fallback update function
         self.UpdateCurrency = function(currencies)
+            -- Update values instantly
             coinLabel.Text = Utilities:FormatNumber(currencies.coins or 0)
             gemLabel.Text = Utilities:FormatNumber(currencies.gems or 0)
             
-            -- Animation
-            Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-            Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-            task.wait(0.3)
-            Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
-            Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            -- Quick flash animation without blocking
+            spawn(function()
+                Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+                Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Success}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+                task.wait(0.3)
+                Utilities:Tween(coinLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+                Utilities:Tween(gemLabel, {TextColor3 = CLIENT_CONFIG.COLORS.Dark}, CLIENT_CONFIG.TWEEN_INFO.Fast)
+            end)
         end
     end
 end
@@ -1502,10 +1505,27 @@ function UIModules.ShopUI:OpenEgg(eggData, count)
         -- Open case opening UI
         UIModules.CaseOpeningUI:Open(result.results)
         
-        -- Update currency
-        if MainUI.UpdateCurrency then
-            MainUI.UpdateCurrency(result.newBalance)
+        -- ==========================================================
+        -- INSTANT CURRENCY UPDATE - NO WAITING
+        -- ==========================================================
+        -- Update local data immediately
+        if LocalData.PlayerData and LocalData.PlayerData.currencies then
+            if result.newBalance then
+                -- Update from server response
+                LocalData.PlayerData.currencies = result.newBalance
+            else
+                -- Calculate locally if server doesn't send balance
+                local currency = eggData.currency == "gems" and "gems" or "coins"
+                local cost = eggData.price * (count or 1)
+                LocalData.PlayerData.currencies[currency] = (LocalData.PlayerData.currencies[currency] or 0) - cost
+            end
         end
+        
+        -- Update UI immediately
+        if MainUI.UpdateCurrency then
+            MainUI.UpdateCurrency(LocalData.PlayerData.currencies)
+        end
+        -- ==========================================================
     else
         NotificationSystem:SendNotification("Error", result.error or "Failed to open egg", "error")
     end
@@ -1749,22 +1769,50 @@ function UIModules.CaseOpeningUI:Open(results)
         existingButton:Destroy()
     end
     
-    local isClosing = false
-    local closeButton = UIComponents:CreateButton(container, "Collect", UDim2.new(0, 200, 0, 50), UDim2.new(0.5, -100, 1, -70), function()
-        -- Prevent double clicks
-        if isClosing then return end
-        isClosing = true
+    -- Create collect button directly
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CollectButton"
+    closeButton.Size = UDim2.new(0, 200, 0, 50)
+    closeButton.Position = UDim2.new(0.5, -100, 1, -70)
+    closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success or Color3.fromRGB(0, 255, 0)
+    closeButton.Text = "Collect"
+    closeButton.TextScaled = true
+    closeButton.TextColor3 = Color3.new(1, 1, 1)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.ZIndex = 105
+    closeButton.Active = true
+    closeButton.AutoButtonColor = false
+    closeButton.Parent = container
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 8)
+    closeCorner.Parent = closeButton
+    
+    -- Single click handler with proper debounce
+    local clicked = false
+    closeButton.MouseButton1Click:Connect(function()
+        if clicked then return end
+        clicked = true
         
-        Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
-        Utilities:Tween(container, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
-        Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        -- Immediately disable button
+        closeButton.Active = false
+        closeButton.Text = "Collecting..."
+        closeButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        
+        -- Play sound
+        if CLIENT_CONFIG and CLIENT_CONFIG.SOUNDS and CLIENT_CONFIG.SOUNDS.Close then
+            Utilities:PlaySound(CLIENT_CONFIG.SOUNDS.Close)
+        end
+        
+        -- Animate out
+        if Utilities and Utilities.Tween then
+            Utilities:Tween(container, {Size = UDim2.new(0, 0, 0, 0)}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+            Utilities:Tween(overlay, {BackgroundTransparency = 1}, CLIENT_CONFIG.TWEEN_INFO.Normal)
+        end
+        
         task.wait(0.3)
         overlay:Destroy()
     end)
-    closeButton.Name = "CollectButton"
-    closeButton.BackgroundColor3 = CLIENT_CONFIG.COLORS.Success
-    closeButton.ZIndex = 105
-    closeButton.Active = true
     closeButton.AutoButtonColor = true
     closeButton.Parent = container -- Ensure parent is set
     
@@ -2392,22 +2440,7 @@ function UIModules.InventoryUI:CreatePetCard(parent, petInstance, petData)
     corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = card
     
-    -- Add simple shadow
-    local shadowFrame = Instance.new("Frame")
-    shadowFrame.Name = "Shadow"
-    shadowFrame.Size = UDim2.new(1, 4, 1, 4)
-    shadowFrame.Position = UDim2.new(0, 2, 0, 2)
-    shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadowFrame.BackgroundTransparency = 0.8
-    shadowFrame.ZIndex = card.ZIndex - 1
-    shadowFrame.Parent = card.Parent
-    
-    local shadowCorner = Instance.new("UICorner")
-    shadowCorner.CornerRadius = UDim.new(0, 12)
-    shadowCorner.Parent = shadowFrame
-    
-    -- Move card above shadow
-    card.ZIndex = 2
+    -- No shadow frame - keep it simple
     
     -- Create pet image directly
     local petImage = Instance.new("ImageLabel")
