@@ -2703,8 +2703,8 @@ function UIModules.InventoryUI:ShowPetDetails(petInstance, petData)
     
     -- Action buttons
     local actionsFrame = Instance.new("Frame")
-    actionsFrame.Size = UDim2.new(1, 0, 0, 100)
-    actionsFrame.Position = UDim2.new(0, 0, 1, -100)
+    actionsFrame.Size = UDim2.new(1, 0, 0, 200)  -- Increased height for all buttons
+    actionsFrame.Position = UDim2.new(0, 0, 1, -200)  -- Adjusted position
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 202
     actionsFrame.Parent = leftSide
@@ -2988,10 +2988,10 @@ function UIModules.InventoryUI:ShowPetInfo(parent, petInstance, petData)
         {label = "Pet ID", value = petInstance.id},
         {label = "Species", value = petData.displayName},
         {label = "Rarity", value = ({"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "SECRET"})[petData.rarity]},
-        {label = "Variant", value = petInstance.variant:gsub("_", " "):gsub("^%l", string.upper)},
-        {label = "Obtained", value = os.date("%m/%d/%Y", petInstance.obtained)},
-        {label = "Source", value = petInstance.source:gsub("_", " "):gsub("^%l", string.upper)},
-        {label = "Value", value = Utilities:FormatNumber(petData.baseValue * (petData.variants[petInstance.variant].multiplier or 1))},
+        {label = "Variant", value = petInstance.variant and petInstance.variant:gsub("_", " "):gsub("^%l", string.upper) or "Normal"},
+        {label = "Obtained", value = os.date("%m/%d/%Y", petInstance.obtained or os.time())},
+        {label = "Source", value = petInstance.source and petInstance.source:gsub("_", " "):gsub("^%l", string.upper) or "Unknown"},
+        {label = "Value", value = Utilities:FormatNumber(petData.baseValue * ((petData.variants and petData.variants[petInstance.variant or "normal"] and petData.variants[petInstance.variant or "normal"].multiplier) or 1))},
         {label = "Tradeable", value = petData.tradeable and "Yes" or "No"},
         {label = "Nickname", value = petInstance.nickname or "None"}
     }
