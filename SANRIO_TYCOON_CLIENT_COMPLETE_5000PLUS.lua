@@ -380,10 +380,30 @@ function Utilities:CreatePadding(parent, padding)
 end
 
 function Utilities:CreateShadow(parent, transparency, size)
-    -- DON'T CREATE SHADOWS - They're causing overlapping grey fog!
-    -- Shadows were being parented to parent.Parent and overlapping everything
-    -- Just return a dummy object so nothing breaks
-    return {Destroy = function() end}
+    -- Skip shadows for main UI elements that cause overlap
+    if parent.Name == "CurrencyDisplay" or parent.Name == "NavigationBar" then
+        return {Destroy = function() end}
+    end
+    
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageTransparency = transparency or 0.5
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Size = UDim2.new(1, size or 20, 1, size or 20)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    
+    -- CRITICAL FIX: Make sure shadow has lower ZIndex than parent
+    parent.ZIndex = parent.ZIndex or 10
+    shadow.ZIndex = 1
+    
+    -- Parent to same parent as the frame
+    shadow.Parent = parent.Parent
+    
+    return shadow
 end
 
 function Utilities:Tween(object, properties, tweenInfo)
@@ -915,10 +935,16 @@ function MainUI:Initialize()
                 end
                 -- Clean up any overlay that shouldn't be there
                 if string.find(child.Name, "Overlay") and child.BackgroundTransparency < 0.9 then
-                    -- Check if it's been there for too long
+                    -- Skip PetDetailsOverlay if it has the active marker
+                    if child.Name == "PetDetailsOverlay" and child:FindFirstChild("DetailsFrame") then
+                        -- It's actively being used, don't remove
+                        continue
+                    end
+                    
+                    -- For other overlays, check if they're stuck
                     if not child:GetAttribute("CreatedTime") then
                         child:SetAttribute("CreatedTime", tick())
-                    elseif tick() - child:GetAttribute("CreatedTime") > 10 then
+                    elseif tick() - child:GetAttribute("CreatedTime") > 30 then -- Increased to 30 seconds
                         print("[DEBUG] Removing stuck overlay:", child.Name)
                         child:Destroy()
                     end
