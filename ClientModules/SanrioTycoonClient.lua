@@ -502,8 +502,10 @@ local function initializePhase1()
     end)
     
     if not success then
-        warn("[SanrioTycoonClient] Failed to initialize MainUI: " .. tostring(err))
-        return false
+        warn("[SanrioTycoonClient] MainUI initialization had errors: " .. tostring(err))
+        -- Don't return false - continue anyway as MainUI might be partially initialized
+    else
+        print("[SanrioTycoonClient] ✓ MainUI initialized successfully")
     end
     
     -- Initialize window manager
@@ -651,14 +653,17 @@ task.spawn(function()
     task.wait(0.5)
     
     -- Phase 1: Core systems
-    if initializePhase1() then
-        -- Small delay to ensure everything is loaded
-        task.wait(0.1)
-        
-        -- Phase 2: UI and features
-        initializePhase2()
-    else
-        warn("[SanrioTycoonClient] Failed to complete Phase 1 initialization")
+    local phase1Success = initializePhase1()
+    
+    -- Always try phase 2 even if phase 1 had issues
+    -- Small delay to ensure everything is loaded
+    task.wait(0.1)
+    
+    -- Phase 2: UI and features
+    initializePhase2()
+    
+    if not phase1Success then
+        warn("[SanrioTycoonClient] Phase 1 had initialization issues, but continuing anyway")
     end
 end)
 

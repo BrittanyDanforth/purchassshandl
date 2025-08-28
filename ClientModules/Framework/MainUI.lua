@@ -584,7 +584,7 @@ function MainUI:CreateNotificationContainer()
     self.NotificationContainer = notificationContainer
     
     -- Pass container to notification system
-    if self._notificationSystem then
+    if self._notificationSystem and self._notificationSystem.SetContainer then
         self._notificationSystem:SetContainer(notificationContainer)
     end
 end

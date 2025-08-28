@@ -162,28 +162,28 @@ ClientConfig.TEXT_SIZES = {
 
 ClientConfig.SOUNDS = {
     -- UI Sounds
-    Click = "rbxassetid://876939830",    -- UI Click sound
-    Open = "rbxassetid://9113651416",    -- Swoosh/Open sound
-    Close = "rbxassetid://9113142479",   -- Close/Switch sound
-    Hover = "rbxassetid://10066936758",  -- UI Hover sound
+    Click = "rbxassetid://421058925",    -- UI Click sound
+    Open = "rbxassetid://1369158",      -- Swoosh/Open sound
+    Close = "rbxassetid://3398620867",  -- Close/Switch sound
+    Hover = "rbxassetid://12221967",    -- UI Hover sound
     
     -- Feedback Sounds
-    Success = "rbxassetid://131961136",      -- Success/Victory sound
-    Error = "rbxassetid://130785805",        -- Error sound
-    Notification = "rbxassetid://9086208751", -- Notification sound
-    Warning = "rbxassetid://130785805",      -- Warning sound
+    Success = "rbxassetid://1493797899",    -- Success/Victory sound
+    Error = "rbxassetid://2767090",         -- Error sound
+    Notification = "rbxassetid://4590662766", -- Notification sound
+    Warning = "rbxassetid://2767090",        -- Warning sound
     
     -- Game Sounds
-    CaseOpen = "rbxassetid://9125526618",  -- Case open/snap sound
-    Legendary = "rbxassetid://131961136",  -- Legendary/Victory sound
-    Purchase = "rbxassetid://131886985",   -- Purchase/Buy sound
-    LevelUp = "rbxassetid://131961136",    -- Level up/Victory sound
-    Equip = "rbxassetid://9113142479",     -- Equip/Switch sound
-    Trade = "rbxassetid://131961138",      -- Trade/Impact sound
+    CaseOpen = "rbxassetid://1841427728", -- Case open/snap sound
+    Legendary = "rbxassetid://1493797899", -- Legendary/Victory sound
+    Purchase = "rbxassetid://203691837",  -- Purchase/Buy sound
+    LevelUp = "rbxassetid://1493797899",  -- Level up/Victory sound
+    Equip = "rbxassetid://3398620867",    -- Equip/Switch sound
+    Trade = "rbxassetid://8329685",       -- Trade/Impact sound
     
     -- Currency Sounds
-    CoinCollect = "rbxassetid://131961136", -- Coin collect sound
-    GemCollect = "rbxassetid://131323304",  -- Gem collect sound
+    CoinCollect = "rbxassetid://203691837", -- Coin collect sound
+    GemCollect = "rbxassetid://4552989777",  -- Gem collect sound
 }
 
 -- ========================================
