@@ -3,11 +3,14 @@
     Description: Main client initialization script that loads and orchestrates all modules
     This replaces the monolithic SANRIO_TYCOON_CLIENT_COMPLETE_5000PLUS.lua
     
-    FINAL VERSION - Includes all fixes:
+    FINAL FIXED VERSION - Includes all dependency fixes:
     1. Fixed module path to correctly reference ClientModules folder
     2. Fixed ClientServices stack overflow
     3. Fixed EventBus Config dependency
-    4. Fixed InventoryUI syntax error
+    4. Fixed DataCache dependencies
+    5. Fixed RemoteManager dependencies
+    6. Fixed StateManager dependencies
+    7. Fixed InventoryUI syntax error
 ]]
 
 -- ========================================
@@ -65,23 +68,35 @@ local RemoteManager = require(InfrastructureModules:WaitForChild("RemoteManager"
 local ModuleLoader = require(InfrastructureModules:WaitForChild("ModuleLoader"))
 
 -- Initialize infrastructure with proper dependencies
-local eventBus = EventBus.new({Config = ClientConfig}) -- FIXED: Added Config dependency
-local stateManager = StateManager.new(eventBus)
-local dataCache = DataCache.new({
+-- IMPORTANT: Order matters due to circular dependencies
+
+-- 1. EventBus (no dependencies on other infrastructure)
+local eventBus = EventBus.new({
+    Config = ClientConfig
+})
+
+-- 2. StateManager (depends on EventBus)
+local stateManager = StateManager.new({
     Config = ClientConfig,
     Utilities = ClientUtilities,
-    StateManager = stateManager,
-    EventBus = eventBus,
-    RemoteManager = nil -- Will be set after RemoteManager is created
+    EventBus = eventBus
 })
+
+-- 3. RemoteManager (depends on EventBus)
 local remoteManager = RemoteManager.new({
     Config = ClientConfig,
     Utilities = ClientUtilities,
     EventBus = eventBus
 })
 
--- Update the RemoteManager reference in DataCache
-dataCache._remoteManager = remoteManager
+-- 4. DataCache (depends on all others)
+local dataCache = DataCache.new({
+    Config = ClientConfig,
+    Utilities = ClientUtilities,
+    StateManager = stateManager,
+    EventBus = eventBus,
+    RemoteManager = remoteManager
+})
 
 -- ========================================
 -- SYSTEM MODULE LOADING
@@ -622,6 +637,7 @@ Players.PlayerRemoving:Connect(function(player)
         pcall(function() eventBus:Destroy() end)
         pcall(function() stateManager:Destroy() end)
         pcall(function() remoteManager:Destroy() end)
+        pcall(function() dataCache:Destroy() end)
     end
 end)
 
@@ -652,7 +668,7 @@ end)
 
 -- Expose systems for debugging or external access
 _G.SanrioTycoonClient = {
-    Version = "2.1.0",
+    Version = "2.2.0",
     Modules = uiModuleInstances,
     Systems = {
         EventBus = eventBus,
@@ -744,7 +760,7 @@ _G.SanrioTycoonClient = {
     }
 }
 
-print("[SanrioTycoonClient] 🎮 Sanrio Tycoon Client v2.1.0 Ready!")
+print("[SanrioTycoonClient] 🎮 Sanrio Tycoon Client v2.2.0 Ready!")
 print("[SanrioTycoonClient] 📦 " .. loadedCount .. "/" .. #uiModuleDefinitions .. " UI modules loaded")
 print("[SanrioTycoonClient] ✨ Use _G.SanrioTycoonClient to access the API")
 print("[SanrioTycoonClient] 🔧 Debug commands:")
