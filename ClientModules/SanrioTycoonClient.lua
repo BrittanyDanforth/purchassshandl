@@ -519,7 +519,7 @@ local function initializePhase1()
     end
     
     -- Initialize window manager
-    local screenGui = mainUI:GetScreenGui()
+    local screenGui = mainUI.ScreenGui or (mainUI.GetScreenGui and mainUI:GetScreenGui())
     if screenGui then
         windowManager:Initialize(screenGui)
         print("[SanrioTycoonClient] ✓ Window manager initialized")
