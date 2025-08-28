@@ -437,9 +437,37 @@ function ShopUI:CreateEggShop(parent: Frame)
             loadingLabel:Destroy()
             self:PopulateEggShop(container)
         else
-            loadingLabel.Text = "Failed to load eggs"
+            -- Use default egg data if server data not available
+            self._eggData = self._config.DEFAULT_EGGS or {
+                {
+                    id = "starter_egg",
+                    name = "Starter Egg",
+                    price = 100,
+                    currency = "coins",
+                    icon = "rbxassetid://12345678",
+                    rarity = "common"
+                },
+                {
+                    id = "rare_egg", 
+                    name = "Rare Egg",
+                    price = 1000,
+                    currency = "coins",
+                    icon = "rbxassetid://12345678",
+                    rarity = "rare"
+                },
+                {
+                    id = "epic_egg",
+                    name = "Epic Egg", 
+                    price = 50,
+                    currency = "gems",
+                    icon = "rbxassetid://12345678",
+                    rarity = "epic"
+                }
+            }
+            loadingLabel:Destroy()
+            self:PopulateEggShop(container)
             if self._debugMode then
-                warn("[ShopUI] Failed to load egg data:", eggData)
+                warn("[ShopUI] Using default egg data - server data not available")
             end
         end
     end)

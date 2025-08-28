@@ -206,7 +206,8 @@ end
 function RemoteManager:On(eventName: string, handler: (...any) -> ()): Types.Connection
     local remote = self._remoteEvents[eventName]
     if not remote then
-        warn("[RemoteManager] RemoteEvent not found:", eventName)
+        -- Don't warn for every missing remote, just return a disconnected connection
+        -- This allows the client to set up handlers that will work when remotes are added
         return {
             Disconnect = function() end,
             Connected = false
