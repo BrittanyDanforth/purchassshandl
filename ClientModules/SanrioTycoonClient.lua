@@ -231,76 +231,51 @@ local uiDependencies = {
     Utilities = ClientUtilities
 }
 
--- Define UI modules for lazy loading
-local uiModuleNames = {
-    "CurrencyDisplay", -- This one we'll load immediately as it's always visible
-    "ShopUI",
-    "CaseOpeningUI",
-    "InventoryUI",
-    "PetDetailsUI",
-    "TradingUI",
-    "BattleUI",
-    "QuestUI",
-    "SettingsUI",
-    "DailyRewardUI",
-    "SocialUI",
-    "ProgressionUI"
+-- Load all UI modules immediately
+local uiModuleDefinitions = {
+    {name = "CurrencyDisplay", module = require(UIModules:WaitForChild("CurrencyDisplay"))},
+    {name = "ShopUI", module = require(UIModules:WaitForChild("ShopUI"))},
+    {name = "CaseOpeningUI", module = require(UIModules:WaitForChild("CaseOpeningUI"))},
+    {name = "InventoryUI", module = require(UIModules:WaitForChild("InventoryUI"))},
+    {name = "PetDetailsUI", module = require(UIModules:WaitForChild("PetDetailsUI"))},
+    {name = "TradingUI", module = require(UIModules:WaitForChild("TradingUI"))},
+    {name = "BattleUI", module = require(UIModules:WaitForChild("BattleUI"))},
+    {name = "QuestUI", module = require(UIModules:WaitForChild("QuestUI"))},
+    {name = "SettingsUI", module = require(UIModules:WaitForChild("SettingsUI"))},
+    {name = "DailyRewardUI", module = require(UIModules:WaitForChild("DailyRewardUI"))},
+    {name = "SocialUI", module = require(UIModules:WaitForChild("SocialUI"))},
+    {name = "ProgressionUI", module = require(UIModules:WaitForChild("ProgressionUI"))}
 }
 
 local uiModuleInstances = {}
 local loadedCount = 0
 local failedModules = {}
 
--- Store dependencies for lazy loading
-mainUI.LazyLoadDependencies = uiDependencies
-
--- Function to lazy load a module
-local function lazyLoadModule(moduleName)
-    if uiModuleInstances[moduleName] then
-        return uiModuleInstances[moduleName]
-    end
-    
-    local moduleScript = UIModules:FindFirstChild(moduleName)
-    if not moduleScript then
-        warn("[SanrioTycoonClient] Module script not found:", moduleName)
-        return nil
-    end
-    
-    print("[SanrioTycoonClient] Lazy loading " .. moduleName .. "...")
+-- Initialize all modules
+for _, def in ipairs(uiModuleDefinitions) do
+    print("[SanrioTycoonClient] Initializing " .. def.name .. "...")
     local success, result = pcall(function()
-        local moduleClass = require(moduleScript)
-        return moduleClass.new(uiDependencies)
+        return def.module.new(uiDependencies)
     end)
     
     if success then
-        uiModuleInstances[moduleName] = result
+        uiModuleInstances[def.name] = result
         loadedCount = loadedCount + 1
-        print("[SanrioTycoonClient] ✓ " .. moduleName .. " loaded successfully")
-        return result
+        print("[SanrioTycoonClient] ✓ " .. def.name .. " loaded successfully")
     else
-        table.insert(failedModules, {name = moduleName, error = tostring(result)})
-        warn("[SanrioTycoonClient] ✗ Failed to initialize " .. moduleName .. ": " .. tostring(result))
-        return nil
+        table.insert(failedModules, {name = def.name, error = tostring(result)})
+        warn("[SanrioTycoonClient] ✗ Failed to initialize " .. def.name .. ": " .. tostring(result))
     end
 end
 
--- Override MainUI's InitializeModule to use lazy loading
-mainUI.InitializeModule = function(self, moduleName)
-    local instance = lazyLoadModule(moduleName)
+print("[SanrioTycoonClient] Module loading complete: " .. loadedCount .. "/" .. #uiModuleDefinitions .. " loaded successfully")
+
+-- Register all loaded modules with MainUI
+for name, instance in pairs(uiModuleInstances) do
     if instance then
-        self:RegisterModule(moduleName, instance)
-        return true
+        mainUI:RegisterModule(name, instance)
     end
-    return false
 end
-
--- Only load CurrencyDisplay immediately since it's always visible
-local currencyDisplay = lazyLoadModule("CurrencyDisplay")
-if currencyDisplay then
-    mainUI:RegisterModule("CurrencyDisplay", currencyDisplay)
-end
-
-print("[SanrioTycoonClient] Initial loading complete. Modules will be loaded on demand.")
 
 -- ========================================
 -- REMOTE EVENT SETUP
@@ -523,8 +498,7 @@ local function initializePhase1()
         -- Don't return false - we can still load modules even without the ScreenGui
     end
     
-    -- Load initial data
-    loadInitialData()
+    -- Don't load data here - modules aren't ready yet
     
     return true
 end
@@ -579,6 +553,9 @@ local function initializePhase2()
             end
         end)
     end)
+    
+    -- Load initial data now that all modules are ready
+    loadInitialData()
     
     -- Fire ready event
     eventBus:Fire("ClientReady")
