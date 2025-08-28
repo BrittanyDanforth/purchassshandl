@@ -1,0 +1,1329 @@
+--[[
+    Module: PetDetailsUI
+    Description: Comprehensive pet details display with stats, abilities, equip/unequip,
+                 lock toggle, nickname system, and proper positioning fixes
+    Features: Stats display, abilities list, equip/lock buttons, rename functionality,
+              proper layering and positioning from user feedback
+]]
+
+local Types = require(script.Parent.Parent.Core.ClientTypes)
+local Config = require(script.Parent.Parent.Core.ClientConfig)
+local Services = require(script.Parent.Parent.Core.ClientServices)
+local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+
+local PetDetailsUI = {}
+PetDetailsUI.__index = PetDetailsUI
+
+-- ========================================
+-- TYPES
+-- ========================================
+
+type PetInstance = {
+    uniqueId: string,
+    petId: string,
+    level: number,
+    experience: number,
+    power: number,
+    speed: number,
+    luck: number,
+    equipped: boolean,
+    locked: boolean,
+    nickname: string?,
+    variant: string?,
+    obtained: number,
+    source: string?,
+}
+
+type PetData = {
+    id: string,
+    displayName: string,
+    imageId: string,
+    rarity: number,
+    baseStats: {
+        power: number,
+        speed: number,
+        luck: number,
+    },
+    abilities: {[string]: any}?,
+    description: string?,
+    tradeable: boolean?,
+    baseValue: number?,
+    variants: {[string]: any}?,
+}
+
+-- ========================================
+-- CONSTANTS
+-- ========================================
+
+local WINDOW_SIZE = Vector2.new(700, 500)
+local HEADER_HEIGHT = 60
+local PET_DISPLAY_SIZE = 180
+local BUTTON_HEIGHT = 40
+local BUTTON_SPACING = 10
+local TAB_HEIGHT = 40
+local ANIMATION_TIME = 0.3
+local RENAME_DIALOG_SIZE = Vector2.new(400, 200)
+
+-- Stat display configuration
+local STAT_ICONS = {
+    power = "⚔️",
+    speed = "⚡",
+    luck = "🍀",
+    level = "📊",
+    experience = "✨",
+}
+
+local RARITY_NAMES = {
+    "Common",
+    "Uncommon",
+    "Rare",
+    "Epic",
+    "Legendary",
+    "Mythical",
+    "SECRET"
+}
+
+-- ========================================
+-- INITIALIZATION
+-- ========================================
+
+function PetDetailsUI.new(dependencies)
+    local self = setmetatable({}, PetDetailsUI)
+    
+    -- Dependencies
+    self._eventBus = dependencies.EventBus
+    self._stateManager = dependencies.StateManager
+    self._dataCache = dependencies.DataCache
+    self._remoteManager = dependencies.RemoteManager
+    self._soundSystem = dependencies.SoundSystem
+    self._particleSystem = dependencies.ParticleSystem
+    self._effectsLibrary = dependencies.EffectsLibrary
+    self._animationSystem = dependencies.AnimationSystem
+    self._notificationSystem = dependencies.NotificationSystem
+    self._uiFactory = dependencies.UIFactory
+    self._windowManager = dependencies.WindowManager
+    self._config = dependencies.Config or Config
+    self._utilities = dependencies.Utilities or Utilities
+    
+    -- UI References
+    self._overlay = nil
+    self._detailsFrame = nil
+    self._currentPetInstance = nil
+    self._currentPetData = nil
+    self._equipButton = nil
+    self._lockButton = nil
+    self._renameDialog = nil
+    self._tabFrames = {}
+    self._activeTab = "Stats"
+    
+    -- State
+    self._isOpen = false
+    self._isUpdating = false
+    
+    -- Set up event listeners
+    self:SetupEventListeners()
+    
+    return self
+end
+
+function PetDetailsUI:SetupEventListeners()
+    if not self._eventBus then return end
+    
+    -- Listen for show pet details requests
+    self._eventBus:On("ShowPetDetails", function(data)
+        if data.petInstance and data.petData then
+            self:Open(data.petInstance, data.petData)
+        end
+    end)
+    
+    -- Listen for pet updates
+    self._eventBus:On("PetEquipped", function(data)
+        if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
+            self._currentPetInstance.equipped = true
+            self:UpdateEquipButton()
+        end
+    end)
+    
+    self._eventBus:On("PetUnequipped", function(data)
+        if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
+            self._currentPetInstance.equipped = false
+            self:UpdateEquipButton()
+        end
+    end)
+    
+    self._eventBus:On("PetLocked", function(data)
+        if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
+            self._currentPetInstance.locked = true
+            self:UpdateLockButton()
+        end
+    end)
+    
+    self._eventBus:On("PetUnlocked", function(data)
+        if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
+            self._currentPetInstance.locked = false
+            self:UpdateLockButton()
+        end
+    end)
+    
+    self._eventBus:On("PetRenamed", function(data)
+        if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
+            self._currentPetInstance.nickname = data.newName
+            self:UpdatePetName()
+        end
+    end)
+end
+
+-- ========================================
+-- OPEN/CLOSE
+-- ========================================
+
+function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
+    -- Close any existing window
+    self:Close()
+    
+    self._currentPetInstance = petInstance
+    self._currentPetData = petData
+    self._isOpen = true
+    
+    -- Create UI
+    self:CreateOverlay()
+    self:CreateDetailsWindow()
+    
+    -- Register with window manager
+    if self._windowManager then
+        self._windowManager:RegisterOverlay(self._overlay, "PetDetailsOverlay")
+    end
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("OpenMenu")
+    end
+end
+
+function PetDetailsUI:Close()
+    if not self._isOpen then return end
+    
+    self._isOpen = false
+    
+    -- Unregister from window manager
+    if self._windowManager and self._overlay then
+        self._windowManager:UnregisterOverlay(self._overlay)
+    end
+    
+    -- Animate out
+    if self._detailsFrame then
+        self._utilities.Tween(self._detailsFrame, {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }, self._config.TWEEN_INFO.Normal)
+    end
+    
+    if self._overlay then
+        self._utilities.Tween(self._overlay, {
+            BackgroundTransparency = 1
+        }, self._config.TWEEN_INFO.Normal)
+        
+        task.wait(ANIMATION_TIME)
+        self._overlay:Destroy()
+        self._overlay = nil
+    end
+    
+    -- Clear references
+    self._detailsFrame = nil
+    self._currentPetInstance = nil
+    self._currentPetData = nil
+    self._equipButton = nil
+    self._lockButton = nil
+    self._tabFrames = {}
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("CloseMenu")
+    end
+end
+
+-- ========================================
+-- UI CREATION
+-- ========================================
+
+function PetDetailsUI:CreateOverlay()
+    local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not screenGui then
+        warn("[PetDetailsUI] No ScreenGui found")
+        return
+    end
+    
+    -- Create overlay
+    self._overlay = Instance.new("Frame")
+    self._overlay.Name = "PetDetailsOverlay"
+    self._overlay.Size = UDim2.new(1, 0, 1, 0)
+    self._overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    self._overlay.BackgroundTransparency = 1
+    self._overlay.ZIndex = 200
+    self._overlay.Parent = screenGui
+    
+    -- Fade in
+    self._utilities.Tween(self._overlay, {
+        BackgroundTransparency = 0.3
+    }, self._config.TWEEN_INFO.Normal)
+    
+    -- Click to close
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(1, 0, 1, 0)
+    closeButton.BackgroundTransparency = 1
+    closeButton.Text = ""
+    closeButton.Parent = self._overlay
+    
+    closeButton.MouseButton1Click:Connect(function()
+        self:Close()
+    end)
+end
+
+function PetDetailsUI:CreateDetailsWindow()
+    -- Main frame
+    self._detailsFrame = Instance.new("Frame")
+    self._detailsFrame.Name = "PetDetailsFrame"
+    self._detailsFrame.Size = UDim2.new(0, WINDOW_SIZE.X, 0, WINDOW_SIZE.Y)
+    self._detailsFrame.Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
+    self._detailsFrame.BackgroundColor3 = self._config.COLORS.Background
+    self._detailsFrame.ZIndex = 201
+    self._detailsFrame.Parent = self._overlay
+    
+    self._utilities.CreateCorner(self._detailsFrame, 20)
+    
+    -- Animate in
+    self._detailsFrame.Size = UDim2.new(0, 0, 0, 0)
+    self._detailsFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    self._utilities.Tween(self._detailsFrame, {
+        Size = UDim2.new(0, WINDOW_SIZE.X, 0, WINDOW_SIZE.Y),
+        Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
+    }, self._config.TWEEN_INFO.Bounce)
+    
+    -- Create header
+    self:CreateHeader()
+    
+    -- Create content
+    self:CreateContent()
+end
+
+function PetDetailsUI:CreateHeader()
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+    header.BackgroundColor3 = self._config.COLORS.Primary
+    header.ZIndex = 202
+    header.Parent = self._detailsFrame
+    
+    self._utilities.CreateCorner(header, 20)
+    
+    -- Fix bottom corners
+    local cornerFix = Instance.new("Frame")
+    cornerFix.Size = UDim2.new(1, 0, 0, 20)
+    cornerFix.Position = UDim2.new(0, 0, 1, -20)
+    cornerFix.BackgroundColor3 = self._config.COLORS.Primary
+    cornerFix.BorderSizePixel = 0
+    cornerFix.ZIndex = 201
+    cornerFix.Parent = header
+    
+    -- Pet name
+    local petName = self._currentPetInstance.nickname or 
+                   self._currentPetData.displayName or 
+                   "Unknown Pet"
+    
+    local nameLabel = self._uiFactory:CreateLabel(header, {
+        text = petName,
+        size = UDim2.new(1, -100, 1, 0),
+        position = UDim2.new(0, 20, 0, 0),
+        font = self._config.FONTS.Display,
+        textColor = self._config.COLORS.White,
+        textSize = 20,
+        textXAlignment = Enum.TextXAlignment.Left,
+        zIndex = 203
+    })
+    
+    -- Close button
+    local closeButton = self._uiFactory:CreateButton(header, {
+        text = "✖",
+        size = UDim2.new(0, 40, 0, 40),
+        position = UDim2.new(1, -50, 0.5, -20),
+        backgroundColor = Color3.new(1, 1, 1),
+        backgroundTransparency = 0.9,
+        textColor = self._config.COLORS.White,
+        zIndex = 203,
+        callback = function()
+            self:Close()
+        end
+    })
+end
+
+function PetDetailsUI:CreateContent()
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.Size = UDim2.new(1, -20, 1, -HEADER_HEIGHT - 20)
+    content.Position = UDim2.new(0, 10, 0, HEADER_HEIGHT + 10)
+    content.BackgroundTransparency = 1
+    content.ZIndex = 202
+    content.Parent = self._detailsFrame
+    
+    -- Left side - Pet display and actions
+    self:CreateLeftSide(content)
+    
+    -- Right side - Stats and info tabs
+    self:CreateRightSide(content)
+end
+
+function PetDetailsUI:CreateLeftSide(parent: Frame)
+    local leftSide = Instance.new("Frame")
+    leftSide.Name = "LeftSide"
+    leftSide.Size = UDim2.new(0.4, -10, 1, 0)
+    leftSide.Position = UDim2.new(0, 0, 0, 0)
+    leftSide.BackgroundTransparency = 1
+    leftSide.ZIndex = 202
+    leftSide.Parent = parent
+    
+    -- Pet display
+    local petDisplay = Instance.new("Frame")
+    petDisplay.Name = "PetDisplay"
+    petDisplay.Size = UDim2.new(0, PET_DISPLAY_SIZE, 0, PET_DISPLAY_SIZE)
+    petDisplay.Position = UDim2.new(0.5, -PET_DISPLAY_SIZE/2, 0, 0)
+    petDisplay.BackgroundColor3 = self._config.COLORS.Surface
+    petDisplay.ZIndex = 202
+    petDisplay.Parent = leftSide
+    
+    self._utilities.CreateCorner(petDisplay, 12)
+    
+    -- Pet image
+    local petImage = Instance.new("ImageLabel")
+    petImage.Size = UDim2.new(0.8, 0, 0.8, 0)
+    petImage.Position = UDim2.new(0.1, 0, 0.1, 0)
+    petImage.BackgroundTransparency = 1
+    petImage.Image = self._currentPetData.imageId or ""
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.ZIndex = 203
+    petImage.Parent = petDisplay
+    
+    -- Apply variant effects
+    if self._currentPetInstance.variant then
+        self:ApplyVariantEffect(petDisplay, self._currentPetInstance.variant)
+    end
+    
+    -- Rarity effect for rare pets
+    if self._currentPetData.rarity >= 4 then
+        petImage.ClipsDescendants = true
+        if self._effectsLibrary then
+            task.delay(0.1, function()
+                self._effectsLibrary:CreateShineEffect(petImage)
+            end)
+        end
+    end
+    
+    -- FIXED POSITIONING - Container at proper position
+    local infoContainer = Instance.new("Frame")
+    infoContainer.Name = "InfoContainer"
+    infoContainer.Size = UDim2.new(1, 0, 1, -PET_DISPLAY_SIZE - 10)
+    infoContainer.Position = UDim2.new(0, 0, 0, PET_DISPLAY_SIZE + 10)
+    infoContainer.BackgroundTransparency = 1
+    infoContainer.ZIndex = 204
+    infoContainer.Parent = leftSide
+    
+    -- Layout for info container
+    local infoLayout = Instance.new("UIListLayout")
+    infoLayout.FillDirection = Enum.FillDirection.Vertical
+    infoLayout.Padding = UDim.new(0, 10)
+    infoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    infoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    infoLayout.Parent = infoContainer
+    
+    -- Variant label
+    if self._currentPetInstance.variant and self._currentPetInstance.variant ~= "normal" then
+        local variantLabel = self._uiFactory:CreateLabel(infoContainer, {
+            text = "✨ " .. self._currentPetInstance.variant:upper() .. " ✨",
+            size = UDim2.new(1, 0, 0, 25),
+            textColor = self._utilities.GetRarityColor(self._currentPetData.rarity),
+            font = self._config.FONTS.Secondary,
+            zIndex = 204,
+            layoutOrder = 1
+        })
+    end
+    
+    -- FIXED POSITIONING - Action buttons frame at position 0,0 inside its container
+    local actionsFrame = Instance.new("Frame")
+    actionsFrame.Name = "ActionButtonsFrame"
+    actionsFrame.Size = UDim2.new(1, -20, 0, 100)
+    actionsFrame.BackgroundTransparency = 1
+    actionsFrame.ZIndex = 205
+    actionsFrame.LayoutOrder = 2
+    actionsFrame.Parent = infoContainer
+    
+    -- Padding for action frame
+    local actionsPadding = Instance.new("UIPadding")
+    actionsPadding.PaddingLeft = UDim.new(0, 10)
+    actionsPadding.PaddingRight = UDim.new(0, 10)
+    actionsPadding.Parent = actionsFrame
+    
+    -- Create action buttons with PROPER POSITIONING
+    self:CreateActionButtons(actionsFrame)
+    
+    -- Rename button
+    local renameButton = self._uiFactory:CreateButton(infoContainer, {
+        text = "Rename Pet",
+        size = UDim2.new(1, -40, 0, 35),
+        backgroundColor = self._config.COLORS.Secondary,
+        layoutOrder = 3,
+        zIndex = 206,
+        callback = function()
+            self:OpenRenameDialog()
+        end
+    })
+end
+
+function PetDetailsUI:CreateActionButtons(parent: Frame)
+    -- FIXED: Equip button at position 0,0 (top of actions frame)
+    self._equipButton = self._uiFactory:CreateButton(parent, {
+        text = self._currentPetInstance.equipped and "Unequip" or "Equip",
+        size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
+        position = UDim2.new(0, 0, 0, 0), -- FIXED: Position at 0,0
+        backgroundColor = self._currentPetInstance.equipped and 
+                         self._config.COLORS.Error or 
+                         self._config.COLORS.Success,
+        zIndex = 206,
+        callback = function()
+            self:OnEquipClicked()
+        end
+    })
+    
+    -- Store original color
+    self._equipButton:SetAttribute("OriginalColor", self._equipButton.BackgroundColor3)
+    
+    -- FIXED: Lock button below equip button with proper spacing
+    self._lockButton = self._uiFactory:CreateButton(parent, {
+        text = self._currentPetInstance.locked and "Unlock" or "Lock",
+        size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
+        position = UDim2.new(0, 0, 0, BUTTON_HEIGHT + BUTTON_SPACING), -- FIXED: Proper spacing
+        backgroundColor = self._currentPetInstance.locked and 
+                         self._config.COLORS.Success or 
+                         self._config.COLORS.Warning,
+        zIndex = 206,
+        callback = function()
+            self:OnLockClicked()
+        end
+    })
+    
+    -- Store original color
+    self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
+end
+
+function PetDetailsUI:CreateRightSide(parent: Frame)
+    local rightSide = Instance.new("Frame")
+    rightSide.Name = "RightSide"
+    rightSide.Size = UDim2.new(0.6, -10, 1, 0)
+    rightSide.Position = UDim2.new(0.4, 10, 0, 0)
+    rightSide.BackgroundTransparency = 1
+    rightSide.ZIndex = 202
+    rightSide.Parent = parent
+    
+    -- Create tabs
+    local tabs = {
+        {name = "Stats", callback = function(frame) self:ShowPetStats(frame) end},
+        {name = "Abilities", callback = function(frame) self:ShowPetAbilities(frame) end},
+        {name = "Info", callback = function(frame) self:ShowPetInfo(frame) end}
+    }
+    
+    self:CreateTabs(rightSide, tabs)
+end
+
+function PetDetailsUI:CreateTabs(parent: Frame, tabs: table)
+    -- Tab buttons container
+    local tabButtonsFrame = Instance.new("Frame")
+    tabButtonsFrame.Size = UDim2.new(1, 0, 0, TAB_HEIGHT)
+    tabButtonsFrame.BackgroundTransparency = 1
+    tabButtonsFrame.Parent = parent
+    
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabLayout.Padding = UDim.new(0, 5)
+    tabLayout.Parent = tabButtonsFrame
+    
+    -- Tab content container
+    local tabContent = Instance.new("Frame")
+    tabContent.Size = UDim2.new(1, 0, 1, -TAB_HEIGHT - 5)
+    tabContent.Position = UDim2.new(0, 0, 0, TAB_HEIGHT + 5)
+    tabContent.BackgroundColor3 = self._config.COLORS.Surface
+    tabContent.ZIndex = 203
+    tabContent.Parent = parent
+    
+    self._utilities.CreateCorner(tabContent, 12)
+    
+    -- Create tab buttons and frames
+    for i, tab in ipairs(tabs) do
+        -- Tab button
+        local tabButton = self._uiFactory:CreateButton(tabButtonsFrame, {
+            text = tab.name,
+            size = UDim2.new(0, 120, 1, 0),
+            backgroundColor = i == 1 and self._config.COLORS.Primary or self._config.COLORS.Surface,
+            textColor = i == 1 and self._config.COLORS.White or self._config.COLORS.Dark,
+            callback = function()
+                self:SwitchTab(tab.name)
+            end
+        })
+        
+        tabButton.Name = tab.name .. "Button"
+        
+        -- Tab frame
+        local tabFrame = Instance.new("Frame")
+        tabFrame.Name = tab.name .. "Tab"
+        tabFrame.Size = UDim2.new(1, -20, 1, -20)
+        tabFrame.Position = UDim2.new(0, 10, 0, 10)
+        tabFrame.BackgroundTransparency = 1
+        tabFrame.Visible = i == 1
+        tabFrame.Parent = tabContent
+        
+        -- Initialize tab content
+        tab.callback(tabFrame)
+        
+        self._tabFrames[tab.name] = {
+            button = tabButton,
+            frame = tabFrame
+        }
+    end
+end
+
+function PetDetailsUI:SwitchTab(tabName: string)
+    if self._activeTab == tabName then return end
+    
+    self._activeTab = tabName
+    
+    -- Update buttons and frames
+    for name, tab in pairs(self._tabFrames) do
+        local isActive = name == tabName
+        
+        -- Update button appearance
+        tab.button.BackgroundColor3 = isActive and 
+                                      self._config.COLORS.Primary or 
+                                      self._config.COLORS.Surface
+        tab.button.TextColor3 = isActive and 
+                               self._config.COLORS.White or 
+                               self._config.COLORS.Dark
+        
+        -- Show/hide frame
+        tab.frame.Visible = isActive
+    end
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Click")
+    end
+end
+
+-- ========================================
+-- PET STATS TAB
+-- ========================================
+
+function PetDetailsUI:ShowPetStats(parent: Frame)
+    -- Validate data
+    if not self._currentPetInstance or not self._currentPetData then
+        local errorLabel = self._uiFactory:CreateLabel(parent, {
+            text = "Pet data unavailable",
+            size = UDim2.new(1, 0, 0, 50),
+            position = UDim2.new(0, 0, 0.5, -25),
+            textColor = self._config.COLORS.Error
+        })
+        return
+    end
+    
+    -- Ensure required fields exist
+    local petInstance = self._currentPetInstance
+    petInstance.level = petInstance.level or 1
+    petInstance.experience = petInstance.experience or 0
+    petInstance.power = petInstance.power or 0
+    petInstance.speed = petInstance.speed or 0
+    petInstance.luck = petInstance.luck or 0
+    
+    local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
+        size = UDim2.new(1, 0, 1, 0),
+        position = UDim2.new(0, 0, 0, 0)
+    })
+    
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -10, 0, 500)
+    container.BackgroundTransparency = 1
+    container.Parent = scrollFrame
+    
+    local yOffset = 0
+    
+    -- Level and Experience
+    local levelFrame = self:CreateStatRow(container, "Level", 
+        tostring(petInstance.level), STAT_ICONS.level, yOffset)
+    yOffset = yOffset + 50
+    
+    -- Experience bar
+    local expFrame = Instance.new("Frame")
+    expFrame.Size = UDim2.new(1, -20, 0, 40)
+    expFrame.Position = UDim2.new(0, 10, 0, yOffset)
+    expFrame.BackgroundTransparency = 1
+    expFrame.Parent = container
+    
+    local expLabel = self._uiFactory:CreateLabel(expFrame, {
+        text = "Experience",
+        size = UDim2.new(0.3, 0, 1, 0),
+        position = UDim2.new(0, 0, 0, 0),
+        textXAlignment = Enum.TextXAlignment.Left
+    })
+    
+    local expBarBg = Instance.new("Frame")
+    expBarBg.Size = UDim2.new(0.6, 0, 0, 20)
+    expBarBg.Position = UDim2.new(0.35, 0, 0.5, -10)
+    expBarBg.BackgroundColor3 = self._config.COLORS.Dark
+    expBarBg.Parent = expFrame
+    
+    self._utilities.CreateCorner(expBarBg, 10)
+    
+    local maxExp = self:CalculateMaxExperience(petInstance.level)
+    local expProgress = math.clamp(petInstance.experience / maxExp, 0, 1)
+    
+    local expFill = Instance.new("Frame")
+    expFill.Size = UDim2.new(expProgress, 0, 1, 0)
+    expFill.BackgroundColor3 = self._config.COLORS.Success
+    expFill.Parent = expBarBg
+    
+    self._utilities.CreateCorner(expFill, 10)
+    
+    local expText = self._uiFactory:CreateLabel(expFrame, {
+        text = string.format("%d / %d", petInstance.experience, maxExp),
+        size = UDim2.new(0.6, 0, 1, 0),
+        position = UDim2.new(0.35, 0, 0, 0),
+        textSize = 14
+    })
+    
+    yOffset = yOffset + 50
+    
+    -- Stats separator
+    local separator = Instance.new("Frame")
+    separator.Size = UDim2.new(1, -40, 0, 1)
+    separator.Position = UDim2.new(0, 20, 0, yOffset)
+    separator.BackgroundColor3 = self._config.COLORS.TextSecondary
+    separator.BackgroundTransparency = 0.5
+    separator.Parent = container
+    
+    yOffset = yOffset + 20
+    
+    -- Combat stats
+    local stats = {
+        {name = "Power", value = petInstance.power, icon = STAT_ICONS.power, color = self._config.COLORS.Error},
+        {name = "Speed", value = petInstance.speed, icon = STAT_ICONS.speed, color = self._config.COLORS.Warning},
+        {name = "Luck", value = petInstance.luck, icon = STAT_ICONS.luck, color = self._config.COLORS.Success}
+    }
+    
+    for _, stat in ipairs(stats) do
+        local statFrame = self:CreateStatRow(container, stat.name, 
+            tostring(stat.value), stat.icon, yOffset, stat.color)
+        
+        -- Add base stat comparison
+        local baseValue = self._currentPetData.baseStats and 
+                         self._currentPetData.baseStats[stat.name:lower()] or 0
+        
+        if baseValue > 0 then
+            local diffText = stat.value > baseValue and 
+                           string.format(" (+%d)", stat.value - baseValue) or ""
+            
+            if diffText ~= "" then
+                local diffLabel = self._uiFactory:CreateLabel(statFrame, {
+                    text = diffText,
+                    size = UDim2.new(0, 50, 1, 0),
+                    position = UDim2.new(1, -50, 0, 0),
+                    textColor = self._config.COLORS.Success,
+                    textSize = 14
+                })
+            end
+        end
+        
+        yOffset = yOffset + 50
+    end
+    
+    -- Rarity and value
+    yOffset = yOffset + 20
+    
+    local rarityFrame = self:CreateStatRow(container, "Rarity", 
+        RARITY_NAMES[self._currentPetData.rarity] or "Unknown", "💎", yOffset,
+        self._utilities.GetRarityColor(self._currentPetData.rarity))
+    
+    yOffset = yOffset + 50
+    
+    -- Calculate pet value
+    local baseValue = self._currentPetData.baseValue or 100
+    local variantMultiplier = 1
+    
+    if self._currentPetInstance.variant and self._currentPetData.variants then
+        local variantData = self._currentPetData.variants[self._currentPetInstance.variant]
+        if variantData and variantData.multiplier then
+            variantMultiplier = variantData.multiplier
+        end
+    end
+    
+    local totalValue = baseValue * variantMultiplier * (1 + (petInstance.level - 1) * 0.1)
+    
+    local valueFrame = self:CreateStatRow(container, "Value", 
+        self._utilities.FormatNumber(math.floor(totalValue)), "💰", yOffset,
+        self._config.COLORS.Warning)
+    
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 60)
+end
+
+function PetDetailsUI:CreateStatRow(parent: Frame, statName: string, value: string, 
+                                   icon: string, yPos: number, color: Color3?): Frame
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -20, 0, 40)
+    frame.Position = UDim2.new(0, 10, 0, yPos)
+    frame.BackgroundColor3 = self._config.COLORS.White
+    frame.Parent = parent
+    
+    self._utilities.CreateCorner(frame, 8)
+    
+    -- Icon
+    local iconLabel = self._uiFactory:CreateLabel(frame, {
+        text = icon,
+        size = UDim2.new(0, 40, 1, 0),
+        position = UDim2.new(0, 5, 0, 0),
+        textSize = 20
+    })
+    
+    -- Stat name
+    local nameLabel = self._uiFactory:CreateLabel(frame, {
+        text = statName,
+        size = UDim2.new(0.4, -50, 1, 0),
+        position = UDim2.new(0, 45, 0, 0),
+        textXAlignment = Enum.TextXAlignment.Left
+    })
+    
+    -- Value
+    local valueLabel = self._uiFactory:CreateLabel(frame, {
+        text = value,
+        size = UDim2.new(0.4, 0, 1, 0),
+        position = UDim2.new(0.5, 0, 0, 0),
+        textXAlignment = Enum.TextXAlignment.Right,
+        textColor = color or self._config.COLORS.Dark,
+        font = self._config.FONTS.Secondary
+    })
+    
+    return frame
+end
+
+function PetDetailsUI:CalculateMaxExperience(level: number): number
+    -- Simple exponential formula
+    return 100 * (level ^ 1.5)
+end
+
+-- ========================================
+-- PET ABILITIES TAB
+-- ========================================
+
+function PetDetailsUI:ShowPetAbilities(parent: Frame)
+    if not self._currentPetData then
+        local errorLabel = self._uiFactory:CreateLabel(parent, {
+            text = "No ability data available",
+            size = UDim2.new(1, 0, 0, 50),
+            position = UDim2.new(0, 0, 0.5, -25),
+            textColor = self._config.COLORS.TextSecondary
+        })
+        return
+    end
+    
+    local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
+        size = UDim2.new(1, 0, 1, 0),
+        position = UDim2.new(0, 0, 0, 0)
+    })
+    
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -10, 0, 500)
+    container.BackgroundTransparency = 1
+    container.Parent = scrollFrame
+    
+    local yOffset = 0
+    
+    -- Check if pet has abilities
+    if not self._currentPetData.abilities or next(self._currentPetData.abilities) == nil then
+        local noAbilitiesLabel = self._uiFactory:CreateLabel(container, {
+            text = "This pet has no special abilities",
+            size = UDim2.new(1, 0, 0, 50),
+            position = UDim2.new(0, 0, 0, 20),
+            textColor = self._config.COLORS.TextSecondary,
+            textWrapped = true
+        })
+        return
+    end
+    
+    -- Display abilities
+    for abilityName, abilityData in pairs(self._currentPetData.abilities) do
+        local abilityFrame = Instance.new("Frame")
+        abilityFrame.Size = UDim2.new(1, -20, 0, 100)
+        abilityFrame.Position = UDim2.new(0, 10, 0, yOffset)
+        abilityFrame.BackgroundColor3 = self._config.COLORS.White
+        abilityFrame.Parent = container
+        
+        self._utilities.CreateCorner(abilityFrame, 12)
+        
+        -- Ability icon/indicator
+        local iconFrame = Instance.new("Frame")
+        iconFrame.Size = UDim2.new(0, 60, 0, 60)
+        iconFrame.Position = UDim2.new(0, 15, 0.5, -30)
+        iconFrame.BackgroundColor3 = self._config.COLORS.Primary
+        iconFrame.Parent = abilityFrame
+        
+        self._utilities.CreateCorner(iconFrame, 30)
+        
+        local iconLabel = self._uiFactory:CreateLabel(iconFrame, {
+            text = abilityData.icon or "✨",
+            size = UDim2.new(1, 0, 1, 0),
+            textColor = self._config.COLORS.White,
+            textSize = 24
+        })
+        
+        -- Ability info
+        local infoFrame = Instance.new("Frame")
+        infoFrame.Size = UDim2.new(1, -100, 1, -20)
+        infoFrame.Position = UDim2.new(0, 85, 0, 10)
+        infoFrame.BackgroundTransparency = 1
+        infoFrame.Parent = abilityFrame
+        
+        -- Ability name
+        local nameLabel = self._uiFactory:CreateLabel(infoFrame, {
+            text = abilityName,
+            size = UDim2.new(1, 0, 0, 25),
+            position = UDim2.new(0, 0, 0, 0),
+            font = self._config.FONTS.Secondary,
+            textXAlignment = Enum.TextXAlignment.Left
+        })
+        
+        -- Ability description
+        local descLabel = self._uiFactory:CreateLabel(infoFrame, {
+            text = abilityData.description or "No description available",
+            size = UDim2.new(1, 0, 0, 40),
+            position = UDim2.new(0, 0, 0, 25),
+            textColor = self._config.COLORS.TextSecondary,
+            textXAlignment = Enum.TextXAlignment.Left,
+            textWrapped = true,
+            textSize = 14
+        })
+        
+        -- Ability stats
+        if abilityData.value then
+            local valueLabel = self._uiFactory:CreateLabel(infoFrame, {
+                text = string.format("Effect: +%d%%", abilityData.value),
+                size = UDim2.new(1, 0, 0, 20),
+                position = UDim2.new(0, 0, 0, 65),
+                textColor = self._config.COLORS.Success,
+                textXAlignment = Enum.TextXAlignment.Left,
+                textSize = 14
+            })
+        end
+        
+        yOffset = yOffset + 110
+    end
+    
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
+end
+
+-- ========================================
+-- PET INFO TAB
+-- ========================================
+
+function PetDetailsUI:ShowPetInfo(parent: Frame)
+    local infoFrame = Instance.new("Frame")
+    infoFrame.Size = UDim2.new(1, 0, 1, 0)
+    infoFrame.BackgroundTransparency = 1
+    infoFrame.Parent = parent
+    
+    local infoList = {
+        {label = "Pet ID", value = self._currentPetInstance.uniqueId or "Unknown"},
+        {label = "Species", value = self._currentPetData.displayName or "Unknown"},
+        {label = "Rarity", value = RARITY_NAMES[self._currentPetData.rarity] or "Unknown"},
+        {label = "Variant", value = self:FormatVariant(self._currentPetInstance.variant)},
+        {label = "Obtained", value = self:FormatDate(self._currentPetInstance.obtained)},
+        {label = "Source", value = self:FormatSource(self._currentPetInstance.source)},
+        {label = "Tradeable", value = self._currentPetData.tradeable and "Yes" or "No"},
+        {label = "Battle Ready", value = self._currentPetInstance.level >= 10 and "Yes" or "No"}
+    }
+    
+    local yOffset = 0
+    
+    for _, info in ipairs(infoList) do
+        local rowFrame = Instance.new("Frame")
+        rowFrame.Size = UDim2.new(1, -20, 0, 35)
+        rowFrame.Position = UDim2.new(0, 10, 0, yOffset)
+        rowFrame.BackgroundTransparency = 1
+        rowFrame.Parent = infoFrame
+        
+        -- Label
+        local label = self._uiFactory:CreateLabel(rowFrame, {
+            text = info.label .. ":",
+            size = UDim2.new(0.4, 0, 1, 0),
+            position = UDim2.new(0, 0, 0, 0),
+            textXAlignment = Enum.TextXAlignment.Left,
+            textColor = self._config.COLORS.TextSecondary
+        })
+        
+        -- Value
+        local value = self._uiFactory:CreateLabel(rowFrame, {
+            text = info.value,
+            size = UDim2.new(0.6, 0, 1, 0),
+            position = UDim2.new(0.4, 0, 0, 0),
+            textXAlignment = Enum.TextXAlignment.Right,
+            font = self._config.FONTS.Secondary
+        })
+        
+        -- Separator
+        if info.label ~= "Battle Ready" then
+            local separator = Instance.new("Frame")
+            separator.Size = UDim2.new(1, 0, 0, 1)
+            separator.Position = UDim2.new(0, 0, 1, 0)
+            separator.BackgroundColor3 = self._config.COLORS.Surface
+            separator.Parent = rowFrame
+        end
+        
+        yOffset = yOffset + 35
+    end
+    
+    -- Description section
+    if self._currentPetData.description then
+        yOffset = yOffset + 20
+        
+        local descFrame = Instance.new("Frame")
+        descFrame.Size = UDim2.new(1, -20, 0, 100)
+        descFrame.Position = UDim2.new(0, 10, 0, yOffset)
+        descFrame.BackgroundColor3 = self._config.COLORS.Surface
+        descFrame.Parent = infoFrame
+        
+        self._utilities.CreateCorner(descFrame, 8)
+        
+        local descLabel = self._uiFactory:CreateLabel(descFrame, {
+            text = self._currentPetData.description,
+            size = UDim2.new(1, -20, 1, -20),
+            position = UDim2.new(0, 10, 0, 10),
+            textWrapped = true,
+            textYAlignment = Enum.TextYAlignment.Top,
+            textSize = 14
+        })
+    end
+end
+
+-- ========================================
+-- HELPER FUNCTIONS
+-- ========================================
+
+function PetDetailsUI:FormatVariant(variant: string?): string
+    if not variant or variant == "normal" then
+        return "Normal"
+    end
+    return variant:gsub("_", " "):gsub("^%l", string.upper)
+end
+
+function PetDetailsUI:FormatDate(timestamp: number?): string
+    if not timestamp then
+        return "Unknown"
+    end
+    return os.date("%m/%d/%Y", timestamp)
+end
+
+function PetDetailsUI:FormatSource(source: string?): string
+    if not source then
+        return "Unknown"
+    end
+    return source:gsub("_", " "):gsub("^%l", string.upper)
+end
+
+function PetDetailsUI:ApplyVariantEffect(container: Frame, variant: string)
+    if variant == "shiny" then
+        -- Add sparkle particles
+        if self._particleSystem then
+            self._particleSystem:CreateSparkleLoop(container, {
+                rate = 0.5,
+                lifetime = 2,
+                size = NumberSequence.new(0.3)
+            })
+        end
+    elseif variant == "golden" then
+        -- Add golden glow
+        local glow = Instance.new("ImageLabel")
+        glow.Size = UDim2.new(1.2, 0, 1.2, 0)
+        glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.BackgroundTransparency = 1
+        glow.Image = "rbxassetid://5028857084"
+        glow.ImageColor3 = Color3.fromRGB(255, 215, 0)
+        glow.ImageTransparency = 0.5
+        glow.ZIndex = 201
+        glow.Parent = container
+    elseif variant == "rainbow" then
+        -- Add rainbow effect
+        if self._effectsLibrary then
+            self._effectsLibrary:CreateRainbowEffect(container:FindFirstChild("PetImage"))
+        end
+    end
+end
+
+-- ========================================
+-- BUTTON ACTIONS
+-- ========================================
+
+function PetDetailsUI:OnEquipClicked()
+    if self._isUpdating then return end
+    self._isUpdating = true
+    
+    -- Update button state
+    if self._equipButton then
+        self._equipButton.Text = "..."
+        self._equipButton.Active = false
+    end
+    
+    -- Send request to server
+    local remote = self._currentPetInstance.equipped and "UnequipPet" or "EquipPet"
+    
+    if self._remoteManager then
+        local success, result = self._remoteManager:InvokeServer(remote, 
+                                                               self._currentPetInstance.uniqueId)
+        
+        if success then
+            -- Update local state
+            self._currentPetInstance.equipped = not self._currentPetInstance.equipped
+            self:UpdateEquipButton()
+            
+            -- Show notification
+            local message = self._currentPetInstance.equipped and 
+                          "Pet equipped!" or "Pet unequipped!"
+            self._notificationSystem:SendNotification("Success", message, "success")
+            
+            -- Fire event
+            if self._eventBus then
+                local eventName = self._currentPetInstance.equipped and 
+                                "PetEquipped" or "PetUnequipped"
+                self._eventBus:Fire(eventName, {
+                    uniqueId = self._currentPetInstance.uniqueId
+                })
+            end
+        else
+            -- Show error
+            self._notificationSystem:SendNotification("Error", 
+                result or "Failed to update pet", "error")
+            
+            -- Reset button
+            self:UpdateEquipButton()
+        end
+    end
+    
+    self._isUpdating = false
+end
+
+function PetDetailsUI:OnLockClicked()
+    if self._isUpdating then return end
+    self._isUpdating = true
+    
+    -- Update button state
+    if self._lockButton then
+        self._lockButton.Text = "..."
+        self._lockButton.Active = false
+    end
+    
+    -- Send request to server
+    local remote = self._currentPetInstance.locked and "UnlockPet" or "LockPet"
+    
+    if self._remoteManager then
+        local success, result = self._remoteManager:InvokeServer(remote, 
+                                                               self._currentPetInstance.uniqueId)
+        
+        if success then
+            -- Update local state
+            self._currentPetInstance.locked = not self._currentPetInstance.locked
+            self:UpdateLockButton()
+            
+            -- Show notification
+            local message = self._currentPetInstance.locked and 
+                          "Pet locked!" or "Pet unlocked!"
+            self._notificationSystem:SendNotification("Info", message, "info")
+            
+            -- Fire event
+            if self._eventBus then
+                local eventName = self._currentPetInstance.locked and 
+                                "PetLocked" or "PetUnlocked"
+                self._eventBus:Fire(eventName, {
+                    uniqueId = self._currentPetInstance.uniqueId
+                })
+            end
+        else
+            -- Show error
+            self._notificationSystem:SendNotification("Error", 
+                result or "Failed to update pet", "error")
+            
+            -- Reset button
+            self:UpdateLockButton()
+        end
+    end
+    
+    self._isUpdating = false
+end
+
+function PetDetailsUI:UpdateEquipButton()
+    if not self._equipButton then return end
+    
+    self._equipButton.Text = self._currentPetInstance.equipped and "Unequip" or "Equip"
+    self._equipButton.BackgroundColor3 = self._currentPetInstance.equipped and 
+                                        self._config.COLORS.Error or 
+                                        self._config.COLORS.Success
+    self._equipButton:SetAttribute("OriginalColor", self._equipButton.BackgroundColor3)
+    self._equipButton.Active = true
+end
+
+function PetDetailsUI:UpdateLockButton()
+    if not self._lockButton then return end
+    
+    self._lockButton.Text = self._currentPetInstance.locked and "Unlock" or "Lock"
+    self._lockButton.BackgroundColor3 = self._currentPetInstance.locked and 
+                                       self._config.COLORS.Success or 
+                                       self._config.COLORS.Warning
+    self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
+    self._lockButton.Active = true
+end
+
+-- ========================================
+-- RENAME DIALOG
+-- ========================================
+
+function PetDetailsUI:OpenRenameDialog()
+    -- Create dialog
+    self._renameDialog = Instance.new("Frame")
+    self._renameDialog.Size = UDim2.new(0, RENAME_DIALOG_SIZE.X, 0, RENAME_DIALOG_SIZE.Y)
+    self._renameDialog.Position = UDim2.new(0.5, -RENAME_DIALOG_SIZE.X/2, 0.5, -RENAME_DIALOG_SIZE.Y/2)
+    self._renameDialog.BackgroundColor3 = self._config.COLORS.Background
+    self._renameDialog.ZIndex = 300
+    self._renameDialog.Parent = self._overlay
+    
+    self._utilities.CreateCorner(self._renameDialog, 12)
+    self._utilities.CreateShadow(self._renameDialog, 0.5)
+    
+    -- Title
+    local title = self._uiFactory:CreateLabel(self._renameDialog, {
+        text = "Rename Pet",
+        size = UDim2.new(1, -20, 0, 40),
+        position = UDim2.new(0, 10, 0, 10),
+        font = self._config.FONTS.Secondary,
+        textSize = 20
+    })
+    
+    -- Input
+    local input = self._uiFactory:CreateTextBox(self._renameDialog, {
+        placeholder = "Enter new name...",
+        size = UDim2.new(1, -40, 0, 40),
+        position = UDim2.new(0, 20, 0, 60),
+        clearTextOnFocus = false
+    })
+    
+    input.Text = self._currentPetInstance.nickname or ""
+    
+    -- Buttons
+    local confirmButton = self._uiFactory:CreateButton(self._renameDialog, {
+        text = "Confirm",
+        size = UDim2.new(0, 100, 0, 35),
+        position = UDim2.new(0.5, -105, 1, -50),
+        backgroundColor = self._config.COLORS.Success,
+        callback = function()
+            self:ConfirmRename(input.Text)
+        end
+    })
+    
+    local cancelButton = self._uiFactory:CreateButton(self._renameDialog, {
+        text = "Cancel",
+        size = UDim2.new(0, 100, 0, 35),
+        position = UDim2.new(0.5, 5, 1, -50),
+        backgroundColor = self._config.COLORS.Secondary,
+        callback = function()
+            self:CloseRenameDialog()
+        end
+    })
+end
+
+function PetDetailsUI:ConfirmRename(newName: string)
+    if newName == "" or newName == self._currentPetInstance.nickname then
+        self:CloseRenameDialog()
+        return
+    end
+    
+    -- Validate name length
+    if #newName > 20 then
+        self._notificationSystem:SendNotification("Error", 
+            "Name must be 20 characters or less", "error")
+        return
+    end
+    
+    -- Send rename request
+    if self._remoteManager then
+        local success, result = self._remoteManager:InvokeServer("RenamePet", 
+            self._currentPetInstance.uniqueId, newName)
+        
+        if success then
+            -- Update local state
+            self._currentPetInstance.nickname = newName
+            self:UpdatePetName()
+            
+            -- Show notification
+            self._notificationSystem:SendNotification("Success", 
+                "Pet renamed successfully!", "success")
+            
+            -- Fire event
+            if self._eventBus then
+                self._eventBus:Fire("PetRenamed", {
+                    uniqueId = self._currentPetInstance.uniqueId,
+                    newName = newName
+                })
+            end
+            
+            -- Play sound
+            if self._soundSystem then
+                self._soundSystem:PlayUISound("Success")
+            end
+        else
+            self._notificationSystem:SendNotification("Error", 
+                result or "Failed to rename pet", "error")
+        end
+    end
+    
+    self:CloseRenameDialog()
+end
+
+function PetDetailsUI:CloseRenameDialog()
+    if self._renameDialog then
+        self._renameDialog:Destroy()
+        self._renameDialog = nil
+    end
+end
+
+function PetDetailsUI:UpdatePetName()
+    -- Update header name
+    local header = self._detailsFrame:FindFirstChild("Header")
+    if header then
+        local nameLabel = header:FindFirstChildOfClass("TextLabel")
+        if nameLabel then
+            nameLabel.Text = self._currentPetInstance.nickname or 
+                           self._currentPetData.displayName or 
+                           "Unknown Pet"
+        end
+    end
+end
+
+-- ========================================
+-- CLEANUP
+-- ========================================
+
+function PetDetailsUI:Destroy()
+    self:Close()
+    
+    -- Clear all references
+    self._overlay = nil
+    self._detailsFrame = nil
+    self._currentPetInstance = nil
+    self._currentPetData = nil
+    self._equipButton = nil
+    self._lockButton = nil
+    self._renameDialog = nil
+    self._tabFrames = {}
+end
+
+return PetDetailsUI
