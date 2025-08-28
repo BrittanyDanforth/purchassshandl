@@ -163,7 +163,7 @@ end
 -- ========================================
 
 function BattleUI:CreateUI()
-    local mainPanel = self._windowManager and self._windowManager:GetMainPanel() or 
+    local mainPanel = (self._windowManager and self._windowManager.GetMainPanel and self._windowManager:GetMainPanel()) or 
                      Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
     
     if not mainPanel then

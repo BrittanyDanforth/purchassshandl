@@ -1480,10 +1480,18 @@ end
 function SettingsUI:ApplySettings()
     -- Apply all settings
     if self._soundSystem then
-        self._soundSystem:SetMasterVolume((self.Settings.masterVolume or 100) / 100)
-        self._soundSystem:SetMusicVolume((self.Settings.musicVolume or 80) / 100)
-        self._soundSystem:SetSFXVolume((self.Settings.sfxVolume or 100) / 100)
-        self._soundSystem:SetSFXEnabled(self.Settings.sfxEnabled ~= false)
+        if self._soundSystem.SetMasterVolume then
+            self._soundSystem:SetMasterVolume((self.Settings.masterVolume or 100) / 100)
+        end
+        if self._soundSystem.SetMusicVolume then
+            self._soundSystem:SetMusicVolume((self.Settings.musicVolume or 80) / 100)
+        end
+        if self._soundSystem.SetSFXVolume then
+            self._soundSystem:SetSFXVolume((self.Settings.sfxVolume or 100) / 100)
+        end
+        if self._soundSystem.SetSFXEnabled then
+            self._soundSystem:SetSFXEnabled(self.Settings.sfxEnabled ~= false)
+        end
         
         if self.Settings.musicEnabled then
             self._soundSystem:PlayMusic("MainTheme")

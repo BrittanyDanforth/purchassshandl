@@ -187,11 +187,16 @@ function InventoryUI:Open()
     
     -- Set up reactive updates
     if self._dataCache and not self.PetWatcher then
-        self.PetWatcher = self._dataCache:Watch("pets", function()
-            if self.Frame and self.Frame.Visible then
-                self:RefreshInventory()
-            end
-        end)
+        -- Check if Watch method exists
+        if self._dataCache.Watch then
+            self.PetWatcher = self._dataCache:Watch("pets", function()
+                if self.Frame and self.Frame.Visible then
+                    self:RefreshInventory()
+                end
+            end)
+        else
+            warn("[InventoryUI] DataCache.Watch method not found - reactive updates disabled")
+        end
     end
     
     -- Create UI

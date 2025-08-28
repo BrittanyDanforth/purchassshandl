@@ -14,6 +14,16 @@
 ]]
 
 -- ========================================
+-- SINGLETON CHECK
+-- ========================================
+
+-- Prevent double initialization
+if _G.SanrioTycoonClient then
+    warn("[SanrioTycoonClient] Already initialized! Returning existing instance.")
+    return _G.SanrioTycoonClient
+end
+
+-- ========================================
 -- SERVICES
 -- ========================================
 
