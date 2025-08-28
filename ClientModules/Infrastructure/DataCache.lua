@@ -186,6 +186,47 @@ function DataCache:Get(path: string?): any
     return current
 end
 
+function DataCache:Set(path: string, value: any): boolean
+    if not path or path == "" then
+        warn("[DataCache] Cannot set value without path")
+        return false
+    end
+    
+    -- Parse path and traverse data
+    local parts = string.split(path, ".")
+    local current = self._playerData
+    
+    -- Navigate to parent of target
+    for i = 1, #parts - 1 do
+        local part = parts[i]
+        if type(current) ~= "table" then
+            warn("[DataCache] Cannot set value - invalid path:", path)
+            return false
+        end
+        
+        -- Create intermediate tables if they don't exist
+        if not current[part] then
+            current[part] = {}
+        end
+        current = current[part]
+    end
+    
+    -- Set the value
+    local lastPart = parts[#parts]
+    local oldValue = current[lastPart]
+    current[lastPart] = value
+    
+    -- Notify changes
+    self:NotifyChange(parts[1], lastPart, value, oldValue)
+    
+    -- Save to server if configured
+    if self._config.AUTO_SAVE_TO_SERVER then
+        self:SaveToServer()
+    end
+    
+    return true
+end
+
 function DataCache:GetPlayerData(): Types.PlayerData
     return self._utilities.DeepCopy(self._playerData)
 end
@@ -684,6 +725,11 @@ function DataCache:OnDataChanged(dataType: string, callback: (data: any, oldData
         end,
         Connected = true,
     }
+end
+
+-- Alias for OnDataChanged for compatibility
+function DataCache:Watch(dataType: string, callback: (data: any, oldData: any) -> ()): Types.Connection
+    return self:OnDataChanged(dataType, callback)
 end
 
 function DataCache:NotifyChange(dataType: string, key: string?, newValue: any, oldValue: any)

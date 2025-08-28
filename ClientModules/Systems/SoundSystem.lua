@@ -107,6 +107,7 @@ function SoundSystem.new(dependencies)
     
     -- Settings
     self._enabled = true
+    self._sfxEnabled = true
     self._debugMode = self._config.DEBUG.ENABLED
     
     self:Initialize()
@@ -156,6 +157,12 @@ function SoundSystem:PlaySound(soundId: string, options: SoundOptions?): Sound?
     end
     
     options = options or {}
+    
+    -- Check if SFX are disabled and this is an SFX sound
+    local category = options.category or "sfx"
+    if category == "sfx" and not self:IsSFXEnabled() then
+        return nil
+    end
     
     -- Check if sound has failed before
     if self._failedSounds[soundId] then
@@ -554,6 +561,32 @@ end
 
 function SoundSystem:GetCategoryVolume(category: string): number
     return self._categoryVolumes[category] or 1
+end
+
+function SoundSystem:SetMusicVolume(volume: number)
+    self:SetCategoryVolume("music", volume)
+end
+
+function SoundSystem:SetSFXVolume(volume: number)
+    self:SetCategoryVolume("sfx", volume)
+end
+
+function SoundSystem:SetSFXEnabled(enabled: boolean)
+    self._sfxEnabled = enabled
+    if not enabled then
+        -- Stop all SFX sounds
+        for soundId, pool in pairs(self._soundPool) do
+            for _, instance in ipairs(pool) do
+                if instance.sound and instance.sound.Parent then
+                    instance.sound:Stop()
+                end
+            end
+        end
+    end
+end
+
+function SoundSystem:IsSFXEnabled(): boolean
+    return self._sfxEnabled ~= false
 end
 
 function SoundSystem:UpdateAllVolumes()

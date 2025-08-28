@@ -607,6 +607,10 @@ function MainUI:RegisterModule(moduleName: string, moduleInstance: table)
     end
 end
 
+function MainUI:GetScreenGui(): ScreenGui?
+    return self.ScreenGui
+end
+
 function MainUI:OpenModule(moduleName: string)
     local moduleState = self._moduleStates[moduleName]
     if not moduleState then

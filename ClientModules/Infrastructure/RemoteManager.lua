@@ -308,6 +308,11 @@ function RemoteManager:Invoke(functionName: string, ...: any): any
     end
 end
 
+-- Alias for compatibility
+function RemoteManager:InvokeFunction(functionName: string, ...: any): any
+    return self:Invoke(functionName, ...)
+end
+
 function RemoteManager:InvokeServer(functionName: string, ...: any): Types.RemoteResult<any>
     local result = self:Invoke(functionName, ...)
     

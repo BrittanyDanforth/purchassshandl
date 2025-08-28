@@ -113,16 +113,25 @@ function WindowManager.new(dependencies)
     return self
 end
 
-function WindowManager:Initialize()
+function WindowManager:Initialize(screenGui: ScreenGui?)
+    -- Store container reference
+    self._container = screenGui
+    
     -- Set up event listeners
     self:SetupEventListeners()
     
     -- Create minimize dock
-    self:CreateMinimizeDock()
+    if self._container then
+        self:CreateMinimizeDock()
+    end
     
     if self._debugMode then
-        print("[WindowManager] Initialized")
+        print("[WindowManager] Initialized" .. (screenGui and " with ScreenGui" or " without ScreenGui"))
     end
+end
+
+function WindowManager:GetMainPanel(): Instance?
+    return self._container
 end
 
 -- ========================================
