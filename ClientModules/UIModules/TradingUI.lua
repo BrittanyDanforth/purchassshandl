@@ -106,8 +106,8 @@ function TradingUI.new(dependencies)
     -- Set up event listeners
     self:SetupEventListeners()
     
-    -- Load trade history
-    self:LoadTradeHistory()
+    -- Defer loading trade history until Initialize is called
+    -- self:LoadTradeHistory() -- Moved to Initialize
     
     return self
 end
@@ -151,6 +151,11 @@ end
 -- ========================================
 
 function TradingUI:Open()
+    -- Load trade history on first open
+    if not self.TradeHistory or #self.TradeHistory == 0 then
+        self:LoadTradeHistory()
+    end
+    
     if self.Frame then
         self.Frame.Visible = true
         self:RefreshRecentTrades()

@@ -233,8 +233,10 @@ function UIFactory:SetupButtonInteractions(button: TextButton, options: ButtonOp
         isHovering = true
         updateButtonState()
         
-        -- Change cursor
-        button.MouseIcon = "rbxasset://SystemCursors/PointingHand"
+        -- Change cursor if it's an ImageButton
+        if button:IsA("ImageButton") then
+            button.MouseIcon = "rbxasset://SystemCursors/PointingHand"
+        end
     end)
     
     button.MouseLeave:Connect(function()
@@ -242,8 +244,10 @@ function UIFactory:SetupButtonInteractions(button: TextButton, options: ButtonOp
         isPressed = false
         updateButtonState()
         
-        -- Reset cursor
-        button.MouseIcon = ""
+        -- Reset cursor if it's an ImageButton
+        if button:IsA("ImageButton") then
+            button.MouseIcon = ""
+        end
     end)
     
     button.MouseButton1Down:Connect(function()

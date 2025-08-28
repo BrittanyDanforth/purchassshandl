@@ -143,8 +143,8 @@ function SettingsUI.new(dependencies)
     self.SaveDebounce = nil
     self.UnsavedChanges = false
     
-    -- Initialize settings
-    self:LoadSettings()
+    -- Initialize settings (deferred to Open)
+    -- self:LoadSettings() -- Moved to Open
     
     -- Set up event listeners
     self:SetupEventListeners()
@@ -177,6 +177,11 @@ end
 -- ========================================
 
 function SettingsUI:Open()
+    -- Load settings on first open
+    if not self.Settings or not next(self.Settings) then
+        self:LoadSettings()
+    end
+    
     if self.Frame then
         self.Frame.Visible = true
         return
