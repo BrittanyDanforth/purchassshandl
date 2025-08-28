@@ -550,6 +550,31 @@ local function initializePhase2()
         end
     end
     
+    -- Start performance monitoring
+    task.spawn(function()
+        local lastTime = tick()
+        local frameCount = 0
+        
+        RunService.Heartbeat:Connect(function()
+            frameCount = frameCount + 1
+            local currentTime = tick()
+            
+            if currentTime - lastTime >= 1 then
+                performanceStats.fps = frameCount
+                performanceStats.memory = math.floor(collectgarbage("count"))
+                
+                -- Update state
+                if stateManager then
+                    stateManager:Set("performance", performanceStats)
+                end
+                
+                -- Reset
+                frameCount = 0
+                lastTime = currentTime
+            end
+        end)
+    end)
+    
     -- Fire ready event
     eventBus:Fire("ClientReady")
     
@@ -578,27 +603,7 @@ local performanceStats = {
     dataSent = 0
 }
 
-task.spawn(function()
-    local lastTime = tick()
-    local frameCount = 0
-    
-    RunService.Heartbeat:Connect(function()
-        frameCount = frameCount + 1
-        local currentTime = tick()
-        
-        if currentTime - lastTime >= 1 then
-            performanceStats.fps = frameCount
-            performanceStats.memory = math.floor(collectgarbage("count"))
-            
-            -- Update state
-            stateManager:SetState("performance", performanceStats)
-            
-            -- Reset
-            frameCount = 0
-            lastTime = currentTime
-        end
-    end)
-end)
+-- Performance monitoring will be started after initialization
 
 -- ========================================
 -- CLEANUP ON LEAVE
