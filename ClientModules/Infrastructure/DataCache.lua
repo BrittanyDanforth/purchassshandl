@@ -167,6 +167,25 @@ end
 -- PLAYER DATA ACCESS
 -- ========================================
 
+function DataCache:Get(path: string?): any
+    if not path or path == "" then
+        return self:GetPlayerData()
+    end
+    
+    -- Parse path and traverse data
+    local parts = string.split(path, ".")
+    local current = self._playerData
+    
+    for _, part in ipairs(parts) do
+        if type(current) ~= "table" then
+            return nil
+        end
+        current = current[part]
+    end
+    
+    return current
+end
+
 function DataCache:GetPlayerData(): Types.PlayerData
     return self._utilities.DeepCopy(self._playerData)
 end
