@@ -231,50 +231,76 @@ local uiDependencies = {
     Utilities = ClientUtilities
 }
 
--- Load all UI modules
-local uiModuleDefinitions = {
-    {name = "CurrencyDisplay", module = require(UIModules:WaitForChild("CurrencyDisplay"))},
-    {name = "ShopUI", module = require(UIModules:WaitForChild("ShopUI"))},
-    {name = "CaseOpeningUI", module = require(UIModules:WaitForChild("CaseOpeningUI"))},
-    {name = "InventoryUI", module = require(UIModules:WaitForChild("InventoryUI"))},
-    {name = "PetDetailsUI", module = require(UIModules:WaitForChild("PetDetailsUI"))},
-    {name = "TradingUI", module = require(UIModules:WaitForChild("TradingUI"))},
-    {name = "BattleUI", module = require(UIModules:WaitForChild("BattleUI"))},
-    {name = "QuestUI", module = require(UIModules:WaitForChild("QuestUI"))},
-    {name = "SettingsUI", module = require(UIModules:WaitForChild("SettingsUI"))},
-    {name = "DailyRewardUI", module = require(UIModules:WaitForChild("DailyRewardUI"))},
-    {name = "SocialUI", module = require(UIModules:WaitForChild("SocialUI"))},
-    {name = "ProgressionUI", module = require(UIModules:WaitForChild("ProgressionUI"))}
+-- Define UI modules for lazy loading
+local uiModuleNames = {
+    "CurrencyDisplay", -- This one we'll load immediately as it's always visible
+    "ShopUI",
+    "CaseOpeningUI",
+    "InventoryUI",
+    "PetDetailsUI",
+    "TradingUI",
+    "BattleUI",
+    "QuestUI",
+    "SettingsUI",
+    "DailyRewardUI",
+    "SocialUI",
+    "ProgressionUI"
 }
 
 local uiModuleInstances = {}
 local loadedCount = 0
 local failedModules = {}
 
-for _, def in ipairs(uiModuleDefinitions) do
-    print("[SanrioTycoonClient] Initializing " .. def.name .. "...")
+-- Store dependencies for lazy loading
+mainUI.LazyLoadDependencies = uiDependencies
+
+-- Function to lazy load a module
+local function lazyLoadModule(moduleName)
+    if uiModuleInstances[moduleName] then
+        return uiModuleInstances[moduleName]
+    end
+    
+    local moduleScript = UIModules:FindFirstChild(moduleName)
+    if not moduleScript then
+        warn("[SanrioTycoonClient] Module script not found:", moduleName)
+        return nil
+    end
+    
+    print("[SanrioTycoonClient] Lazy loading " .. moduleName .. "...")
     local success, result = pcall(function()
-        return def.module.new(uiDependencies)
+        local moduleClass = require(moduleScript)
+        return moduleClass.new(uiDependencies)
     end)
     
     if success then
-        uiModuleInstances[def.name] = result
+        uiModuleInstances[moduleName] = result
         loadedCount = loadedCount + 1
-        print("[SanrioTycoonClient] ✓ " .. def.name .. " loaded successfully")
+        print("[SanrioTycoonClient] ✓ " .. moduleName .. " loaded successfully")
+        return result
     else
-        table.insert(failedModules, {name = def.name, error = tostring(result)})
-        warn("[SanrioTycoonClient] ✗ Failed to initialize " .. def.name .. ": " .. tostring(result))
+        table.insert(failedModules, {name = moduleName, error = tostring(result)})
+        warn("[SanrioTycoonClient] ✗ Failed to initialize " .. moduleName .. ": " .. tostring(result))
+        return nil
     end
 end
 
-print("[SanrioTycoonClient] Module loading complete: " .. loadedCount .. "/" .. #uiModuleDefinitions .. " loaded successfully")
-
--- Register UI modules with MainUI
-for name, instance in pairs(uiModuleInstances) do
+-- Override MainUI's InitializeModule to use lazy loading
+mainUI.InitializeModule = function(self, moduleName)
+    local instance = lazyLoadModule(moduleName)
     if instance then
-        mainUI:RegisterModule(name, instance)
+        self:RegisterModule(moduleName, instance)
+        return true
     end
+    return false
 end
+
+-- Only load CurrencyDisplay immediately since it's always visible
+local currencyDisplay = lazyLoadModule("CurrencyDisplay")
+if currencyDisplay then
+    mainUI:RegisterModule("CurrencyDisplay", currencyDisplay)
+end
+
+print("[SanrioTycoonClient] Initial loading complete. Modules will be loaded on demand.")
 
 -- ========================================
 -- REMOTE EVENT SETUP
@@ -282,42 +308,11 @@ end
 
 print("[SanrioTycoonClient] Setting up remote connections...")
 
--- Wait for remotes folder with timeout
+-- RemoteManager automatically finds remotes by name when needed
+-- No registration required - it handles this internally!
 local Remotes = ReplicatedStorage:WaitForChild("SanrioTycoon", 10)
 if not Remotes then
     warn("[SanrioTycoonClient] SanrioTycoon folder not found in ReplicatedStorage!")
-    -- Continue anyway, remotes might be created later
-else
-    local RemotesFolder = Remotes:WaitForChild("Remotes", 10)
-    if RemotesFolder then
-        local RemoteEvents = RemotesFolder:FindFirstChild("Events")
-        local RemoteFunctions = RemotesFolder:FindFirstChild("Functions")
-        
-        -- Connect all remote events to the remote manager
-        if RemoteEvents then
-            for _, remote in ipairs(RemoteEvents:GetChildren()) do
-                if remote:IsA("RemoteEvent") then
-                    remoteManager:RegisterRemoteEvent(remote)
-                end
-            end
-            print("[SanrioTycoonClient] Registered " .. #RemoteEvents:GetChildren() .. " RemoteEvents")
-        else
-            warn("[SanrioTycoonClient] Remote Events folder not found!")
-        end
-        
-        if RemoteFunctions then
-            for _, remote in ipairs(RemoteFunctions:GetChildren()) do
-                if remote:IsA("RemoteFunction") then
-                    remoteManager:RegisterRemoteFunction(remote)
-                end
-            end
-            print("[SanrioTycoonClient] Registered " .. #RemoteFunctions:GetChildren() .. " RemoteFunctions")
-        else
-            warn("[SanrioTycoonClient] Remote Functions folder not found!")
-        end
-    else
-        warn("[SanrioTycoonClient] Remotes folder not found!")
-    end
 end
 
 -- ========================================
@@ -518,14 +513,14 @@ local function initializePhase1()
         print("[SanrioTycoonClient] ✓ MainUI initialized successfully")
     end
     
-    -- Initialize window manager
-    local screenGui = mainUI.ScreenGui or (mainUI.GetScreenGui and mainUI:GetScreenGui())
+    -- Get the ScreenGui property directly
+    local screenGui = mainUI.ScreenGui
     if screenGui then
-        windowManager:Initialize(screenGui)
-        print("[SanrioTycoonClient] ✓ Window manager initialized")
+        -- WindowManager initializes itself in .new(), no need to call Initialize
+        print("[SanrioTycoonClient] ✓ Window manager ready with ScreenGui")
     else
-        warn("[SanrioTycoonClient] Failed to get ScreenGui from MainUI - continuing anyway")
-        -- Don't return false - we can still load modules even without window manager
+        warn("[SanrioTycoonClient] MainUI.ScreenGui not found - continuing anyway")
+        -- Don't return false - we can still load modules even without the ScreenGui
     end
     
     -- Load initial data
@@ -686,8 +681,8 @@ end)
 -- PUBLIC API
 -- ========================================
 
--- Expose systems for debugging or external access
-_G.SanrioTycoonClient = {
+-- Create API table for safe access
+local SanrioTycoonClientAPI = {
     Version = "2.2.0",
     Modules = uiModuleInstances,
     Systems = {
@@ -781,11 +776,12 @@ _G.SanrioTycoonClient = {
 }
 
 print("[SanrioTycoonClient] 🎮 Sanrio Tycoon Client v2.2.0 Ready!")
-print("[SanrioTycoonClient] 📦 " .. loadedCount .. "/" .. #uiModuleDefinitions .. " UI modules loaded")
-print("[SanrioTycoonClient] ✨ Use _G.SanrioTycoonClient to access the API")
-print("[SanrioTycoonClient] 🔧 Debug commands:")
-print("[SanrioTycoonClient]   _G.SanrioTycoonClient.Debug.PrintModuleStatus()")
-print("[SanrioTycoonClient]   _G.SanrioTycoonClient.Debug.TestUI()")
-print("[SanrioTycoonClient]   _G.SanrioTycoonClient.Debug.TestNotification()")
+print("[SanrioTycoonClient] 📦 " .. loadedCount .. " UI modules loaded initially (lazy loading enabled)")
+print("[SanrioTycoonClient] ✨ Module loaded - require() this script to access the API")
+print("[SanrioTycoonClient] 🔧 Debug commands available via the returned API table")
 
-return _G.SanrioTycoonClient
+-- For backwards compatibility during migration, also set _G
+-- Remove this line once all scripts have been updated to use require()
+_G.SanrioTycoonClient = SanrioTycoonClientAPI
+
+return SanrioTycoonClientAPI
