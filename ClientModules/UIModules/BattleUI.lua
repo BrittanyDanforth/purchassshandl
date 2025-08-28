@@ -601,7 +601,7 @@ function BattleUI:CancelMatchmaking()
     
     -- Send cancel request
     if self._remoteManager then
-        self._remoteManager:FireServer("CancelMatchmaking")
+        self._remoteManager:Fire("CancelMatchmaking")
     end
     
     -- Close overlay
