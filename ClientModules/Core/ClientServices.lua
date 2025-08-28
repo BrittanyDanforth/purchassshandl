@@ -115,8 +115,8 @@ function ClientServices.new()
     self._playerReferences = {}
     self._connections = {}
     
-    -- Initialize immediately
-    self:Initialize()
+    -- Don't initialize immediately to avoid circular dependency
+    -- self:Initialize()
     
     return self
 end
@@ -160,9 +160,10 @@ end
 -- ========================================
 
 function ClientServices:GetService(serviceName: string)
-    -- Check cache first
-    if serviceCache[serviceName] then
-        return serviceCache[serviceName]
+    -- Check cache first using rawget to avoid triggering __index
+    local cached = rawget(serviceCache, serviceName)
+    if cached then
+        return cached
     end
     
     -- Check if restricted
@@ -436,5 +437,11 @@ function Event:Fire(...)
 end
 
 instance.CharacterLoaded = Event.new()
+
+-- Initialize after creation to avoid circular dependency
+task.spawn(function()
+    task.wait()
+    instance:Initialize()
+end)
 
 return instance
