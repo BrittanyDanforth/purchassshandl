@@ -164,26 +164,26 @@ ClientConfig.SOUNDS = {
     -- UI Sounds
     Click = "rbxassetid://421058925",    -- UI Click sound
     Open = "rbxassetid://1369158",      -- Swoosh/Open sound
-    Close = "rbxassetid://3398620867",  -- Close/Switch sound
+    Close = "rbxassetid://3228377781",  -- Close/Switch sound (working)
     Hover = "rbxassetid://12221967",    -- UI Hover sound
     
     -- Feedback Sounds
-    Success = "rbxassetid://1493797899",    -- Success/Victory sound
-    Error = "rbxassetid://2767090",         -- Error sound
-    Notification = "rbxassetid://4590662766", -- Notification sound
-    Warning = "rbxassetid://2767090",        -- Warning sound
+    Success = "rbxassetid://3175899",      -- Success/Victory sound (working)
+    Error = "rbxassetid://2767090",        -- Error sound
+    Notification = "rbxassetid://179235828", -- Notification sound (working)
+    Warning = "rbxassetid://2767090",       -- Warning sound
     
     -- Game Sounds
-    CaseOpen = "rbxassetid://1841427728", -- Case open/snap sound
-    Legendary = "rbxassetid://1493797899", -- Legendary/Victory sound
+    CaseOpen = "rbxassetid://511340819",  -- Case open/snap sound (working)
+    Legendary = "rbxassetid://3175899",   -- Legendary/Victory sound (working)
     Purchase = "rbxassetid://203691837",  -- Purchase/Buy sound
-    LevelUp = "rbxassetid://1493797899",  -- Level up/Victory sound
-    Equip = "rbxassetid://3398620867",    -- Equip/Switch sound
-    Trade = "rbxassetid://8329685",       -- Trade/Impact sound
+    LevelUp = "rbxassetid://3175899",     -- Level up/Victory sound (working)
+    Equip = "rbxassetid://3228377781",    -- Equip/Switch sound (working)
+    Trade = "rbxassetid://179235828",     -- Trade/Impact sound (working)
     
     -- Currency Sounds
-    CoinCollect = "rbxassetid://203691837", -- Coin collect sound
-    GemCollect = "rbxassetid://4552989777",  -- Gem collect sound
+    CoinCollect = "rbxassetid://203691837",  -- Coin collect sound
+    GemCollect = "rbxassetid://158715404",   -- Gem collect sound (working)
 }
 
 -- ========================================

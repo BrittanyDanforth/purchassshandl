@@ -764,18 +764,22 @@ function MainUI:SetupDataBindings()
     if not self._dataCache then return end
     
     -- Watch currency changes
-    local currencies = {"coins", "gems", "tickets"}
-    
-    for _, currency in ipairs(currencies) do
-        self._dataCache:Subscribe("currencies." .. currency, function(value)
-            self:UpdateCurrency(currency:sub(1, 1):upper() .. currency:sub(2), value or 0)
+    if self._dataCache and self._dataCache.OnDataChanged then
+        self._dataCache:OnDataChanged("currencies", function(currencies, oldCurrencies)
+            if currencies then
+                self:UpdateCurrency("Coins", currencies.coins or 0)
+                self:UpdateCurrency("Gems", currencies.gems or 0)
+                self:UpdateCurrency("Tickets", currencies.tickets or 0)
+            end
+        end)
+        
+        -- Watch settings changes
+        self._dataCache:OnDataChanged("settings", function(settings, oldSettings)
+            if settings and settings.uiScale then
+                self:SetUIScale(settings.uiScale)
+            end
         end)
     end
-    
-    -- Watch settings changes
-    self._dataCache:Subscribe("settings.uiScale", function(scale)
-        self:SetUIScale(scale or 1)
-    end)
 end
 
 -- ========================================

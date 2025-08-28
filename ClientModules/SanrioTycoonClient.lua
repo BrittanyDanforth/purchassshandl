@@ -514,8 +514,8 @@ local function initializePhase1()
         windowManager:Initialize(screenGui)
         print("[SanrioTycoonClient] ✓ Window manager initialized")
     else
-        warn("[SanrioTycoonClient] Failed to get ScreenGui from MainUI")
-        return false
+        warn("[SanrioTycoonClient] Failed to get ScreenGui from MainUI - continuing anyway")
+        -- Don't return false - we can still load modules even without window manager
     end
     
     -- Load initial data
