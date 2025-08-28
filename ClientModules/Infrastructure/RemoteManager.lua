@@ -196,6 +196,40 @@ function RemoteManager:Initialize()
 end
 
 -- ========================================
+-- REGISTRATION METHODS
+-- ========================================
+
+function RemoteManager:RegisterRemoteEvent(remote: RemoteEvent)
+    if not remote or not remote:IsA("RemoteEvent") then
+        warn("[RemoteManager] Invalid RemoteEvent provided")
+        return
+    end
+    
+    local eventName = remote.Name
+    self._remoteEvents[eventName] = remote
+    self._traffic.byEvent[eventName] = {sent = 0, received = 0}
+    
+    if self._debugMode then
+        print("[RemoteManager] Registered RemoteEvent:", eventName)
+    end
+end
+
+function RemoteManager:RegisterRemoteFunction(remote: RemoteFunction)
+    if not remote or not remote:IsA("RemoteFunction") then
+        warn("[RemoteManager] Invalid RemoteFunction provided")
+        return
+    end
+    
+    local functionName = remote.Name
+    self._remoteFunctions[functionName] = remote
+    self._traffic.byFunction[functionName] = {sent = 0, received = 0}
+    
+    if self._debugMode then
+        print("[RemoteManager] Registered RemoteFunction:", functionName)
+    end
+end
+
+-- ========================================
 -- REMOTE EVENT HANDLING
 -- ========================================
 

@@ -72,6 +72,7 @@ local function createRemotes(folders)
         
         -- Trading
         "TradeStarted", "TradeUpdated", "TradeCompleted", "TradeCancelled",
+        "TradeRequest",  -- ADDED for client
         
         -- Market
         "MarketListingCreated", "MarketListingCancelled", "MarketPurchaseComplete",
@@ -95,7 +96,7 @@ local function createRemotes(folders)
         "QuestsUpdated", "QuestCompleted", "QuestRewardClaimed", "AchievementUnlocked",
         
         -- Daily Rewards
-        "DailyRewardClaimed", "DailyRewardUpdated",
+        "DailyRewardClaimed", "DailyRewardUpdated", "DailyRewardAvailable",  -- ADDED for client
         
         -- Battle
         "BattleStarted", "BattleReady", "BattleTurnCompleted", "BattleEnded",
@@ -103,6 +104,9 @@ local function createRemotes(folders)
         
         -- Clan
         "ClanCreated", "ClanInvite", "ClanUpdated", "ClanWarStarted", "ClanWarEnded",
+        
+        -- Social
+        "FriendRequest", "ChatMessage",  -- ADDED for client
         
         -- Other
         "RebirthCompleted", "PetEvolved", "PetFused",
@@ -130,14 +134,17 @@ local function createRemotes(folders)
     -- RemoteFunctions
     local functionNames = {
         -- Core
-        "GetPlayerData", "GetShopData", "SaveSettings",
+        "GetPlayerData", "GetShopData", "SaveSettings", "LoadSettings",  -- ADDED
+        "SyncDataChanges",  -- ADDED for client
         
         -- Pet System
         "OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets", "MassDeletePets",
+        "LockPet", "UnlockPet", "RenamePet", "DeletePet",  -- ADDED for client
         
         -- Trading
         "StartTrade", "AddTradeItem", "RemoveTradeItem", "SetTradeCurrency",
         "ConfirmTrade", "CancelTrade", "GetRecentTradePartners",
+        "RequestTrade", "UpdateTrade",  -- ADDED for client
         
         -- Quests & Daily
         "ClaimQuest", "AbandonQuest", "ClaimDailyReward", "GetDailyRewards",
@@ -145,10 +152,12 @@ local function createRemotes(folders)
         -- Battle
         "StartBattle", "SetBattleTeam", "BattleAction", "JoinBattleMatchmaking", 
         "CancelMatchmaking", "JoinBattle",
+        "SelectBattleMove", "ForfeitBattle",  -- ADDED for client
         
         -- Clan
         "CreateClan", "JoinClan", "LeaveClan", "InviteToClan",
         "KickFromClan", "PromoteMember", "DemoteMember", "DonateToClan", "StartClanWar", "GetClanList",
+        "SendClanInvite", "AcceptClanInvite", "KickMember",  -- ADDED for client
         
         -- Market
         "CreateMarketListing", "CancelMarketListing", "PurchaseMarketListing",
@@ -156,6 +165,9 @@ local function createRemotes(folders)
         
         -- Rebirth
         "PerformRebirth", "GetRebirthInfo", "GetRebirthShop", "PurchaseRebirthItem",
+        
+        -- Shop/Purchase
+        "PurchaseItem", "PurchaseGamepass", "PurchaseCurrency", "UpdateSettings",  -- ADDED for client
         
         -- Other
         "PlaceAuctionBid", "JoinTournament", "LeaveTournament",

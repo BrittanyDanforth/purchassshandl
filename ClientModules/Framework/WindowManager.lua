@@ -398,7 +398,9 @@ function WindowManager:MakeWindowDraggable(windowFrame: Frame, dragHandle: Frame
             self:FocusWindow(windowId)
             
             -- Change cursor
-            dragHandle.MouseIcon = "rbxasset://SystemCursors/ClosedHand"
+            if dragHandle:IsA("ImageButton") then
+                dragHandle.MouseIcon = "rbxasset://SystemCursors/ClosedHand"
+            end
         end
     end))
     
@@ -443,7 +445,9 @@ function WindowManager:MakeWindowDraggable(windowFrame: Frame, dragHandle: Frame
             dragState.isDragging = false
             
             -- Reset cursor
-            dragHandle.MouseIcon = "rbxasset://SystemCursors/Arrow"
+            if dragHandle:IsA("ImageButton") then
+                dragHandle.MouseIcon = "rbxasset://SystemCursors/Arrow"
+            end
             
             -- Update window position
             local window = self._windows[windowId]
