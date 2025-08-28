@@ -163,6 +163,21 @@ end
 -- PUBLIC API
 -- ========================================
 
+function NotificationSystem:SetContainer(container: Frame)
+    self._container = container
+    
+    -- Recreate any existing notifications in the new container
+    for _, notification in ipairs(self._notifications) do
+        if notification.frame then
+            notification.frame.Parent = container
+        end
+    end
+    
+    if self._debugMode then
+        print("[NotificationSystem] Container set")
+    end
+end
+
 function NotificationSystem:Show(message: string, options: Types.NotificationConfig?): string
     if not self._enabled then
         return ""

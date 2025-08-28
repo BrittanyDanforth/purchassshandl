@@ -162,28 +162,28 @@ ClientConfig.TEXT_SIZES = {
 
 ClientConfig.SOUNDS = {
     -- UI Sounds
-    Click = "rbxasset://sounds/clickfast.wav",
-    Open = "rbxasset://sounds/uuhhh.mp3",
-    Close = "rbxasset://sounds/switch.mp3",
-    Hover = "rbxasset://sounds/clicksoft.wav",
+    Click = "rbxassetid://876939830",    -- UI Click sound
+    Open = "rbxassetid://9113651416",    -- Swoosh/Open sound
+    Close = "rbxassetid://9113142479",   -- Close/Switch sound
+    Hover = "rbxassetid://10066936758",  -- UI Hover sound
     
     -- Feedback Sounds
-    Success = "rbxasset://sounds/victory.wav",
-    Error = "rbxasset://sounds/error.wav",
-    Notification = "rbxasset://sounds/electronicpingshort.wav",
-    Warning = "rbxasset://sounds/warning.wav",
+    Success = "rbxassetid://131961136",      -- Success/Victory sound
+    Error = "rbxassetid://130785805",        -- Error sound
+    Notification = "rbxassetid://9086208751", -- Notification sound
+    Warning = "rbxassetid://130785805",      -- Warning sound
     
     -- Game Sounds
-    CaseOpen = "rbxasset://sounds/snap.mp3",
-    Legendary = "rbxasset://sounds/victory.wav",
-    Purchase = "rbxasset://sounds/buy.wav",
-    LevelUp = "rbxasset://sounds/victory.wav",
-    Equip = "rbxasset://sounds/switch.wav",
-    Trade = "rbxasset://sounds/impact.wav",
+    CaseOpen = "rbxassetid://9125526618",  -- Case open/snap sound
+    Legendary = "rbxassetid://131961136",  -- Legendary/Victory sound
+    Purchase = "rbxassetid://131886985",   -- Purchase/Buy sound
+    LevelUp = "rbxassetid://131961136",    -- Level up/Victory sound
+    Equip = "rbxassetid://9113142479",     -- Equip/Switch sound
+    Trade = "rbxassetid://131961138",      -- Trade/Impact sound
     
     -- Currency Sounds
-    CoinCollect = "rbxasset://sounds/coin.wav",
-    GemCollect = "rbxasset://sounds/gem.wav",
+    CoinCollect = "rbxassetid://131961136", -- Coin collect sound
+    GemCollect = "rbxassetid://131323304",  -- Gem collect sound
 }
 
 -- ========================================
