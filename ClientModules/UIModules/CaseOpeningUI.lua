@@ -536,7 +536,7 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
     end
     
     -- Pet name with new indicator
-    local petName = finalPetData.displayName or finalPetData.name or "Unknown Pet"
+    local petName = tostring(finalPetData.displayName or finalPetData.name or "Unknown Pet")
     if result.isNew then
         petName = "✨ " .. petName .. " ✨"
     end

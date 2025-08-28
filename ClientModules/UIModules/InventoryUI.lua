@@ -1012,8 +1012,13 @@ function InventoryUI:UpdateStats(pets: table)
         self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
     end
     
-    if self.StatsLabels.Storage and self.StatsLabels.Storage.UpdateValue then
-        self.StatsLabels.Storage.UpdateValue(#pets)
+    if self.StatsLabels.Storage then
+        if type(self.StatsLabels.Storage.UpdateValue) == "function" then
+            self.StatsLabels.Storage.UpdateValue(#pets)
+        elseif self.StatsLabels.Storage:FindFirstChild("Frame") and 
+               type(self.StatsLabels.Storage.Frame.UpdateValue) == "function" then
+            self.StatsLabels.Storage.Frame.UpdateValue(#pets)
+        end
     end
 end
 

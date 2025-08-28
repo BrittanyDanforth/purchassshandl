@@ -191,13 +191,26 @@ function TradingUI:CreateUI()
     end
     
     -- Create main frame
-    self.Frame = self._uiFactory:CreateFrame(mainPanel, {
-        name = "TradingFrame",
-        size = UDim2.new(1, -20, 1, -90),
-        position = UDim2.new(0, 10, 0, 80),
-        backgroundColor = self._config.COLORS.Background,
-        visible = true
-    })
+    if self._uiFactory and self._uiFactory.CreateFrame then
+        self.Frame = self._uiFactory:CreateFrame(mainPanel, {
+            name = "TradingFrame",
+            size = UDim2.new(1, -20, 1, -90),
+            position = UDim2.new(0, 10, 0, 80),
+            backgroundColor = self._config.COLORS.Background,
+            visible = true
+        })
+    else
+        -- Fallback if CreateFrame doesn't exist
+        self.Frame = Instance.new("Frame")
+        self.Frame.Name = "TradingFrame"
+        self.Frame.Size = UDim2.new(1, -20, 1, -90)
+        self.Frame.Position = UDim2.new(0, 10, 0, 80)
+        self.Frame.BackgroundColor3 = self._config.COLORS.Background
+        self.Frame.BorderSizePixel = 0
+        self.Frame.Parent = mainPanel
+        
+        self._utilities.CreateCorner(self.Frame, 12)
+    end
     
     -- Create header
     self:CreateHeader()

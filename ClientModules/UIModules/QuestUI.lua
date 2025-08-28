@@ -188,6 +188,16 @@ function QuestUI:Close()
     if self.Frame then
         self.Frame.Visible = false
     end
+    
+    -- Notify window manager
+    if self._windowManager then
+        self._windowManager:CloseWindow("QuestUI")
+    end
+    
+    -- Fire close event
+    if self._eventBus then
+        self._eventBus:Fire("QuestClosed")
+    end
 end
 
 -- ========================================
@@ -407,9 +417,7 @@ function QuestUI:CreateQuestFilterBar(parent: Frame): Frame
         table.insert(categories, cat.name)
     end
     
-    local categoryDropdown = self._uiFactory:CreateDropdown(categoryFrame, {
-        options = categories,
-        default = "All",
+    local categoryDropdown = self._uiFactory:CreateDropdown(categoryFrame, categories, "All", {
         size = UDim2.new(1, -80, 0, 30),
         position = UDim2.new(0, 80, 0.5, -15),
         callback = function(selected)

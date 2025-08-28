@@ -202,6 +202,11 @@ function SettingsUI:Close()
         if self.UnsavedChanges then
             self:SaveSettings()
         end
+        
+        -- Notify window manager
+        if self._windowManager then
+            self._windowManager:CloseWindow("SettingsUI")
+        end
     end
 end
 
@@ -1478,25 +1483,42 @@ function SettingsUI:SaveLocalSettings()
 end
 
 function SettingsUI:ApplySettings()
-    -- Apply all settings
+    -- Apply all settings with proper checks
     if self._soundSystem then
+        local masterVolume = (self.Settings.masterVolume or 100) / 100
+        local musicVolume = (self.Settings.musicVolume or 80) / 100
+        local sfxVolume = (self.Settings.sfxVolume or 100) / 100
+        
+        -- Set master volume
         if self._soundSystem.SetMasterVolume then
-            self._soundSystem:SetMasterVolume((self.Settings.masterVolume or 100) / 100)
-        end
-        if self._soundSystem.SetMusicVolume then
-            self._soundSystem:SetMusicVolume((self.Settings.musicVolume or 80) / 100)
-        end
-        if self._soundSystem.SetSFXVolume then
-            self._soundSystem:SetSFXVolume((self.Settings.sfxVolume or 100) / 100)
-        end
-        if self._soundSystem.SetSFXEnabled then
-            self._soundSystem:SetSFXEnabled(self.Settings.sfxEnabled ~= false)
+            self._soundSystem:SetMasterVolume(masterVolume)
+        elseif self._soundSystem._masterVolume ~= nil then
+            self._soundSystem._masterVolume = masterVolume
         end
         
+        -- Set music volume
+        if self._soundSystem.SetMusicVolume then
+            self._soundSystem:SetMusicVolume(musicVolume)
+        elseif self._soundSystem._musicVolume ~= nil then
+            self._soundSystem._musicVolume = musicVolume
+        end
+        
+        -- Set SFX volume
+        if self._soundSystem.SetSFXVolume then
+            self._soundSystem:SetSFXVolume(sfxVolume)
+        elseif self._soundSystem._sfxVolume ~= nil then
+            self._soundSystem._sfxVolume = sfxVolume
+        end
+        
+        -- Handle music enable/disable
         if self.Settings.musicEnabled then
-            self._soundSystem:PlayMusic("MainTheme")
+            if self._soundSystem.PlayMusic then
+                self._soundSystem:PlayMusic("MainTheme")
+            end
         else
-            self._soundSystem:StopMusic()
+            if self._soundSystem.StopMusic then
+                self._soundSystem:StopMusic()
+            end
         end
     end
     
