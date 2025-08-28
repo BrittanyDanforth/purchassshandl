@@ -1,19 +1,9 @@
 --[[
-    SANRIO TYCOON CLIENT - CLEAN OPTIMIZED VERSION
-    This is a clean, performance-optimized client that just loads modules
-    Module-specific fixes should be done in the module files themselves!
+    ╔══════════════════════════════════════════════════════════════════════════════════════╗
+    ║                      SANRIO TYCOON CLIENT - CLEAN & OPTIMIZED                         ║
+    ║                          NO PATCHES - JUST MODULE LOADING                             ║
+    ╚══════════════════════════════════════════════════════════════════════════════════════╝
 ]]
-
--- ========================================
--- SINGLETON CHECK
--- ========================================
-if _G.SanrioTycoonClientLoaded then
-    warn("[SanrioTycoonClient] Already loaded!")
-    return _G.SanrioTycoonClient
-end
-_G.SanrioTycoonClientLoaded = true
-
-print("[SanrioTycoonClient] Starting CLEAN OPTIMIZED client v11.0...")
 
 -- ========================================
 -- SERVICES
@@ -21,9 +11,28 @@ print("[SanrioTycoonClient] Starting CLEAN OPTIMIZED client v11.0...")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ContentProvider = game:GetService("ContentProvider")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ========================================
+-- SINGLETON CHECK
+-- ========================================
+if _G.SanrioTycoonClientLoaded then
+    warn("[SanrioTycoonClient] Already loaded! Cleaning up...")
+    local existingGui = PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if existingGui then
+        existingGui:Destroy()
+    end
+    return _G.SanrioTycoonClient
+end
+
+_G.SanrioTycoonClientLoaded = true
+print("[SanrioTycoonClient] Starting CLEAN & OPTIMIZED client...")
 
 -- ========================================
 -- MODULE PATHS
@@ -36,30 +45,51 @@ local FrameworkModules = ClientModules:WaitForChild("Framework")
 local UIModules = ClientModules:WaitForChild("UIModules")
 
 -- ========================================
--- CORE MODULE LOADING
+-- SAFE MODULE LOADER
+-- ========================================
+local loadedModules = {}
+local function safeRequire(module)
+    if loadedModules[module] then
+        return loadedModules[module]
+    end
+    
+    local success, result = pcall(require, module)
+    if success then
+        loadedModules[module] = result
+        return result
+    else
+        warn("[SanrioTycoonClient] Failed to load module:", module.Name, "-", result)
+        return nil
+    end
+end
+
+-- ========================================
+-- CORE MODULES
 -- ========================================
 print("[SanrioTycoonClient] Loading core modules...")
+local ClientTypes = safeRequire(CoreModules:WaitForChild("ClientTypes"))
+local ClientConfig = safeRequire(CoreModules:WaitForChild("ClientConfig"))
+local ClientServices = safeRequire(CoreModules:WaitForChild("ClientServices"))
+local ClientUtilities = safeRequire(CoreModules:WaitForChild("ClientUtilities"))
 
-local ClientTypes = require(CoreModules:WaitForChild("ClientTypes"))
-local ClientConfig = require(CoreModules:WaitForChild("ClientConfig"))
-local ClientServices = require(CoreModules:WaitForChild("ClientServices"))
-local ClientUtilities = require(CoreModules:WaitForChild("ClientUtilities"))
+if not ClientConfig or not ClientUtilities then
+    error("[SanrioTycoonClient] Critical core modules failed to load!")
+end
 
 -- ========================================
 -- INFRASTRUCTURE
 -- ========================================
 print("[SanrioTycoonClient] Loading infrastructure...")
+local EventBus = safeRequire(InfrastructureModules:WaitForChild("EventBus"))
+local StateManager = safeRequire(InfrastructureModules:WaitForChild("StateManager"))
+local DataCache = safeRequire(InfrastructureModules:WaitForChild("DataCache"))
+local RemoteManager = safeRequire(InfrastructureModules:WaitForChild("RemoteManager"))
 
-local EventBus = require(InfrastructureModules:WaitForChild("EventBus"))
-local StateManager = require(InfrastructureModules:WaitForChild("StateManager"))
-local DataCache = require(InfrastructureModules:WaitForChild("DataCache"))
-local RemoteManager = require(InfrastructureModules:WaitForChild("RemoteManager"))
-
--- Create instances
-local eventBus = EventBus.new({Config = ClientConfig})
-local stateManager = StateManager.new({Config = ClientConfig, Utilities = ClientUtilities, EventBus = eventBus})
-local remoteManager = RemoteManager.new({Config = ClientConfig, Utilities = ClientUtilities, EventBus = eventBus})
-local dataCache = DataCache.new({
+-- Initialize infrastructure
+local eventBus = EventBus and EventBus.new({Config = ClientConfig})
+local stateManager = StateManager and StateManager.new({Config = ClientConfig, Utilities = ClientUtilities, EventBus = eventBus})
+local remoteManager = RemoteManager and RemoteManager.new({Config = ClientConfig, Utilities = ClientUtilities, EventBus = eventBus})
+local dataCache = DataCache and DataCache.new({
     Config = ClientConfig,
     Utilities = ClientUtilities,
     StateManager = stateManager,
@@ -71,23 +101,25 @@ local dataCache = DataCache.new({
 -- SYSTEMS
 -- ========================================
 print("[SanrioTycoonClient] Loading systems...")
+local SoundSystem = safeRequire(SystemModules:WaitForChild("SoundSystem"))
+local ParticleSystem = safeRequire(SystemModules:WaitForChild("ParticleSystem"))
+local NotificationSystem = safeRequire(SystemModules:WaitForChild("NotificationSystem"))
+local UIFactory = safeRequire(SystemModules:WaitForChild("UIFactory"))
+local AnimationSystem = safeRequire(SystemModules:WaitForChild("AnimationSystem"))
+local EffectsLibrary = safeRequire(SystemModules:WaitForChild("EffectsLibrary"))
 
-local SoundSystem = require(SystemModules:WaitForChild("SoundSystem"))
-local ParticleSystem = require(SystemModules:WaitForChild("ParticleSystem"))
-local NotificationSystem = require(SystemModules:WaitForChild("NotificationSystem"))
-local UIFactory = require(SystemModules:WaitForChild("UIFactory"))
-local AnimationSystem = require(SystemModules:WaitForChild("AnimationSystem"))
-local EffectsLibrary = require(SystemModules:WaitForChild("EffectsLibrary"))
+-- Initialize systems
+local soundSystem = SoundSystem and SoundSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
+local particleSystem = ParticleSystem and ParticleSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
+local animationSystem = AnimationSystem and AnimationSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
 
--- Create system instances
-local soundSystem = SoundSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
-local particleSystem = ParticleSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
-local animationSystem = AnimationSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
+-- Disable animation performance warnings
+if animationSystem then
+    animationSystem._performanceWarningThreshold = 999999
+    animationSystem._performanceWarningCooldown = 999999
+end
 
--- Disable animation performance warnings to reduce spam
-animationSystem._performanceWarningThreshold = 999999
-
-local uiFactory = UIFactory.new({
+local uiFactory = UIFactory and UIFactory.new({
     EventBus = eventBus,
     StateManager = stateManager,
     SoundSystem = soundSystem,
@@ -96,7 +128,7 @@ local uiFactory = UIFactory.new({
     Utilities = ClientUtilities
 })
 
-local notificationSystem = NotificationSystem.new({
+local notificationSystem = NotificationSystem and NotificationSystem.new({
     EventBus = eventBus,
     StateManager = stateManager,
     SoundSystem = soundSystem,
@@ -105,7 +137,7 @@ local notificationSystem = NotificationSystem.new({
     Config = ClientConfig
 })
 
-local effectsLibrary = EffectsLibrary.new({
+local effectsLibrary = EffectsLibrary and EffectsLibrary.new({
     EventBus = eventBus,
     StateManager = stateManager,
     ParticleSystem = particleSystem,
@@ -118,19 +150,10 @@ local effectsLibrary = EffectsLibrary.new({
 -- FRAMEWORK
 -- ========================================
 print("[SanrioTycoonClient] Loading framework...")
+local MainUI = safeRequire(FrameworkModules:WaitForChild("MainUI"))
+local WindowManager = safeRequire(FrameworkModules:WaitForChild("WindowManager"))
 
-local MainUI = require(FrameworkModules:WaitForChild("MainUI"))
-local WindowManager = require(FrameworkModules:WaitForChild("WindowManager"))
-
--- Clean up any existing UI
-local existingGui = PlayerGui:FindFirstChild("SanrioTycoonUI")
-if existingGui then
-    existingGui:Destroy()
-    task.wait(0.1)
-end
-
--- Create framework instances
-local windowManager = WindowManager.new({
+local windowManager = WindowManager and WindowManager.new({
     EventBus = eventBus,
     StateManager = stateManager,
     AnimationSystem = animationSystem,
@@ -140,7 +163,7 @@ local windowManager = WindowManager.new({
     Utilities = ClientUtilities
 })
 
-local mainUI = MainUI.new({
+local mainUI = MainUI and MainUI.new({
     EventBus = eventBus,
     StateManager = stateManager,
     DataCache = dataCache,
@@ -155,10 +178,9 @@ local mainUI = MainUI.new({
 })
 
 -- ========================================
--- UI MODULE LOADING
+-- UI MODULES
 -- ========================================
 print("[SanrioTycoonClient] Loading UI modules...")
-
 local uiDependencies = {
     EventBus = eventBus,
     StateManager = stateManager,
@@ -172,11 +194,10 @@ local uiDependencies = {
     WindowManager = windowManager,
     EffectsLibrary = effectsLibrary,
     Config = ClientConfig,
-    Utilities = ClientUtilities,
-    MainUI = mainUI
+    Utilities = ClientUtilities
 }
 
--- UI Module list
+local uiModules = {}
 local uiModuleNames = {
     "CurrencyDisplay",
     "ShopUI",
@@ -192,120 +213,123 @@ local uiModuleNames = {
     "ProgressionUI"
 }
 
--- Load modules
-local uiModules = {}
-local loadedCount = 0
-
 for _, moduleName in ipairs(uiModuleNames) do
-    local success, result = pcall(function()
-        local moduleScript = UIModules:FindFirstChild(moduleName)
-        if not moduleScript then
-            warn("[SanrioTycoonClient] Module not found: " .. moduleName)
-            return nil
+    local moduleScript = UIModules:FindFirstChild(moduleName)
+    if moduleScript then
+        local moduleClass = safeRequire(moduleScript)
+        if moduleClass and moduleClass.new then
+            local instance = moduleClass.new(uiDependencies)
+            if instance then
+                uiModules[moduleName] = instance
+                print("[SanrioTycoonClient] ✅ " .. moduleName .. " loaded")
+                
+                -- Register with MainUI
+                if mainUI and mainUI.RegisterModule then
+                    mainUI:RegisterModule(moduleName, instance)
+                end
+            end
         end
-        
-        local moduleClass = require(moduleScript)
-        local instance = moduleClass.new(uiDependencies)
-        
-        -- Initialize if needed
-        if instance.Initialize then
-            pcall(function()
-                instance:Initialize()
-            end)
+    end
+end
+
+-- ========================================
+-- REMOTE CONNECTIONS
+-- ========================================
+print("[SanrioTycoonClient] Setting up remote connections...")
+local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+local RemoteFunctions = ReplicatedStorage:FindFirstChild("RemoteFunctions")
+
+if RemoteEvents and remoteManager then
+    for _, remote in ipairs(RemoteEvents:GetChildren()) do
+        if remote:IsA("RemoteEvent") then
+            remoteManager:RegisterRemoteEvent(remote)
         end
-        
-        return instance
+    end
+end
+
+if RemoteFunctions and remoteManager then
+    for _, remote in ipairs(RemoteFunctions:GetChildren()) do
+        if remote:IsA("RemoteFunction") then
+            remoteManager:RegisterRemoteFunction(remote)
+        end
+    end
+end
+
+-- Set up remote handlers
+if remoteManager then
+    remoteManager:On("CurrencyUpdated", function(currencies)
+        if dataCache then dataCache:Set("currencies", currencies) end
+        if stateManager then stateManager:Set("currencies", currencies) end
+        if eventBus then eventBus:Fire("CurrencyUpdated", currencies) end
     end)
-    
-    if success and result then
-        uiModules[moduleName] = result
-        loadedCount = loadedCount + 1
-        print("[SanrioTycoonClient] ✅ " .. moduleName .. " loaded")
-    else
-        warn("[SanrioTycoonClient] ❌ Failed to load " .. moduleName .. ": " .. tostring(result))
-    end
+
+    remoteManager:On("DataLoaded", function(playerData)
+        if playerData then
+            if dataCache then dataCache:Set("", playerData) end
+            if stateManager then stateManager:Set("playerData", playerData) end
+            if eventBus then eventBus:Fire("PlayerDataLoaded", playerData) end
+        end
+    end)
+
+    remoteManager:On("CaseOpened", function(results, eggData)
+        if uiModules.CaseOpeningUI and uiModules.CaseOpeningUI.Open then
+            uiModules.CaseOpeningUI:Open(results, eggData)
+        end
+    end)
 end
-
--- Register modules with MainUI
-for name, instance in pairs(uiModules) do
-    mainUI:RegisterModule(name, instance)
-end
-
--- ========================================
--- REMOTE EVENT HANDLERS
--- ========================================
-print("[SanrioTycoonClient] Setting up remote handlers...")
-
--- Currency updates
-remoteManager:On("CurrencyUpdated", function(currencies)
-    if currencies then
-        dataCache:Set("currencies", currencies)
-        stateManager:Set("currencies", currencies)
-        eventBus:Fire("CurrencyUpdated", currencies)
-    end
-end)
-
--- Data loading
-remoteManager:On("DataLoaded", function(playerData)
-    if playerData then
-        dataCache:Set("", playerData)
-        stateManager:Set("playerData", playerData)
-        eventBus:Fire("PlayerDataLoaded", playerData)
-    end
-end)
-
--- Case opening
-remoteManager:On("CaseOpened", function(results, eggData)
-    if uiModules.CaseOpeningUI then
-        uiModules.CaseOpeningUI:Open(results, eggData)
-    end
-end)
 
 -- ========================================
 -- INITIALIZATION
 -- ========================================
 task.spawn(function()
-    -- Initialize MainUI
-    local success = pcall(function()
-        mainUI:Initialize()
-    end)
+    task.wait(0.5)
     
-    if not success then
-        warn("[SanrioTycoonClient] Failed to initialize MainUI")
+    -- Initialize MainUI
+    if mainUI and mainUI.Initialize then
+        pcall(function() mainUI:Initialize() end)
     end
     
     -- Initialize WindowManager
-    local screenGui = mainUI.ScreenGui or PlayerGui:FindFirstChild("SanrioTycoonUI")
-    if screenGui then
+    local screenGui = mainUI and mainUI.ScreenGui or PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if screenGui and windowManager and windowManager.Initialize then
         windowManager:Initialize(screenGui)
     end
     
     -- Load player data
-    task.wait(0.5)
-    local dataSuccess, playerData = pcall(function()
-        return remoteManager:Invoke("GetPlayerData")
-    end)
+    if remoteManager and remoteManager.Invoke then
+        local success, playerData = pcall(function()
+            return remoteManager:Invoke("GetPlayerData")
+        end)
+        
+        if success and playerData then
+            if dataCache then dataCache:Set("", playerData) end
+            if stateManager then stateManager:Set("playerData", playerData) end
+            if eventBus then eventBus:Fire("PlayerDataLoaded", playerData) end
+        end
+    end
     
-    if dataSuccess and playerData then
-        dataCache:Set("", playerData)
-        stateManager:Set("playerData", playerData)
-        eventBus:Fire("PlayerDataLoaded", playerData)
+    -- Initialize currency display
+    if uiModules.CurrencyDisplay and uiModules.CurrencyDisplay.Initialize then
+        pcall(function() uiModules.CurrencyDisplay:Initialize() end)
     end
     
     -- Fire ready event
-    eventBus:Fire("ClientReady")
+    if eventBus then eventBus:Fire("ClientReady") end
     
     print("[SanrioTycoonClient] ========================================")
-    print("[SanrioTycoonClient] ✅ CLIENT READY!")
+    print("[SanrioTycoonClient] ✅ CLEAN CLIENT READY!")
     print("[SanrioTycoonClient] ========================================")
+    print("[SanrioTycoonClient] Loaded " .. table.getn(uiModules) .. " UI modules")
 end)
 
 -- ========================================
 -- PUBLIC API
 -- ========================================
 _G.SanrioTycoonClient = {
-    Version = "11.0.0-CLEAN",
+    Version = "CLEAN-1.0.0",
+    
     Modules = uiModules,
+    
     Systems = {
         EventBus = eventBus,
         StateManager = stateManager,
@@ -318,36 +342,68 @@ _G.SanrioTycoonClient = {
         EffectsLibrary = effectsLibrary,
         WindowManager = windowManager
     },
+    
     Framework = {
         MainUI = mainUI,
         WindowManager = windowManager
     },
     
-    -- Debug commands
     Debug = {
+        -- Open any module
         OpenModule = function(moduleName)
-            if mainUI then
+            if mainUI and mainUI.OpenModule then
                 mainUI:OpenModule(moduleName)
             end
         end,
         
+        -- Close all modules
         CloseAllModules = function()
-            if windowManager then
+            if windowManager and windowManager.CloseAllWindows then
                 windowManager:CloseAllWindows()
             end
         end,
         
+        -- Get loaded modules
         GetLoadedModules = function()
-            print("=== Loaded Modules ===")
+            local loaded = {}
             for name, _ in pairs(uiModules) do
-                print(" - " .. name)
+                table.insert(loaded, name)
             end
-            print("Total: " .. loadedCount .. "/" .. #uiModuleNames)
+            return loaded
+        end,
+        
+        -- Test specific modules
+        TestShop = function()
+            if mainUI then mainUI:OpenModule("ShopUI") end
+        end,
+        
+        TestInventory = function()
+            if mainUI then mainUI:OpenModule("InventoryUI") end
+        end,
+        
+        TestQuest = function()
+            if mainUI then mainUI:OpenModule("QuestUI") end
+        end,
+        
+        TestSettings = function()
+            if mainUI then mainUI:OpenModule("SettingsUI") end
+        end,
+        
+        TestTrading = function()
+            if mainUI then mainUI:OpenModule("TradingUI") end
+        end,
+        
+        TestCase = function()
+            if uiModules.CaseOpeningUI then
+                local mockResults = {{
+                    petId = "pet_hello_kitty_1",
+                    rarity = "Common",
+                    isNew = true
+                }}
+                uiModules.CaseOpeningUI:Open(mockResults, {name = "Basic Egg"})
+            end
         end
     }
 }
-
-print("[SanrioTycoonClient] 🎉 CLEAN CLIENT LOADED!")
-print("[SanrioTycoonClient] 📦 " .. loadedCount .. "/" .. #uiModuleNames .. " modules loaded")
 
 return _G.SanrioTycoonClient
