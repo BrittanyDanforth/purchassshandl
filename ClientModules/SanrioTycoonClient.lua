@@ -287,27 +287,7 @@ local originalInventoryNew = InventoryUIModule.new
 InventoryUIModule.new = function(deps)
     local instance = originalInventoryNew(deps)
     
-    -- Fix CreateStorageBar
-    local originalCreateStorageBar = instance.CreateStorageBar
-    if originalCreateStorageBar then
-        instance.CreateStorageBar = function(self, parent)
-            local bar = originalCreateStorageBar(self, parent)
-            if bar and bar:FindFirstChild("Frame") then
-                local frame = bar.Frame
-                frame.UpdateValue = function(current, max)
-                    local fillBar = frame:FindFirstChild("Fill")
-                    if fillBar then
-                        fillBar.Size = UDim2.new(math.min(current / max, 1), 0, 1, 0)
-                    end
-                    local label = frame:FindFirstChild("Label")
-                    if label then
-                        label.Text = current .. "/" .. max
-                    end
-                end
-            end
-            return bar
-        end
-    end
+    -- Fix removed - UpdateValue is already properly defined in InventoryUI.lua
     
     return instance
 end
@@ -321,10 +301,7 @@ TradingUIModule.new = function(deps)
     -- Override UIFactory for this instance to fix PlaceholderText
     local originalCreateTextBox = deps.UIFactory.CreateTextBox
     if originalCreateTextBox then
-        local fixedUIFactory = {}
-        for k, v in pairs(deps.UIFactory) do
-            fixedUIFactory[k] = v
-        end
+        local fixedUIFactory = setmetatable({}, {__index = deps.UIFactory})
         
         fixedUIFactory.CreateTextBox = function(self, config)
             -- Fix PlaceholderText if it's a table
@@ -457,6 +434,30 @@ for _, moduleName in ipairs(uiModuleNames) do
     else
         table.insert(failedModules, {name = moduleName, error = tostring(result)})
         warn("[SanrioTycoonClient] ❌ Failed to load " .. moduleName .. ": " .. tostring(result))
+    end
+end
+
+-- Apply standard UI sizing to all modules
+for name, instance in pairs(uiModules) do
+    -- Skip CurrencyDisplay as it has special sizing
+    if name ~= "CurrencyDisplay" and instance.Frame then
+        -- Override CreateUI to apply standard sizing
+        local originalCreateUI = instance.CreateUI
+        if originalCreateUI then
+            instance.CreateUI = function(self, ...)
+                originalCreateUI(self, ...)
+                if self.Frame then
+                    self.Frame.Size = STANDARD_UI_SIZE
+                    self.Frame.Position = STANDARD_UI_POSITION
+                end
+            end
+        end
+        
+        -- Apply to existing frame if already created
+        if instance.Frame then
+            instance.Frame.Size = STANDARD_UI_SIZE
+            instance.Frame.Position = STANDARD_UI_POSITION
+        end
     end
 end
 

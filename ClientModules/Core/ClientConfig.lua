@@ -164,26 +164,26 @@ ClientConfig.SOUNDS = {
 	-- UI Sounds
 	Click = "rbxassetid://421058925",    -- UI Click sound
 	Open = "rbxassetid://1369158",      -- Swoosh/Open sound
-	Close = "rbxassetid://3228377781",  -- Close/Switch sound (working)
+	Close = "rbxassetid://6026984224",  -- Close/Switch sound (updated)
 	Hover = "rbxassetid://12221967",    -- UI Hover sound
 
 	-- Feedback Sounds
-	Success = "rbxassetid://3175899",      -- Success/Victory sound (working)
+	Success = "rbxassetid://6551277077",      -- Success/Victory sound (updated)
 	Error = "rbxassetid://2767090",        -- Error sound
 	Notification = "rbxassetid://179235828", -- Notification sound (working)
 	Warning = "rbxassetid://2767090",       -- Warning sound
 
 	-- Game Sounds
 	CaseOpen = "rbxassetid://511340819",  -- Case open/snap sound (working)
-	Legendary = "rbxassetid://3175899",   -- Legendary/Victory sound (working)
+	Legendary = "rbxassetid://6551277077",   -- Legendary/Victory sound (updated)
 	Purchase = "rbxassetid://203691837",  -- Purchase/Buy sound
-	LevelUp = "rbxassetid://3175899",     -- Level up/Victory sound (working)
-	Equip = "rbxassetid://3228377781",    -- Equip/Switch sound (working)
+	LevelUp = "rbxassetid://6551277077",     -- Level up/Victory sound (updated)
+	Equip = "rbxassetid://6026984224",    -- Equip/Switch sound (updated)
 	Trade = "rbxassetid://179235828",     -- Trade/Impact sound (working)
 
 	-- Currency Sounds
 	CoinCollect = "rbxassetid://203691837",  -- Coin collect sound
-	GemCollect = "rbxassetid://158715404",   -- Gem collect sound (working)
+	GemCollect = "rbxassetid://9120386436",   -- Gem collect sound (updated)
 }
 
 -- ========================================

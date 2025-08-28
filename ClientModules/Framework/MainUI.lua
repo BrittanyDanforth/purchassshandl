@@ -159,12 +159,21 @@ end
 -- ========================================
 
 function MainUI:CreateScreenGui()
+    -- Check for existing instance first
+    local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+    local existingUI = playerGui:FindFirstChild("SanrioTycoonUI")
+    
+    if existingUI then
+        existingUI:Destroy()
+        warn("[MainUI] Removed existing SanrioTycoonUI to prevent duplicates")
+    end
+    
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SanrioTycoonUI"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.DisplayOrder = 1
-    screenGui.Parent = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.Parent = playerGui
     
     self.ScreenGui = screenGui
 end

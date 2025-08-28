@@ -207,6 +207,21 @@ function SettingsUI:Close()
         if self._windowManager then
             self._windowManager:CloseWindow("SettingsUI")
         end
+        
+        -- Fire close event
+        if self._eventBus then
+            self._eventBus:Fire("SettingsUIClosed")
+        end
+        
+        -- Clear any active tweens/animations
+        if self._activeTweens then
+            for _, tween in pairs(self._activeTweens) do
+                if tween and tween.Cancel then
+                    tween:Cancel()
+                end
+            end
+            self._activeTweens = {}
+        end
     end
 end
 

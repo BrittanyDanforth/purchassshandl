@@ -667,6 +667,7 @@ end
 
 function UIFactory:CreateDropdown(parent: Instance, items: {string}, defaultItem: string?, options: ComponentOptions?): Frame
     options = options or {}
+    items = items or {} -- Ensure items is never nil
     
     local container = Instance.new("Frame")
     container.Name = options.name or "Dropdown"
@@ -685,7 +686,7 @@ function UIFactory:CreateDropdown(parent: Instance, items: {string}, defaultItem
     
     -- Selected item display
     local selectedLabel = self:CreateLabel(container, {
-        text = defaultItem or items[1] or "Select...",
+        text = defaultItem or (items and items[1]) or "Select...",
         size = UDim2.new(1, -40, 1, 0),
         position = UDim2.new(0, 10, 0, 0),
         textXAlignment = Enum.TextXAlignment.Left,
@@ -810,12 +811,20 @@ end
 -- SLIDER CREATION
 -- ========================================
 
-function UIFactory:CreateSlider(parent: Instance, min: number, max: number, defaultValue: number?, options: ComponentOptions?): Frame
-    options = options or {}
-    -- Ensure numeric values
-    min = tonumber(min) or 0
-    max = tonumber(max) or 100
-    defaultValue = tonumber(defaultValue) or min
+function UIFactory:CreateSlider(parent: Instance, min: number|table, max: number?, defaultValue: number?, options: ComponentOptions?): Frame
+    -- Handle both old style (separate params) and new style (options table)
+    if type(min) == "table" then
+        options = min
+        min = options.min or 0
+        max = options.max or 100
+        defaultValue = options.value or options.defaultValue or min
+    else
+        options = options or {}
+        -- Ensure numeric values
+        min = tonumber(min) or 0
+        max = tonumber(max) or 100
+        defaultValue = tonumber(defaultValue) or min
+    end
     
     local container = Instance.new("Frame")
     container.Name = options.name or "Slider"
@@ -894,6 +903,11 @@ function UIFactory:CreateSlider(parent: Instance, min: number, max: number, defa
                 slider = container,
                 value = currentValue,
             })
+        end
+        
+        -- Call callback if provided
+        if options.callback then
+            options.callback(currentValue)
         end
     end
     
@@ -1307,7 +1321,7 @@ function UIFactory:CreateToggleSwitch(parent: Instance, options: table?): Frame
     button.BackgroundTransparency = 1
     button.Parent = container
     
-    local isOn = options.isOn or false
+    local isOn = options.isOn or options.value or false
     
     button.MouseButton1Click:Connect(function()
         isOn = not isOn

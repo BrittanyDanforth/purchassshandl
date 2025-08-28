@@ -91,7 +91,7 @@ local DEFAULT_SPRING_MASS = 1
 local DEFAULT_SPRING_STIFFNESS = 100
 local DEFAULT_SPRING_DAMPING = 10
 local SPRING_EPSILON = 0.001
-local MAX_CONCURRENT_ANIMATIONS = 100
+local MAX_CONCURRENT_ANIMATIONS = 50 -- Reduced for better performance
 local PERFORMANCE_SAMPLE_RATE = 60 -- frames
 
 -- Custom easing functions
@@ -888,8 +888,8 @@ function AnimationSystem:StartUpdateLoop()
         end
         self._performanceMetrics.averageFrameTime = sum / #self._performanceMetrics.frameTimeHistory
         
-        -- Check for performance issues
-        if frameTime > 1/30 then -- Less than 30 FPS
+        -- Check for performance issues (only warn for severe drops)
+        if frameTime > 1/15 then -- Less than 15 FPS (more tolerant)
             self:OnPerformanceIssue(frameTime)
         end
         

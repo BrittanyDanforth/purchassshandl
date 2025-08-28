@@ -161,6 +161,13 @@ local RemoteEvents = {
     
     -- Currency
     CurrencyUpdated = CreateRemote(RemoteEventsFolder, "CurrencyUpdated", "RemoteEvent"),
+    
+    -- Additional Events (missing from client)
+    MatchmakingFound = CreateRemote(RemoteEventsFolder, "MatchmakingFound", "RemoteEvent"),
+    DailyRewardAvailable = CreateRemote(RemoteEventsFolder, "DailyRewardAvailable", "RemoteEvent"),
+    TradeRequest = CreateRemote(RemoteEventsFolder, "TradeRequest", "RemoteEvent"),
+    FriendRequest = CreateRemote(RemoteEventsFolder, "FriendRequest", "RemoteEvent"),
+    ChatMessage = CreateRemote(RemoteEventsFolder, "ChatMessage", "RemoteEvent"),
 }
 
 -- RemoteFunctions
@@ -195,6 +202,39 @@ local RemoteFunctions = {
     -- Daily Rewards
     ClaimDailyReward = CreateRemote(RemoteFunctionsFolder, "ClaimDailyReward", "RemoteFunction"),
     GetDailyRewardStatus = CreateRemote(RemoteFunctionsFolder, "GetDailyRewardStatus", "RemoteFunction"),
+    
+    -- Additional Functions (missing from client)
+    -- Settings
+    LoadSettings = CreateRemote(RemoteFunctionsFolder, "LoadSettings", "RemoteFunction"),
+    UpdateSettings = CreateRemote(RemoteFunctionsFolder, "UpdateSettings", "RemoteFunction"),
+    
+    -- Data Sync
+    SyncDataChanges = CreateRemote(RemoteFunctionsFolder, "SyncDataChanges", "RemoteFunction"),
+    
+    -- Pet Management
+    LockPet = CreateRemote(RemoteFunctionsFolder, "LockPet", "RemoteFunction"),
+    UnlockPet = CreateRemote(RemoteFunctionsFolder, "UnlockPet", "RemoteFunction"),
+    RenamePet = CreateRemote(RemoteFunctionsFolder, "RenamePet", "RemoteFunction"),
+    
+    -- Trading (additional)
+    RequestTrade = CreateRemote(RemoteFunctionsFolder, "RequestTrade", "RemoteFunction"),
+    UpdateTrade = CreateRemote(RemoteFunctionsFolder, "UpdateTrade", "RemoteFunction"),
+    
+    -- Battle Matchmaking
+    JoinBattleMatchmaking = CreateRemote(RemoteFunctionsFolder, "JoinBattleMatchmaking", "RemoteFunction"),
+    CancelMatchmaking = CreateRemote(RemoteFunctionsFolder, "CancelMatchmaking", "RemoteFunction"),
+    JoinBattle = CreateRemote(RemoteFunctionsFolder, "JoinBattle", "RemoteFunction"),
+    SelectBattleMove = CreateRemote(RemoteFunctionsFolder, "SelectBattleMove", "RemoteFunction"),
+    ForfeitBattle = CreateRemote(RemoteFunctionsFolder, "ForfeitBattle", "RemoteFunction"),
+    
+    -- Shop (additional)
+    PurchaseGamepass = CreateRemote(RemoteFunctionsFolder, "PurchaseGamepass", "RemoteFunction"),
+    PurchaseCurrency = CreateRemote(RemoteFunctionsFolder, "PurchaseCurrency", "RemoteFunction"),
+    
+    -- Clan System
+    SendClanInvite = CreateRemote(RemoteFunctionsFolder, "SendClanInvite", "RemoteFunction"),
+    AcceptClanInvite = CreateRemote(RemoteFunctionsFolder, "AcceptClanInvite", "RemoteFunction"),
+    KickMember = CreateRemote(RemoteFunctionsFolder, "KickMember", "RemoteFunction"),
 }
 
 -- ========================================
@@ -290,6 +330,26 @@ if RemoteFunctions.GetPlayerData then
             inventory = {},
             settings = {}
         }
+    end
+end
+
+-- Settings handlers
+if RemoteFunctions.LoadSettings then
+    RemoteFunctions.LoadSettings.OnServerInvoke = function(player)
+        -- Return default settings or load from datastore
+        return {
+            soundEnabled = true,
+            musicEnabled = true,
+            particlesEnabled = true,
+            shadowsEnabled = true,
+        }
+    end
+end
+
+if RemoteFunctions.UpdateSettings then
+    RemoteFunctions.UpdateSettings.OnServerInvoke = function(player, settings)
+        -- TODO: Save settings to datastore
+        return true
     end
 end
 
