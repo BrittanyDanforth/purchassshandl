@@ -1260,7 +1260,7 @@ function InventoryUI:LoadPetsForDeletion(parent: ScrollingFrame)
     local playerData = self._dataCache and self._dataCache:Get() or {}
     if not playerData.pets then return end
     
-    local pets = []
+    local pets = {}
     
     -- Convert to array if needed
     for uniqueId, pet in pairs(playerData.pets) do
