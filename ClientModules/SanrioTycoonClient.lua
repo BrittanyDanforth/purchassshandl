@@ -227,18 +227,7 @@ local effectsLibrary = EffectsLibrary.new({
 
 _G.SpecialEffects = effectsLibrary
 
--- Load UI Polish System for AAA quality
-local UIPolishSystem = require(SystemModules:WaitForChild("UIPolishSystem"))
-local uiPolishSystem = UIPolishSystem.new({
-    EventBus = eventBus,
-    StateManager = stateManager,
-    SoundSystem = soundSystem,
-    AnimationSystem = animationSystem,
-    UIFactory = uiFactory,
-    Config = ClientConfig,
-    Utilities = ClientUtilities
-})
-print("[SanrioTycoonClient] ✅ UIPolishSystem loaded - AAA Polish Active!")
+-- UIPolishSystem module doesn't exist - removed to prevent errors
 
 -- ========================================
 -- FRAMEWORK
