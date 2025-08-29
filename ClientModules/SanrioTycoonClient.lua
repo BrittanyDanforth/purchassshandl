@@ -273,6 +273,9 @@ local mainUI = MainUI.new({
 -- ========================================
 print("[SanrioTycoonClient] Loading UI modules with fixes...")
 
+-- Initialize uiModules early so it can be referenced in fixes
+local uiModules = {}
+
 local uiDependencies = {
     EventBus = eventBus,
     StateManager = stateManager,
@@ -416,7 +419,6 @@ CaseOpeningUIModule.new = function(deps)
 end
 
 -- Load all UI modules
-local uiModules = {}
 local uiModuleNames = {
     "CurrencyDisplay",
     "ShopUI",
@@ -550,19 +552,11 @@ task.spawn(function()
         end)
     end
     
-    eventBus:Fire("ClientReady")
-    
-    -- Apply UI Polish after everything is loaded
-    task.wait(0.5)
-    if uiPolishSystem then
-        uiPolishSystem:PolishAllUI()
-        print("[SanrioTycoonClient] 🎨 UI Polish Applied - AAA Quality Active!")
-    end
-    
-    print("[SanrioTycoonClient] ========================================")
-    print("[SanrioTycoonClient] ✅ COMPLETE FIXED CLIENT v9.0 READY!")
-    print("[SanrioTycoonClient] ✅ AAA UI POLISH SYSTEM ACTIVE!")
-    print("[SanrioTycoonClient] ========================================")
+    	eventBus:Fire("ClientReady")
+
+	print("[SanrioTycoonClient] ========================================")
+	print("[SanrioTycoonClient] ✅ COMPLETE FIXED CLIENT v9.0 READY!")
+	print("[SanrioTycoonClient] ========================================")
 end)
 
 -- ========================================
