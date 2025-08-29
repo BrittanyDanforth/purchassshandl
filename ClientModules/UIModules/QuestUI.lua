@@ -446,7 +446,7 @@ function QuestUI:SwitchToTab(index: number, tabs: table)
         -- Slide out old tab
         self._utilities.Tween(oldFrame, {
             Position = UDim2.new(-1, 0, 0, 10),
-            BackgroundTransparency = 0.5
+            BackgroundTransparency = 1  -- Keep transparent
         }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
         
         task.wait(0.15)
@@ -454,12 +454,12 @@ function QuestUI:SwitchToTab(index: number, tabs: table)
         
         -- Reset and slide in new tab
         newFrame.Position = UDim2.new(1, 0, 0, 10)
-        newFrame.BackgroundTransparency = 0.5
+        newFrame.BackgroundTransparency = 1  -- Keep transparent
         newFrame.Visible = true
         
         self._utilities.Tween(newFrame, {
             Position = UDim2.new(0, 10, 0, 10),
-            BackgroundTransparency = 0
+            BackgroundTransparency = 1  -- Keep transparent
         }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
     end
     
@@ -1025,10 +1025,7 @@ function QuestUI:AddQuestCardEffects(card: Frame, quest: Quest)
         
         -- Scale effect
         if self._animationSystem then
-            self._animationSystem:PlayAnimation("HoverScale", {
-                target = card,
-                scale = 1.02
-            })
+            self._animationSystem:ScaleIn(card, 0.2)
         end
     end)
     
@@ -1038,10 +1035,7 @@ function QuestUI:AddQuestCardEffects(card: Frame, quest: Quest)
         }, self._config.TWEEN_INFO.Fast)
         
         if self._animationSystem then
-            self._animationSystem:PlayAnimation("HoverScale", {
-                target = card,
-                scale = 1
-            })
+            self._animationSystem:ScaleOut(card, 0.2)
         end
     end)
 end
@@ -1731,16 +1725,13 @@ function QuestUI:AddAchievementCardEffects(card: Frame, achievement: Achievement
     -- Hover effect
     card.MouseEnter:Connect(function()
         if self._animationSystem then
-            self._animationSystem:PlayAnimation("Float", {
-                target = card,
-                height = 5
-            })
+            self._animationSystem:Bounce(card, 1.05, 0.3)
         end
     end)
     
     card.MouseLeave:Connect(function()
         if self._animationSystem then
-            self._animationSystem:StopAnimation(card)
+            self._animationSystem:Cancel(card)
         end
     end)
 end

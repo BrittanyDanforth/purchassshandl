@@ -1560,11 +1560,22 @@ function InventoryUI:RefreshInventory()
     -- Get grid layout
     local gridLayout = self.PetGrid:FindFirstChildOfClass("UIGridLayout")
     
-    -- Hide all existing cards for recycling
-    for _, card in ipairs(self.PetCardCache) do
-        card.Visible = false
-        card.Parent = nil
+    -- Clear all children from PetGrid except UIGridLayout
+    for _, child in ipairs(self.PetGrid:GetChildren()) do
+        if child:IsA("Frame") and child.Name:match("^PetCard_") then
+            -- Remove from cache if it exists
+            local cacheIndex = table.find(self.PetCardCache, child)
+            if cacheIndex then
+                table.remove(self.PetCardCache, cacheIndex)
+            end
+            child:Destroy()
+        elseif child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
+            child:Destroy()
+        end
     end
+    
+    -- Clear the card cache since we destroyed all cards
+    self.PetCardCache = {}
     
     -- Show loading state
     local loadingLabel = Instance.new("TextLabel")
@@ -1719,32 +1730,13 @@ function InventoryUI:ShowEmptyState()
 end
 
 function InventoryUI:DisplayPets(pets: table)
+    -- Create all pet cards fresh (we cleared the grid in RefreshInventory)
     for i, petInfo in ipairs(pets) do
-        -- Try to reuse existing card
-        local card = self.PetCardCache[i]
-        if card then
-            -- Update existing card
-            self:UpdatePetCard(card, petInfo.pet, petInfo.data)
-            card.Parent = self.PetGrid
-            card.Visible = true
-        else
-            -- Create new card if not enough in cache
-            card = self:CreatePetCard(self.PetGrid, petInfo.pet, petInfo.data)
-            if card then
-                table.insert(self.PetCardCache, card)
-            end
-        end
-        
+        local card = self:CreatePetCard(self.PetGrid, petInfo.pet, petInfo.data)
         if card then
             card.LayoutOrder = i
-        end
-        
-        -- Limit cache size
-        if #self.PetCardCache > MAX_CARD_CACHE then
-            local oldCard = table.remove(self.PetCardCache, 1)
-            if oldCard then
-                oldCard:Destroy()
-            end
+            -- Add to cache for potential future use
+            table.insert(self.PetCardCache, card)
         end
     end
 end

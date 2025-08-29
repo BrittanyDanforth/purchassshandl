@@ -172,6 +172,7 @@ ClientConfig.SOUNDS = {
 	Open = "rbxassetid://1369158",      -- Swoosh/Open sound
 	Close = "rbxassetid://6026984224",  -- Close/Switch sound (updated)
 	Hover = "rbxassetid://12221967",    -- UI Hover sound
+	TabSwitch = "rbxassetid://6026984224", -- Tab switch sound (same as Close)
 
 	-- Feedback Sounds
 	Success = "rbxassetid://6551277077",      -- Success/Victory sound (updated)

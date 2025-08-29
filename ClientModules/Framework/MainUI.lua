@@ -209,7 +209,7 @@ function MainUI:CreateNavigationBar()
     navBar.BackgroundColor3 = self._config.COLORS.White
     navBar.BorderSizePixel = 0
     navBar.ClipsDescendants = false
-    navBar.ZIndex = self._config.ZINDEX.Navigation
+    navBar.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Navigation or 30
     navBar.Parent = self.MainContainer
     
     -- No corner radius for seamless connection
@@ -469,7 +469,7 @@ function MainUI:CreateCurrencyDisplay()
     currencyFrame.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
     currencyFrame.BackgroundColor3 = self._config.COLORS.White
     currencyFrame.BorderSizePixel = 0
-    currencyFrame.ZIndex = self._config.ZINDEX.CurrencyDisplay
+    currencyFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.CurrencyDisplay or 35
     currencyFrame.Parent = self.MainPanel
     
     self._utilities.CreateCorner(currencyFrame, 8)
