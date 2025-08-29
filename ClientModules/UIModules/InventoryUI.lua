@@ -387,9 +387,12 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         textColor = self._config.COLORS.TextSecondary
     })
     
-    -- Create bar object with UpdateValue method
-    local bar = frame
-    bar.UpdateValue = function(current: number)
+    -- Store update function in module's storage bars table
+    if not self.StorageBars then
+        self.StorageBars = {}
+    end
+    
+    self.StorageBars[frame] = function(current: number)
         local max = self._dataCache and self._dataCache:Get("maxPetStorage") or 500
         local percentage = math.clamp(current / max, 0, 1)
         
@@ -407,7 +410,12 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         end
     end
     
-    return bar
+    -- Initial update
+    if self.StorageBars[frame] then
+        self.StorageBars[frame](0)
+    end
+    
+    return frame
 end
 
 function InventoryUI:CreateControls()
@@ -1073,13 +1081,8 @@ function InventoryUI:UpdateStats(pets: table)
         self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
     end
     
-    if self.StatsLabels.Storage then
-        if type(self.StatsLabels.Storage.UpdateValue) == "function" then
-            self.StatsLabels.Storage.UpdateValue(#pets)
-        elseif self.StatsLabels.Storage:FindFirstChild("Frame") and 
-               type(self.StatsLabels.Storage.Frame.UpdateValue) == "function" then
-            self.StatsLabels.Storage.Frame.UpdateValue(#pets)
-        end
+    if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
+        self.StorageBars[self.StatsLabels.Storage](#pets)
     end
 end
 

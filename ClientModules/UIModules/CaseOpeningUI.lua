@@ -140,7 +140,16 @@ function CaseOpeningUI:Open(results: {CaseResult}, eggData: table?)
     print("[CaseOpeningUI] Opening with results:", results)
     if type(results) == "table" then
         for i, result in ipairs(results) do
-            print("  Result", i, ":", result.petId or result.petName or "unknown", "pet data:", result.pet)
+            if type(result) == "table" then
+                print("  Result", i, ":")
+                print("    petId:", result.petId)
+                print("    pet:", result.pet)
+                if result.pet then
+                    print("      pet.petId:", result.pet.petId)
+                    print("      pet.uniqueId:", result.pet.uniqueId)
+                    print("      pet.displayName:", result.pet.displayName)
+                end
+            end
         end
     end
     self._skipAnimation = false
@@ -385,11 +394,13 @@ function CaseOpeningUI:CreateSpinnerAnimation(container: Frame, result: CaseResu
     indicator.Parent = spinnerFrame
     
     -- Generate case items
-    local winnerPosition = math.floor(#caseItems / 2)
+    local winnerPosition = caseItems.winnerPosition or math.floor(#caseItems / 2)
     for i, petId in ipairs(caseItems) do
-        local itemFrame = self:CreateCaseItem(petId, i == winnerPosition)
-        itemFrame.Position = UDim2.new(0, (i - 1) * CASE_ITEM_WIDTH, 0, 0)
-        itemFrame.Parent = itemContainer
+        if type(petId) == "string" then -- Skip the winnerPosition field
+            local itemFrame = self:CreateCaseItem(petId, i == winnerPosition)
+            itemFrame.Position = UDim2.new(0, (i - 1) * CASE_ITEM_WIDTH, 0, 0)
+            itemFrame.Parent = itemContainer
+        end
     end
     
     -- Play spin sound
@@ -936,15 +947,19 @@ function CaseOpeningUI:GenerateCaseItems(result: CaseResult): {string}
     -- Generate random items
     local winnerPetId = result.petId or result.petName or allPets[1]
     
+    -- Fill with random pets first
     for i = 1, itemCount do
-        if i == math.floor(itemCount / 2) then
-            -- Winner position
-            table.insert(items, winnerPetId)
-        else
-            -- Random pet
-            table.insert(items, allPets[math.random(1, #allPets)])
-        end
+        table.insert(items, allPets[math.random(1, #allPets)])
     end
+    
+    -- Place winner at a random position near the middle (40-60% of the reel)
+    local minPos = math.floor(itemCount * 0.4)
+    local maxPos = math.floor(itemCount * 0.6)
+    local winnerPos = math.random(minPos, maxPos)
+    items[winnerPos] = winnerPetId
+    
+    -- Store winner position for the animation
+    items.winnerPosition = winnerPos
     
     return items
 end

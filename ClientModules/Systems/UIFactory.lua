@@ -787,17 +787,28 @@ function UIFactory:CreateDropdown(parent: Instance, items: {string}, defaultItem
     })
     toggleButton.ZIndex = container.ZIndex + 1
     
-    -- Public methods
-    container.GetValue = function()
-        return selectedValue
+    -- Store dropdown data in a table instead of on the instance
+    if not self.DropdownData then
+        self.DropdownData = {}
     end
     
-    container.SetValue = function(value: string)
-        if table.find(items, value) then
-            selectedValue = value
-            selectedLabel.Text = value
+    local dropdownMethods = {
+        GetValue = function()
+            return selectedValue
+        end,
+        SetValue = function(value: string)
+            if table.find(items, value) then
+                selectedValue = value
+                selectedLabel.Text = value
+            end
         end
-    end
+    }
+    
+    -- Store methods in the data table
+    self.DropdownData[container] = dropdownMethods
+    
+    -- Add a helper to identify dropdowns
+    container:SetAttribute("IsUIFactoryDropdown", true)
     
     container.Parent = parent or options.parent
     
@@ -952,20 +963,31 @@ function UIFactory:CreateSlider(parent: Instance, min: number|table, max: number
         end
     end)
     
-    -- Public methods
-    container.GetValue = function()
-        return currentValue
+    -- Store slider data in a table instead of on the instance
+    if not self.SliderData then
+        self.SliderData = {}
     end
     
-    container.SetValue = function(value: number)
-        value = math.clamp(value, min, max)
-        currentValue = value
-        
-        local relativeX = (value - min) / (max - min)
-        knob.Position = UDim2.new(relativeX, -10, 0.5, -10)
-        fill.Size = UDim2.new(relativeX, 0, 1, 0)
-        valueLabel.Text = tostring(math.floor(value))
-    end
+    local sliderMethods = {
+        GetValue = function()
+            return currentValue
+        end,
+        SetValue = function(value: number)
+            value = math.clamp(value, min, max)
+            currentValue = value
+            
+            local relativeX = (value - min) / (max - min)
+            knob.Position = UDim2.new(relativeX, -10, 0.5, -10)
+            fill.Size = UDim2.new(relativeX, 0, 1, 0)
+            valueLabel.Text = tostring(math.floor(value))
+        end
+    }
+    
+    -- Store methods in the data table
+    self.SliderData[container] = sliderMethods
+    
+    -- Add a helper to get methods
+    container:SetAttribute("IsUIFactorySlider", true)
     
     container.Parent = parent or options.parent
     
@@ -973,6 +995,34 @@ function UIFactory:CreateSlider(parent: Instance, min: number|table, max: number
     self:TrackComponent(container, "Slider")
     
     return container
+end
+
+-- Helper methods for sliders
+function UIFactory:GetSliderValue(slider: Frame): number?
+    if self.SliderData and self.SliderData[slider] then
+        return self.SliderData[slider].GetValue()
+    end
+    return nil
+end
+
+function UIFactory:SetSliderValue(slider: Frame, value: number)
+    if self.SliderData and self.SliderData[slider] then
+        self.SliderData[slider].SetValue(value)
+    end
+end
+
+-- Helper methods for dropdowns
+function UIFactory:GetDropdownValue(dropdown: Frame): string?
+    if self.DropdownData and self.DropdownData[dropdown] then
+        return self.DropdownData[dropdown].GetValue()
+    end
+    return nil
+end
+
+function UIFactory:SetDropdownValue(dropdown: Frame, value: string)
+    if self.DropdownData and self.DropdownData[dropdown] then
+        self.DropdownData[dropdown].SetValue(value)
+    end
 end
 
 -- ========================================

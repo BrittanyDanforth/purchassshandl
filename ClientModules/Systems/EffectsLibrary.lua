@@ -232,6 +232,12 @@ end
 function EffectsLibrary:CreateGlowEffect(frame: GuiObject, options: EffectOptions?): string
     if not self._enabled then return "" end
     
+    -- Check if frame has a parent
+    if not frame.Parent then
+        warn("[EffectsLibrary] Cannot create glow effect - frame has no parent")
+        return ""
+    end
+    
     options = options or {}
     local effectId = self:GenerateId()
     
@@ -250,10 +256,12 @@ function EffectsLibrary:CreateGlowEffect(frame: GuiObject, options: EffectOption
     
     -- Position behind the frame
     local frameIndex = 0
-    for i, child in ipairs(frame.Parent:GetChildren()) do
-        if child == frame then
-            frameIndex = i
-            break
+    if frame.Parent then
+        for i, child in ipairs(frame.Parent:GetChildren()) do
+            if child == frame then
+                frameIndex = i
+                break
+            end
         end
     end
     glow.LayoutOrder = frameIndex - 1
