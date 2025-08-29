@@ -1781,6 +1781,12 @@ function InventoryUI:ReturnCardToPool(card: Frame)
     card:SetAttribute("Equipped", nil)
     card:SetAttribute("Locked", nil)
     
+    -- Clean up all connections associated with this specific card
+    if card.CardJanitor then
+        card.CardJanitor:Destroy()
+        card.CardJanitor = nil
+    end
+    
     -- Add to pool for reuse
     table.insert(self.VisibleCardPool, card)
 end
@@ -1820,16 +1826,16 @@ function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, p
     -- Update click handler
     local button = card:FindFirstChild("ClickButton")
     if button then
-        -- Disconnect old connection if it exists
-        if card:GetAttribute("ClickConnection") then
-            local oldConnection = card:GetAttribute("ClickConnection")
-            if oldConnection then
-                oldConnection:Disconnect()
-            end
+        -- If this card already has a janitor from being used before, clean it up
+        if card.CardJanitor then
+            card.CardJanitor:Destroy()
         end
         
-        -- Create new connection
-        local connection = self._janitor:Add(button.MouseButton1Click:Connect(function()
+        -- Create a fresh, new janitor just for this card's connections
+        card.CardJanitor = Janitor.new()
+        
+        -- Add the new click connection to the card's personal janitor
+        card.CardJanitor:Add(button.MouseButton1Click:Connect(function()
             if self._eventBus then
                 self._eventBus:Fire("ShowPetDetails", {
                     petInstance = petInstance,
@@ -1837,8 +1843,6 @@ function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, p
                 })
             end
         end))
-        
-        card:SetAttribute("ClickConnection", connection)
     end
     
     -- Add equipped/locked indicators
@@ -2287,7 +2291,6 @@ function InventoryUI:OpenMassDelete()
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.3
     overlay.ZIndex = 900  -- Very high to ensure it's on top
-    overlay.DisplayOrder = 10  -- High display order
     overlay.Parent = screenGui
     
     self.DeleteOverlay = overlay
