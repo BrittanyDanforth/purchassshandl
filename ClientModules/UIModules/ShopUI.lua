@@ -933,6 +933,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     imageContainer.Name = "ImageContainer"
     imageContainer.Size = UDim2.new(1, 0, 0.6, 0)
     imageContainer.BackgroundTransparency = 1
+    imageContainer.ZIndex = 2
     imageContainer.Parent = card
     
     -- Egg image
@@ -952,6 +953,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     infoSection.Size = UDim2.new(1, 0, 0.4, 0)
     infoSection.Position = UDim2.new(0, 0, 0.6, 0)
     infoSection.BackgroundTransparency = 1
+    infoSection.ZIndex = 2
     infoSection.Parent = card
     
     -- Egg name
@@ -1098,9 +1100,12 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     
     card.MouseEnter:Connect(function()
         -- Clean up any existing shadow first
-        local existingShadow = card.Parent:FindFirstChild("DropShadow_" .. card.Name)
-        if existingShadow then
-            existingShadow:Destroy()
+        local shadowFrame = card:FindFirstChild("ShadowFrame")
+        if shadowFrame then
+            local existingShadow = shadowFrame:FindFirstChild("DropShadow")
+            if existingShadow then
+                existingShadow:Destroy()
+            end
         end
         
         -- Scale up animation
@@ -1118,19 +1123,36 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             Thickness = 2
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
-        -- Create proper rounded shadow
+        -- Create shadow inside the card with proper layering
+        local shadowFrame = card:FindFirstChild("ShadowFrame")
+        if not shadowFrame then
+            shadowFrame = Instance.new("Frame")
+            shadowFrame.Name = "ShadowFrame"
+            shadowFrame.Size = UDim2.new(1, 0, 1, 0)
+            shadowFrame.BackgroundTransparency = 1
+            shadowFrame.ZIndex = 0
+            shadowFrame.Parent = card
+        end
+        
+        -- Create the actual shadow
         local shadowContainer = Instance.new("Frame")
-        shadowContainer.Name = "DropShadow_" .. card.Name
-        shadowContainer.Size = UDim2.new(1, 10, 1, 10)
-        shadowContainer.Position = UDim2.new(0.5, 0, 0.5, 8)
+        shadowContainer.Name = "DropShadow"
+        shadowContainer.Size = UDim2.new(1, 20, 1, 20)
+        shadowContainer.Position = UDim2.new(0.5, 0, 0.5, 10)
         shadowContainer.AnchorPoint = Vector2.new(0.5, 0.5)
         shadowContainer.BackgroundColor3 = Color3.new(0, 0, 0)
-        shadowContainer.BackgroundTransparency = 0.7
-        shadowContainer.ZIndex = card.ZIndex - 1
-        shadowContainer.Parent = card.Parent
+        shadowContainer.BackgroundTransparency = 0.85
+        shadowContainer.ZIndex = -1
+        shadowContainer.Parent = shadowFrame
         
         -- Add corner to shadow for rounded effect
         self._utilities.CreateCorner(shadowContainer, 20)
+        
+        -- Animate shadow appearance
+        shadowContainer.BackgroundTransparency = 1
+        self._utilities.Tween(shadowContainer, {
+            BackgroundTransparency = 0.7
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
         -- Store reference without using attribute
         card:SetAttribute("HasDropShadow", true)
@@ -1195,9 +1217,19 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         
         -- Remove drop shadow
         if card:GetAttribute("HasDropShadow") then
-            local dropShadow = card.Parent:FindFirstChild("DropShadow_" .. card.Name)
-            if dropShadow then
-                dropShadow:Destroy()
+            local shadowFrame = card:FindFirstChild("ShadowFrame")
+            if shadowFrame then
+                local dropShadow = shadowFrame:FindFirstChild("DropShadow")
+                if dropShadow then
+                    -- Animate shadow disappearance
+                    self._utilities.Tween(dropShadow, {
+                        BackgroundTransparency = 1
+                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad)):Connect(function()
+                        if dropShadow and dropShadow.Parent then
+                            dropShadow:Destroy()
+                        end
+                    end)
+                end
             end
             card:SetAttribute("HasDropShadow", false)
         end
