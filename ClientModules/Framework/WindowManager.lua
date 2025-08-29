@@ -131,6 +131,23 @@ function WindowManager:Initialize(screenGui: ScreenGui?)
 end
 
 function WindowManager:GetMainPanel(): Instance?
+    -- If we have a container (ScreenGui), look for the actual MainPanel inside it
+    if self._container then
+        -- First check for MainUIPanel (created by MainUI)
+        local mainPanel = self._container:FindFirstChild("MainContainer") and 
+                         self._container.MainContainer:FindFirstChild("MainUIPanel")
+        if mainPanel then
+            return mainPanel
+        end
+        
+        -- Fallback to MainContainer if MainUIPanel not found
+        local mainContainer = self._container:FindFirstChild("MainContainer")
+        if mainContainer then
+            return mainContainer
+        end
+    end
+    
+    -- Last resort, return the container itself
     return self._container
 end
 
