@@ -847,7 +847,13 @@ function InventoryUI:CreateTabs()
 end
 
 function InventoryUI:ShowTab(tabName: string)
-    if not self.TabFrames or not self.TabFrames[tabName] then
+    if not self.TabFrames then
+        -- Tabs not created yet, store for later
+        self._pendingTabName = tabName
+        return
+    end
+    
+    if not self.TabFrames[tabName] then
         warn("[InventoryUI] Tab not found:", tabName)
         return
     end

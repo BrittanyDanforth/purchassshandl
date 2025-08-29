@@ -573,8 +573,10 @@ function SettingsUI:CreateAudioSettings()
         value = self.Settings.sfxEnabled ~= false,
         callback = function(value)
             self:UpdateSetting("sfxEnabled", value)
-            if self._soundSystem then
+            if self._soundSystem and self._soundSystem.SetSFXEnabled then
                 self._soundSystem:SetSFXEnabled(value)
+            elseif self._soundSystem then
+                warn("[SettingsUI] SoundSystem exists but SetSFXEnabled method not found")
             end
         end
     })
@@ -589,8 +591,10 @@ function SettingsUI:CreateAudioSettings()
         value = self.Settings.sfxVolume or 100,
         callback = function(value)
             self:UpdateSetting("sfxVolume", value)
-            if self._soundSystem then
+            if self._soundSystem and self._soundSystem.SetSFXVolume then
                 self._soundSystem:SetSFXVolume(value / 100)
+            elseif self._soundSystem then
+                warn("[SettingsUI] SoundSystem exists but SetSFXVolume method not found")
             end
         end
     })

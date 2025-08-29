@@ -60,12 +60,12 @@ type ShopTab = {
 
 local FRAME_SIZE = UDim2.new(1, -20, 1, -90)
 local FRAME_POSITION = UDim2.new(0, 10, 0, 80)
-local HEADER_HEIGHT = 60
-local TAB_HEIGHT = 40
-local CARD_PADDING = 20
-local EGG_CARD_SIZE = Vector2.new(220, 280)
-local GAMEPASS_CARD_HEIGHT = 100
-local CURRENCY_CARD_SIZE = Vector2.new(200, 250)
+local HEADER_HEIGHT = 80
+local TAB_HEIGHT = 50
+local CARD_PADDING = 15
+local EGG_CARD_SIZE = Vector2.new(240, 300)
+local GAMEPASS_CARD_HEIGHT = 120
+local CURRENCY_CARD_SIZE = Vector2.new(220, 280)
 local LOADING_TEXT = "Loading..."
 local MAX_MULTI_OPEN = 10
 
@@ -335,18 +335,39 @@ function ShopUI:CreateTabs()
 end
 
 function ShopUI:CreateTab(tabData: {name: string, icon: string?}, tabButtons: Frame, tabContent: Frame, order: number)
+    -- Tab button container
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Name = tabData.name .. "TabContainer"
+    buttonContainer.Size = UDim2.new(1/#DEFAULT_TABS, -5, 1, 0)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Parent = tabButtons
+    
     -- Tab button
-    local tabButton = self._uiFactory:CreateButton(tabButtons, {
+    local tabButton = self._uiFactory:CreateButton(buttonContainer, {
         name = tabData.name .. "Tab",
         text = (tabData.icon or "") .. " " .. tabData.name,
-        size = UDim2.new(1/#DEFAULT_TABS, -5, 1, 0),
-        backgroundColor = order == 1 and self._config.COLORS.Primary or self._config.COLORS.White,
-        textColor = order == 1 and self._config.COLORS.White or self._config.COLORS.Dark,
+        size = UDim2.new(1, 0, 1, -4),
+        backgroundColor = self._config.COLORS.White,
+        textColor = order == 1 and self._config.COLORS.Primary or self._config.COLORS.Dark,
         font = self._config.FONTS.Secondary,
         callback = function()
             self:SelectTab(tabData.name)
         end
     })
+    
+    -- Remove corner radius for cleaner look
+    local corner = tabButton:FindFirstChild("UICorner")
+    if corner then corner:Destroy() end
+    
+    -- Add underline indicator
+    local underline = Instance.new("Frame")
+    underline.Name = "Underline"
+    underline.Size = UDim2.new(order == 1 and 1 or 0, 0, 0, 3)
+    underline.Position = UDim2.new(0.5, 0, 1, -3)
+    underline.AnchorPoint = Vector2.new(0.5, 0)
+    underline.BackgroundColor3 = self._config.COLORS.Primary
+    underline.BorderSizePixel = 0
+    underline.Parent = buttonContainer
     
     -- Tab frame
     local tabFrame = Instance.new("Frame")
@@ -360,6 +381,8 @@ function ShopUI:CreateTab(tabData: {name: string, icon: string?}, tabButtons: Fr
     self._tabs[tabData.name] = {
         button = tabButton,
         frame = tabFrame,
+        underline = underline,
+        container = buttonContainer,
         initialized = false
     }
     self._tabFrames[tabData.name] = tabFrame
@@ -376,13 +399,17 @@ function ShopUI:SelectTab(tabName: string)
         if name == tabName then
             -- Active button animation
             self._utilities.Tween(tab.button, {
-                BackgroundColor3 = self._config.COLORS.Primary,
-                TextColor3 = self._config.COLORS.White
+                TextColor3 = self._config.COLORS.Primary
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            -- Animate underline
+            self._utilities.Tween(tab.underline, {
+                Size = UDim2.new(1, 0, 0, 3)
             }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
             
             -- Scale effect
             tab.button:TweenSize(
-                UDim2.new(tab.button.Size.X.Scale, tab.button.Size.X.Offset, 1, 2),
+                UDim2.new(tab.button.Size.X.Scale, tab.button.Size.X.Offset, 1, -4),
                 Enum.EasingDirection.Out,
                 Enum.EasingStyle.Back,
                 0.2,
@@ -391,13 +418,17 @@ function ShopUI:SelectTab(tabName: string)
         else
             -- Inactive button animation
             self._utilities.Tween(tab.button, {
-                BackgroundColor3 = self._config.COLORS.White,
                 TextColor3 = self._config.COLORS.Dark
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            -- Hide underline
+            self._utilities.Tween(tab.underline, {
+                Size = UDim2.new(0, 0, 0, 3)
             }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
             
             -- Reset scale
             tab.button:TweenSize(
-                UDim2.new(tab.button.Size.X.Scale, tab.button.Size.X.Offset, 1, 0),
+                UDim2.new(tab.button.Size.X.Scale, tab.button.Size.X.Offset, 1, -4),
                 Enum.EasingDirection.Out,
                 Enum.EasingStyle.Quad,
                 0.2,
@@ -563,7 +594,7 @@ function ShopUI:PopulateEggShop(container: Frame)
     gridLayout.Parent = self._eggScrollFrame
     
     -- Add padding
-    self._utilities.CreatePadding(self._eggScrollFrame, 10)
+    self._utilities.CreatePadding(self._eggScrollFrame, 20)
     
     -- Lazy load egg cards with fade-in
     local visibleCards = {}
@@ -586,10 +617,19 @@ function ShopUI:PopulateEggShop(container: Frame)
                 card.LayoutOrder = item.order
                 card.BackgroundTransparency = 1
                 
-                -- Fade in animation
+                -- Set initial position for slide-up effect
+                local originalPos = card.Position
+                card.Position = UDim2.new(originalPos.X.Scale, originalPos.X.Offset, 
+                                         originalPos.Y.Scale, originalPos.Y.Offset + 20)
+                
+                -- Staggered entrance animation
+                task.wait(loaded * 0.05)
+                
+                -- Fade and slide in animation
                 self._utilities.Tween(card, {
-                    BackgroundTransparency = 0
-                }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+                    BackgroundTransparency = 0,
+                    Position = originalPos
+                }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
                 
                 table.insert(visibleCards, card)
             end
@@ -819,7 +859,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     -- Add gradient to button
     local buttonGradient = Instance.new("UIGradient")
     buttonGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.new(1.1, 1.1, 1.1)),
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
         ColorSequenceKeypoint.new(1, Color3.new(0.9, 0.9, 0.9))
     })
     buttonGradient.Rotation = 90
