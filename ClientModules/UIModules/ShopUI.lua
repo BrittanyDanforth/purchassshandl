@@ -903,6 +903,12 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
 
     
     card.MouseEnter:Connect(function()
+        -- Clean up any existing shadow first
+        local existingShadow = card.Parent:FindFirstChild("DropShadow_" .. card.Name)
+        if existingShadow then
+            existingShadow:Destroy()
+        end
+        
         -- Scale up animation
         card:TweenSize(
             UDim2.new(0, EGG_CARD_SIZE.X * 1.05, 0, EGG_CARD_SIZE.Y * 1.05),
@@ -918,19 +924,22 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             Thickness = 2
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
-        -- Subtle elevation with drop shadow
-        local dropShadow = Instance.new("ImageLabel")
-        dropShadow.Name = "DropShadow"
-        dropShadow.Size = UDim2.new(1, 20, 1, 20)
-        dropShadow.Position = UDim2.new(0.5, 0, 0.5, 5)
-        dropShadow.AnchorPoint = Vector2.new(0.5, 0.5)
-        dropShadow.BackgroundTransparency = 1
-        dropShadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-        dropShadow.ImageColor3 = Color3.new(0, 0, 0)
-        dropShadow.ImageTransparency = 0.8
-        dropShadow.ZIndex = card.ZIndex - 1
-        dropShadow.Parent = card
-        card:SetAttribute("DropShadow", dropShadow)
+        -- Create proper rounded shadow
+        local shadowContainer = Instance.new("Frame")
+        shadowContainer.Name = "DropShadow_" .. card.Name
+        shadowContainer.Size = UDim2.new(1, 10, 1, 10)
+        shadowContainer.Position = UDim2.new(0.5, 0, 0.5, 8)
+        shadowContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+        shadowContainer.BackgroundColor3 = Color3.new(0, 0, 0)
+        shadowContainer.BackgroundTransparency = 0.7
+        shadowContainer.ZIndex = card.ZIndex - 1
+        shadowContainer.Parent = card.Parent
+        
+        -- Add corner to shadow for rounded effect
+        self._utilities.CreateCorner(shadowContainer, 20)
+        
+        -- Store reference without using attribute
+        card:SetAttribute("HasDropShadow", true)
         
         -- Scale egg image
         self._utilities.Tween(eggImage, {
@@ -960,10 +969,12 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
         -- Remove drop shadow
-        local dropShadow = card:GetAttribute("DropShadow")
-        if dropShadow then
-            dropShadow:Destroy()
-            card:SetAttribute("DropShadow", nil)
+        if card:GetAttribute("HasDropShadow") then
+            local dropShadow = card.Parent:FindFirstChild("DropShadow_" .. card.Name)
+            if dropShadow then
+                dropShadow:Destroy()
+            end
+            card:SetAttribute("HasDropShadow", false)
         end
         
         -- Reset egg image
