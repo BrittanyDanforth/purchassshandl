@@ -1463,6 +1463,15 @@ function SettingsUI:LoadSettings()
         print("[SettingsUI] Using default settings - server settings not available")
     end
     
+    -- Initialize default settings if not present
+    self.Settings = self.Settings or {}
+    if not self.Settings.masterVolume then self.Settings.masterVolume = 100 end
+    if not self.Settings.musicVolume then self.Settings.musicVolume = 80 end
+    if not self.Settings.sfxVolume then self.Settings.sfxVolume = 100 end
+    if not self.Settings.graphics then self.Settings.graphics = "high" end
+    if not self.Settings.showParticles then self.Settings.showParticles = true end
+    if not self.Settings.showNotifications then self.Settings.showNotifications = true end
+    
     -- Load keybinds
     for id, defaultKey in pairs(DEFAULT_KEYBINDS) do
         local savedKey = self.Settings["keybind_" .. id]
@@ -1673,12 +1682,18 @@ function SettingsUI:OnSettingChanged(id: string, value: any)
         if element.type == "toggle" then
             element.control.Value = value
         elseif element.type == "slider" then
-            element.control.Value = value
+            -- Use UIFactory helper method
+            if self._uiFactory.SetSliderValue then
+                self._uiFactory:SetSliderValue(element.control, value)
+            end
             if element.label then
                 element.label.Text = element.label.Text:gsub(": .+", ": " .. tostring(value))
             end
         elseif element.type == "dropdown" then
-            element.control:SetValue(value)
+            -- Use UIFactory helper method
+            if self._uiFactory.SetDropdownValue then
+                self._uiFactory:SetDropdownValue(element.control, value)
+            end
         end
     end
 end

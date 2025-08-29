@@ -172,7 +172,7 @@ function MainUI:CreateScreenGui()
     screenGui.Name = "SanrioTycoonUI"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.DisplayOrder = 1
+    screenGui.DisplayOrder = 10
     screenGui.Parent = playerGui
     
     self.ScreenGui = screenGui

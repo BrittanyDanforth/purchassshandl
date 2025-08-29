@@ -101,20 +101,8 @@ function CurrencyDisplay:Initialize(parent: Instance?, options: CurrencyOptions?
     options = options or {}
     self._options = self:MergeOptions(self._options, options)
     
-    -- Create a separate ScreenGui for currency display with highest DisplayOrder
-    local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
-    local currencyGui = playerGui:FindFirstChild("CurrencyDisplayGui")
-    if not currencyGui then
-        currencyGui = Instance.new("ScreenGui")
-        currencyGui.Name = "CurrencyDisplayGui"
-        currencyGui.ResetOnSpawn = false
-        currencyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        currencyGui.DisplayOrder = 999 -- Always on top of other UI
-        currencyGui.Parent = playerGui
-    end
-    
     -- Create main frame
-    self:CreateFrame(currencyGui, options)
+    self:CreateFrame(parent or options.parent, options)
     
     -- Create currency items
     local currencies = options.currencies or DEFAULT_CURRENCIES
@@ -145,7 +133,7 @@ function CurrencyDisplay:CreateFrame(parent: Instance, options: CurrencyOptions)
     self.Frame.Position = options.position or DEFAULT_POSITION
     self.Frame.BackgroundColor3 = self._config.COLORS.White
     self.Frame.BorderSizePixel = 0
-    self.Frame.ZIndex = 999 -- Always on top of other UI
+    self.Frame.ZIndex = 100 -- High priority but reasonable
     self.Frame.Parent = parent
     
     self._utilities.CreateCorner(self.Frame, 8)
@@ -247,13 +235,17 @@ function CurrencyDisplay:SetupClickToCopy(container: Frame, currencyItem: Curren
         end
     end)
     
-    -- Add click cursor
+    -- Add hover effect instead of cursor change (Frames don't have MouseIcon)
     container.MouseEnter:Connect(function()
-        container.MouseIcon = "rbxasset://SystemCursors/PointingHand"
+        self._utilities.Tween(container, {
+            BackgroundTransparency = 0.9
+        }, self._config.TWEEN_INFO.Fast)
     end)
     
     container.MouseLeave:Connect(function()
-        container.MouseIcon = ""
+        self._utilities.Tween(container, {
+            BackgroundTransparency = 1
+        }, self._config.TWEEN_INFO.Fast)
     end)
 end
 

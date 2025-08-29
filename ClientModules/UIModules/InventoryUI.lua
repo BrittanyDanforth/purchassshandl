@@ -243,6 +243,9 @@ function InventoryUI:Open()
     -- Create UI
     self:CreateUI()
     
+    -- Show default tab (Pets) to ensure PetGrid exists
+    self:ShowTab("Pets")
+    
     -- Delay initial load to ensure UI is ready
     task.defer(function()
         self:RefreshInventory()
