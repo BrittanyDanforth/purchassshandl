@@ -1680,7 +1680,10 @@ function SettingsUI:OnSettingChanged(id: string, value: any)
     local element = self.SettingElements[id]
     if element then
         if element.type == "toggle" then
-            element.control.Value = value
+            -- Use UIFactory helper method
+            if self._uiFactory.SetToggleValue then
+                self._uiFactory:SetToggleValue(element.control, value)
+            end
         elseif element.type == "slider" then
             -- Use UIFactory helper method
             if self._uiFactory.SetSliderValue then

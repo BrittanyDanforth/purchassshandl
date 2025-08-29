@@ -744,12 +744,15 @@ game:GetService("ScriptContext").Error:Connect(function(message, stack, script)
         
         -- If too many errors in short time, suggest reload
         if errorCount > 5 and notificationSystem then
-            notificationSystem:Show({
-                title = "Multiple Errors Detected",
-                message = "The game may be unstable. Consider rejoining.",
-                duration = 5,
-                type = "error"
-            })
+            -- Wrap in pcall to prevent error loops
+            pcall(function()
+                notificationSystem:Show({
+                    title = "Multiple Errors Detected",
+                    message = "The game may be unstable. Consider rejoining.",
+                    duration = 5,
+                    type = "error"
+                })
+            end)
             errorCount = 0
         end
     end

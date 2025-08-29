@@ -677,6 +677,31 @@ function InventoryUI:CreateTabs()
     end
     
     self.TabFrames = tabFrames
+    self.CurrentTab = "Pets"
+end
+
+function InventoryUI:ShowTab(tabName: string)
+    if not self.TabFrames or not self.TabFrames[tabName] then
+        warn("[InventoryUI] Tab not found:", tabName)
+        return
+    end
+    
+    -- Hide all tabs
+    for name, frame in pairs(self.TabFrames) do
+        frame.Visible = false
+    end
+    
+    -- Show selected tab
+    self.TabFrames[tabName].Visible = true
+    self.CurrentTab = tabName
+    
+    -- Update PetGrid reference for Pets tab
+    if tabName == "Pets" then
+        local petsTab = self.TabFrames["Pets"]
+        if petsTab then
+            self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+        end
+    end
 end
 
 -- ========================================

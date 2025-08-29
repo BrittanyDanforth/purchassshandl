@@ -1025,6 +1025,20 @@ function UIFactory:SetDropdownValue(dropdown: Frame, value: string)
     end
 end
 
+-- Toggle helper methods
+function UIFactory:GetToggleValue(toggle: Frame): boolean?
+    if self.ToggleData and self.ToggleData[toggle] then
+        return self.ToggleData[toggle].GetValue()
+    end
+    return nil
+end
+
+function UIFactory:SetToggleValue(toggle: Frame, value: boolean)
+    if self.ToggleData and self.ToggleData[toggle] then
+        self.ToggleData[toggle].SetValue(value)
+    end
+end
+
 -- ========================================
 -- CHECKBOX CREATION
 -- ========================================
@@ -1347,7 +1361,9 @@ function UIFactory:CreateToggleSwitch(parent: Instance, options: table?): Frame
     container.Name = options.name or "ToggleSwitch"
     container.Size = options.size or UDim2.new(0, 50, 0, 25)
     container.Position = options.position or UDim2.new(0, 0, 0, 0)
-    container.BackgroundColor3 = options.isOn and self._config.COLORS.Success or self._config.COLORS.ButtonDisabled
+    local isOn = options.isOn or options.value or false
+    
+    container.BackgroundColor3 = isOn and self._config.COLORS.Success or self._config.COLORS.ButtonDisabled
     container.BorderSizePixel = 0
     container.Parent = parent
     
@@ -1357,7 +1373,7 @@ function UIFactory:CreateToggleSwitch(parent: Instance, options: table?): Frame
     local toggle = Instance.new("Frame")
     toggle.Name = "Toggle"
     toggle.Size = UDim2.new(0, 20, 0, 20)
-    toggle.Position = options.isOn and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
+    toggle.Position = isOn and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
     toggle.BackgroundColor3 = self._config.COLORS.White
     toggle.BorderSizePixel = 0
     toggle.Parent = container
@@ -1370,8 +1386,6 @@ function UIFactory:CreateToggleSwitch(parent: Instance, options: table?): Frame
     button.Size = UDim2.new(1, 0, 1, 0)
     button.BackgroundTransparency = 1
     button.Parent = container
-    
-    local isOn = options.isOn or options.value or false
     
     button.MouseButton1Click:Connect(function()
         isOn = not isOn
@@ -1388,16 +1402,22 @@ function UIFactory:CreateToggleSwitch(parent: Instance, options: table?): Frame
         end
     end)
     
-    -- Methods
-    container.GetValue = function()
-        return isOn
+    -- Initialize toggle data table if not exists
+    if not self.ToggleData then
+        self.ToggleData = {}
     end
     
-    container.SetValue = function(value)
-        isOn = value
-        toggle.Position = isOn and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
-        container.BackgroundColor3 = isOn and self._config.COLORS.Success or self._config.COLORS.ButtonDisabled
-    end
+    -- Store methods in table instead of directly on frame
+    self.ToggleData[container] = {
+        GetValue = function()
+            return isOn
+        end,
+        SetValue = function(value)
+            isOn = value
+            toggle.Position = isOn and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)
+            container.BackgroundColor3 = isOn and self._config.COLORS.Success or self._config.COLORS.ButtonDisabled
+        end
+    }
     
     return container
 end

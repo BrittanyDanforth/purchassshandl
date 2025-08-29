@@ -516,13 +516,16 @@ end
 
 function NotificationSystem:AreSimilar(a: NotificationData, b: NotificationData): boolean
     -- Simple similarity check - can be enhanced
+    local msgA = tostring(a.message or "")
+    local msgB = tostring(b.message or "")
     return a.type == b.type and 
-           string.sub(a.message, 1, 20) == string.sub(b.message, 1, 20)
+           string.sub(msgA, 1, 20) == string.sub(msgB, 1, 20)
 end
 
 function NotificationSystem:StackNotification(notification: NotificationData)
     -- Find or create group
-    local groupId = notification.type .. "_" .. string.sub(notification.message, 1, 20)
+    local msg = tostring(notification.message or "")
+    local groupId = notification.type .. "_" .. string.sub(msg, 1, 20)
     local group = self._groups[groupId]
     
     if not group then
