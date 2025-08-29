@@ -997,7 +997,7 @@ function PetDetailsUI:ShowPetInfo(parent: Frame)
         
         local descLabel = self._uiFactory:CreateLabel(descFrame, {
             text = self._currentPetData.description,
-            size = UDim2.new(1, -20, 1, -20),
+            size = UDim2.new(1, -20, 1, -90),
             position = UDim2.new(0, 10, 0, 10),
             textWrapped = true,
             textYAlignment = Enum.TextYAlignment.Top,

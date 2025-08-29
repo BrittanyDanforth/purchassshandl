@@ -238,15 +238,15 @@ function SettingsUI:CreateUI()
         return
     end
     
-    -- Create main frame with high ZIndex as per user feedback
+    -- Create main frame with exact same sizing as ShopUI
     self.Frame = self._uiFactory:CreateFrame(mainPanel, {
         name = "SettingsFrame",
-        size = UDim2.new(1, -20, 1, -80),
-        position = UDim2.new(0, 10, 0, 70),
+        size = UDim2.new(1, -20, 1, -90),  -- Same as ShopUI
+        position = UDim2.new(0, 10, 0, 80), -- Same as ShopUI
         backgroundColor = self._config.COLORS.White,
         clipsDescendants = true,
         zIndex = 100, -- High ZIndex to ensure visibility
-        visible = true
+        visible = false  -- Start hidden
     })
     
     self._utilities.CreateCorner(self.Frame, 12)

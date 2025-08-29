@@ -339,6 +339,9 @@ local originalQuestNew = QuestUIModule.new
 QuestUIModule.new = function(deps)
     local instance = originalQuestNew(deps)
     
+    -- Store reference to uiModules
+    instance._allUIModules = uiModules
+    
     -- Override Close to ensure it actually closes
     local originalClose = instance.Close
     instance.Close = function(self)
@@ -364,9 +367,11 @@ QuestUIModule.new = function(deps)
     local originalOpen = instance.Open
     instance.Open = function(self)
         -- Close all other UIs first (except CurrencyDisplay)
-        for modName, modInstance in pairs(uiModules) do
-            if modName ~= "QuestUI" and modName ~= "CurrencyDisplay" and modInstance.Close then
-                modInstance:Close()
+        if self._allUIModules then
+            for modName, modInstance in pairs(self._allUIModules) do
+                if modName ~= "QuestUI" and modName ~= "CurrencyDisplay" and modInstance and modInstance.Close then
+                    modInstance:Close()
+                end
             end
         end
         
@@ -452,45 +457,7 @@ for _, moduleName in ipairs(uiModuleNames) do
     end
 end
 
--- Apply standard UI sizing to all modules - MATCH SHOP UI EXACTLY
-for name, instance in pairs(uiModules) do
-    -- Skip CurrencyDisplay and ShopUI as they have correct sizing
-    if name ~= "CurrencyDisplay" and name ~= "ShopUI" then
-        -- Override CreateUI method to fix sizing at creation time
-        local originalCreateUI = instance.CreateUI
-        if originalCreateUI then
-            instance.CreateUI = function(self)
-                -- Call original CreateUI
-                originalCreateUI(self)
-                
-                -- Apply Shop UI's exact sizing after creation
-                if self.Frame then
-                    self.Frame.Size = UDim2.new(1, -20, 1, -90)
-                    self.Frame.Position = UDim2.new(0, 10, 0, 80)
-                    
-                    -- Ensure frame is not clipping or going beyond bounds
-                    self.Frame.ClipsDescendants = true
-                    self.Frame.ZIndex = 2
-                end
-            end
-        end
-        
-        -- Also override Open method in case Frame is created there
-        local originalOpen = instance.Open
-        if originalOpen then
-            instance.Open = function(self, ...)
-                originalOpen(self, ...)
-                if self.Frame then
-                    -- Apply Shop UI's exact sizing
-                    self.Frame.Size = UDim2.new(1, -20, 1, -90)
-                    self.Frame.Position = UDim2.new(0, 10, 0, 80)
-                    self.Frame.ClipsDescendants = true
-                    self.Frame.ZIndex = 2
-                end
-            end
-        end
-    end
-end
+-- UI modules now have correct sizing built-in, no need for overrides
 
 -- Fix Settings UI getting stuck
 local settingsUI = uiModules.SettingsUI
