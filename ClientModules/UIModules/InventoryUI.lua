@@ -1300,7 +1300,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     local glowFrame = nil
     local shadowFrame = nil
     
-    -- Create shadow that will grow on hover
+    -- Create shadow that will grow on hover (as child of card)
     shadowFrame = Instance.new("Frame")
     shadowFrame.Name = "Shadow"
     shadowFrame.Size = UDim2.new(1, 6, 1, 6)
@@ -1308,8 +1308,8 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     shadowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
     shadowFrame.BackgroundTransparency = 0.8
-    shadowFrame.ZIndex = card.ZIndex - 1
-    shadowFrame.Parent = card.Parent
+    shadowFrame.ZIndex = -1  -- Behind everything in the card
+    shadowFrame.Parent = card  -- Parent to card, not card.Parent!
     self._utilities.CreateCorner(shadowFrame, 10)
     
     -- Move card above shadow
@@ -1318,7 +1318,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     button.MouseEnter:Connect(function()
         -- Bring to front
         card.ZIndex = originalZIndex + 10
-        shadowFrame.ZIndex = originalZIndex + 9
+        -- Shadow stays at ZIndex -1 relative to card
         
         -- Create glow effect
         if not glowFrame then
@@ -1375,7 +1375,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     button.MouseLeave:Connect(function()
         -- Reset Z-index
         card.ZIndex = originalZIndex + 2
-        shadowFrame.ZIndex = originalZIndex - 1
+        -- Shadow stays at ZIndex -1 relative to card
         
         -- Animate background color
         self._utilities.Tween(card, {
