@@ -376,7 +376,7 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
         title.Size = UDim2.new(1, -10, 0, 20)
         title.Position = UDim2.new(0, 0, 0, 5)
         title.BackgroundTransparency = 1
-        title.Text = notification.title
+        title.Text = tostring(notification.title or "Notification")
         title.TextColor3 = self._config.COLORS.Text
         title.TextXAlignment = Enum.TextXAlignment.Left
         title.TextScaled = true
@@ -392,7 +392,7 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     message.Size = UDim2.new(1, -10, 1, -messageY - 10)
     message.Position = UDim2.new(0, 0, 0, messageY)
     message.BackgroundTransparency = 1
-    message.Text = notification.message
+            message.Text = tostring(notification.message or "")
     message.TextColor3 = self._config.COLORS.TextSecondary
     message.TextXAlignment = Enum.TextXAlignment.Left
     message.TextWrapped = true

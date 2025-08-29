@@ -1457,19 +1457,10 @@ function SettingsUI:SaveSettings(manual: boolean?)
 end
 
 function SettingsUI:LoadSettings()
-    -- Load from server
-    if self._remoteManager then
-        local success, settings = pcall(function()
-            return self._remoteManager:InvokeServer("LoadSettings")
-        end)
-        if success and settings then
-            self.Settings = settings
-        else
-            -- Use default settings if server settings not available
-            if self._debugMode then
-                print("[SettingsUI] Using default settings - server settings not available")
-            end
-        end
+    -- Skip server load for now since LoadSettings remote is not implemented
+    -- Use default settings
+    if self._debugMode then
+        print("[SettingsUI] Using default settings - server settings not available")
     end
     
     -- Load keybinds

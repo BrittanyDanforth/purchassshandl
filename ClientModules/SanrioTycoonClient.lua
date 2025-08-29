@@ -674,12 +674,15 @@ local function safeCall(func, ...)
         
         -- Show user-friendly error notification
         if notificationSystem then
-            notificationSystem:Show({
+            local errorNotification = {
                 title = "UI Error",
                 message = "Something went wrong. Please try again.",
                 duration = 3,
                 type = "error"
-            })
+            }
+            pcall(function()
+                notificationSystem:Show(errorNotification)
+            end)
         end
         
         return nil
@@ -695,9 +698,10 @@ if mainUI then
     end
 end
 
--- Setup debug overlay
-local debugOverlaySuccess, DebugOverlay = pcall(require, script.Parent.ClientModules.Systems.DebugOverlay)
+-- Setup debug overlay (disabled for now due to path issues)
 local debugOverlay = nil
+--[[
+local debugOverlaySuccess, DebugOverlay = pcall(require, script.Parent.ClientModules.Systems.DebugOverlay)
 if debugOverlaySuccess then
     debugOverlay = DebugOverlay.new({
         config = config
@@ -705,6 +709,7 @@ if debugOverlaySuccess then
 else
     warn("[SanrioTycoonClient] Could not load DebugOverlay module")
 end
+]]
 
 -- Track navigation events
 eventBus:On("NavigationClicked", function(data)
@@ -718,7 +723,13 @@ local errorCount = 0
 local lastErrorTime = 0
 
 game:GetService("ScriptContext").Error:Connect(function(message, stack, script)
-    if script and script:IsDescendantOf(player.PlayerScripts) then
+    -- Prevent infinite recursion
+    if string.find(message, "SanrioTycoonClient:721") then
+        return
+    end
+    
+    local localPlayer = game:GetService("Players").LocalPlayer
+    if script and localPlayer and localPlayer.PlayerScripts and script:IsDescendantOf(localPlayer.PlayerScripts) then
         if debugOverlay then
             debugOverlay:TrackError()
         end
@@ -732,7 +743,7 @@ game:GetService("ScriptContext").Error:Connect(function(message, stack, script)
         lastErrorTime = currentTime
         
         -- If too many errors in short time, suggest reload
-        if errorCount > 5 then
+        if errorCount > 5 and notificationSystem then
             notificationSystem:Show({
                 title = "Multiple Errors Detected",
                 message = "The game may be unstable. Consider rejoining.",
