@@ -9,6 +9,7 @@ local Types = require(script.Parent.Parent.Core.ClientTypes)
 local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
 
 local ShopUI = {}
 ShopUI.__index = ShopUI
@@ -91,6 +92,9 @@ local DEFAULT_CURRENCY_PACKAGES = {
 
 function ShopUI.new(dependencies)
     local self = setmetatable({}, ShopUI)
+    
+    -- Initialize Janitor for memory management
+    self._janitor = Janitor.new()
     
     -- Dependencies
     self._eventBus = dependencies.EventBus
@@ -390,12 +394,12 @@ function ShopUI:CreateHeader()
         end
     end)
     
-    clearButton.MouseButton1Click:Connect(function()
+    self._janitor:Add(clearButton.MouseButton1Click:Connect(function()
         self._searchBox.Text = ""
         if self._soundSystem then
             self._soundSystem:PlayUISound("Click")
         end
-    end)
+    end))
     
     -- Filters section (right side)
     local filtersContainer = Instance.new("Frame")
@@ -878,17 +882,17 @@ function ShopUI:CreateEnhancedScrollingFrame(parent: Frame, config: table)
     -- Scrollbar fade on hover
     local scrollBarBg = scrollFrame:FindFirstChild("ScrollBarBackground")
     if scrollBarBg then
-        scrollFrame.MouseEnter:Connect(function()
+        self._janitor:Add(scrollFrame.MouseEnter:Connect(function()
             self._utilities.Tween(scrollFrame, {
                 ScrollBarImageTransparency = 0.2
             }, TweenInfo.new(0.2))
-        end)
+        end))
         
-        scrollFrame.MouseLeave:Connect(function()
+        self._janitor:Add(scrollFrame.MouseLeave:Connect(function()
             self._utilities.Tween(scrollFrame, {
                 ScrollBarImageTransparency = 0.5
             }, TweenInfo.new(0.2))
-        end)
+        end))
     end
     
     -- Store connection for cleanup
@@ -1025,7 +1029,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     
     -- Button hover effects
     local originalButtonSize = buyButton.Size
-    buyButton.MouseEnter:Connect(function()
+    self._janitor:Add(buyButton.MouseEnter:Connect(function()
         -- Scale animation
         self._utilities.Tween(buyButton, {
             Size = UDim2.new(1, -16, 0, 40)
@@ -1041,9 +1045,9 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             Transparency = 0.4,
             Thickness = 2
         }, TweenInfo.new(0.2))
-    end)
+    end))
     
-    buyButton.MouseLeave:Connect(function()
+    self._janitor:Add(buyButton.MouseLeave:Connect(function()
         -- Reset scale
         self._utilities.Tween(buyButton, {
             Size = originalButtonSize
@@ -1059,7 +1063,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             Transparency = 0.8,
             Thickness = 1
         }, TweenInfo.new(0.2))
-    end)
+    end))
     
     -- Premium hover effects
     local originalBorderTransparency = border.Transparency
@@ -1098,7 +1102,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     
 
     
-    card.MouseEnter:Connect(function()
+    self._janitor:Add(card.MouseEnter:Connect(function()
         -- Clean up any existing shadow first
         local shadowFrame = card:FindFirstChild("ShadowFrame")
         if shadowFrame then
@@ -1199,9 +1203,9 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         if self._soundSystem then
             self._soundSystem:PlayUISound("Hover")
         end
-    end)
+    end))
     
-    card.MouseLeave:Connect(function()
+    self._janitor:Add(card.MouseLeave:Connect(function()
         -- Scale back
         card:TweenSize(
             UDim2.new(0, EGG_CARD_SIZE.X, 0, EGG_CARD_SIZE.Y),
@@ -1242,7 +1246,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         self._utilities.Tween(eggImage, {
             Size = UDim2.new(0.8, 0, 0.8, 0)
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
-    end)
+    end))
     
     return card
 end
@@ -1946,6 +1950,12 @@ end
 -- ========================================
 
 function ShopUI:Destroy()
+    -- Clean up all connections and objects via Janitor
+    if self._janitor then
+        self._janitor:Cleanup()
+        self._janitor = nil
+    end
+    
     -- Destroy frame
     if self.Frame then
         self.Frame:Destroy()

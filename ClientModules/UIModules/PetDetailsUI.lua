@@ -10,6 +10,7 @@ local Types = require(script.Parent.Parent.Core.ClientTypes)
 local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
 
 local PetDetailsUI = {}
 PetDetailsUI.__index = PetDetailsUI
@@ -89,6 +90,9 @@ local RARITY_NAMES = {
 
 function PetDetailsUI.new(dependencies)
     local self = setmetatable({}, PetDetailsUI)
+    
+    -- Initialize Janitor for memory management
+    self._janitor = Janitor.new()
     
     -- Dependencies
     self._eventBus = dependencies.EventBus
@@ -275,9 +279,9 @@ function PetDetailsUI:CreateOverlay()
     closeButton.Text = ""
     closeButton.Parent = self._overlay
     
-    closeButton.MouseButton1Click:Connect(function()
+    self._janitor:Add(closeButton.MouseButton1Click:Connect(function()
         self:Close()
-    end)
+    end))
 end
 
 function PetDetailsUI:CreateDetailsWindow()
@@ -1598,6 +1602,12 @@ end
 
 function PetDetailsUI:Destroy()
     self:Close()
+    
+    -- Clean up all connections and objects via Janitor
+    if self._janitor then
+        self._janitor:Cleanup()
+        self._janitor = nil
+    end
     
     -- Clear all references
     self._overlay = nil
