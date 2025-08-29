@@ -737,20 +737,114 @@ end
 -- ========================================
 
 function InventoryUI:CreatePetGrid(parent: Frame)
-    -- Create scrolling frame
+    -- Create scrolling frame with smooth scrolling
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "PetGridScrollFrame"
     scrollFrame.Size = UDim2.new(1, -10, 1, -10)
     scrollFrame.Position = UDim2.new(0, 5, 0, 5)
     scrollFrame.BackgroundTransparency = 1
     scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.ScrollBarThickness = 8
     scrollFrame.ScrollBarImageColor3 = self._config.COLORS.Primary
-    scrollFrame.ScrollBarImageTransparency = 0.5
+    scrollFrame.ScrollBarImageTransparency = 0.6
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    scrollFrame.ElasticBehavior = Enum.ElasticBehavior.Always
     scrollFrame.Parent = parent
     
     self.PetGrid = scrollFrame
+    
+    -- Add momentum scrolling
+    local lastScrollPosition = scrollFrame.CanvasPosition
+    local velocity = Vector2.new(0, 0)
+    local scrollConnection = nil
+    local isScrolling = false
+    
+    -- Smooth momentum scrolling
+    scrollConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+        if velocity.Magnitude > 0.1 and not isScrolling then
+            -- Apply momentum
+            local newPosition = scrollFrame.CanvasPosition + velocity * dt * 60
+            
+            -- Clamp to bounds with elastic effect
+            local maxY = math.max(0, scrollFrame.AbsoluteCanvasSize.Y - scrollFrame.AbsoluteSize.Y)
+            
+            if newPosition.Y < -50 then
+                newPosition = Vector2.new(newPosition.X, -50 + (newPosition.Y + 50) * 0.3)
+                velocity = velocity * 0.7
+            elseif newPosition.Y > maxY + 50 then
+                newPosition = Vector2.new(newPosition.X, maxY + 50 - (newPosition.Y - maxY - 50) * 0.3)
+                velocity = velocity * 0.7
+            end
+            
+            scrollFrame.CanvasPosition = newPosition
+            
+            -- Apply damping
+            velocity = velocity * 0.94
+            
+            -- Snap back if overscrolled
+            if newPosition.Y < 0 then
+                scrollFrame.CanvasPosition = Vector2.new(newPosition.X, math.max(0, newPosition.Y + 2))
+            elseif newPosition.Y > maxY then
+                scrollFrame.CanvasPosition = Vector2.new(newPosition.X, math.min(maxY, newPosition.Y - 2))
+            end
+        end
+    end)
+    
+    -- Track scrolling for momentum
+    local lastTime = tick()
+    scrollFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        local currentTime = tick()
+        local dt = currentTime - lastTime
+        
+        if dt > 0 and isScrolling then
+            local delta = scrollFrame.CanvasPosition - lastScrollPosition
+            velocity = delta / dt * 0.5 -- Smooth velocity calculation
+            lastScrollPosition = scrollFrame.CanvasPosition
+        end
+        
+        lastTime = currentTime
+    end)
+    
+    -- Detect when user starts/stops scrolling
+    scrollFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            isScrolling = true
+            velocity = Vector2.new(0, 0)
+        end
+    end)
+    
+    scrollFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            isScrolling = false
+        end
+    end)
+    
+    -- Mouse wheel scrolling with acceleration
+    scrollFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local scrollSpeed = 50 * input.Position.Z
+            velocity = Vector2.new(0, -scrollSpeed * 2)
+        end
+    end)
+    
+    -- Fade scrollbar on hover
+    scrollFrame.MouseEnter:Connect(function()
+        self._utilities.Tween(scrollFrame, {
+            ScrollBarImageTransparency = 0.2
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    end)
+    
+    scrollFrame.MouseLeave:Connect(function()
+        self._utilities.Tween(scrollFrame, {
+            ScrollBarImageTransparency = 0.6
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    end)
+    
+    -- Store connection for cleanup
+    self._scrollConnection = scrollConnection
     
     -- Grid layout
     local gridLayout = Instance.new("UIGridLayout")
@@ -818,6 +912,105 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     petImage.ScaleType = Enum.ScaleType.Fit
     petImage.Parent = imageContainer
     
+    -- Add rarity effects for high-tier pets
+    local rarity = petData.rarity or 1
+    
+    -- Legendary (rarity 5) - Shimmer effect
+    if rarity >= 5 then
+        -- Create shimmer overlay
+        local shimmer = Instance.new("ImageLabel")
+        shimmer.Name = "ShimmerEffect"
+        shimmer.Size = UDim2.new(1.5, 0, 1.5, 0)
+        shimmer.Position = UDim2.new(-0.25, 0, -0.25, 0)
+        shimmer.BackgroundTransparency = 1
+        shimmer.Image = "rbxasset://textures/ui/LuaApp/graphic/shimmer_wide.png"
+        shimmer.ImageTransparency = 0.7
+        shimmer.ImageColor3 = Color3.fromRGB(255, 215, 0) -- Gold shimmer
+        shimmer.ZIndex = petImage.ZIndex + 1
+        shimmer.Parent = imageContainer
+        
+        -- Animate shimmer
+        local shimmerTween = self._utilities.Tween(shimmer, {
+            Position = UDim2.new(0.75, 0, -0.25, 0)
+        }, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1))
+    end
+    
+    -- Mythical (rarity 6) - Particle aura
+    if rarity >= 6 then
+        -- Create particle container
+        local particleContainer = Instance.new("Frame")
+        particleContainer.Name = "ParticleAura"
+        particleContainer.Size = UDim2.new(1, 20, 1, 20)
+        particleContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+        particleContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+        particleContainer.BackgroundTransparency = 1
+        particleContainer.ZIndex = petImage.ZIndex - 1
+        particleContainer.Parent = imageContainer
+        
+        -- Spawn particles
+        task.spawn(function()
+            while card.Parent do
+                local particle = Instance.new("Frame")
+                particle.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
+                particle.Position = UDim2.new(math.random(), 0, 1, 0)
+                particle.BackgroundColor3 = Color3.fromRGB(200, 100, 255) -- Purple particles
+                particle.BorderSizePixel = 0
+                particle.Parent = particleContainer
+                
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0.5, 0)
+                corner.Parent = particle
+                
+                -- Float up animation
+                self._utilities.Tween(particle, {
+                    Position = UDim2.new(particle.Position.X.Scale + (math.random() - 0.5) * 0.2, 0, -0.2, 0),
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(0, 0, 0, 0)
+                }, TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+                
+                game:GetService("Debris"):AddItem(particle, 2)
+                task.wait(0.3)
+            end
+        end)
+    end
+    
+    -- Secret (rarity 7+) - Rainbow gradient
+    if rarity >= 7 then
+        -- Create rainbow gradient overlay
+        local rainbowFrame = Instance.new("Frame")
+        rainbowFrame.Name = "RainbowEffect"
+        rainbowFrame.Size = UDim2.new(1, 4, 1, 4)
+        rainbowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+        rainbowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        rainbowFrame.BackgroundTransparency = 0.8
+        rainbowFrame.ZIndex = petImage.ZIndex + 2
+        rainbowFrame.Parent = imageContainer
+        
+        local rainbowGradient = Instance.new("UIGradient")
+        rainbowGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 165, 0)),
+            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
+            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(75, 0, 130)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(238, 130, 238))
+        })
+        rainbowGradient.Parent = rainbowFrame
+        
+        self._utilities.CreateCorner(rainbowFrame, 8)
+        
+        -- Animate rainbow rotation
+        task.spawn(function()
+            while card.Parent do
+                self._utilities.Tween(rainbowGradient, {
+                    Rotation = rainbowGradient.Rotation + 360
+                }, TweenInfo.new(3, Enum.EasingStyle.Linear))
+                task.wait(3)
+            end
+        end)
+    end
+    
     -- Level badge
     local levelBadge = Instance.new("Frame")
     levelBadge.Name = "LevelBadge"
@@ -884,35 +1077,117 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         self:ShowPetDetails(petInstance, petData)
     end)
     
-    -- Hover effects
+    -- Premium hover effects
+    local originalZIndex = card.ZIndex or 1
+    local glowFrame = nil
+    local shadowFrame = nil
+    
+    -- Create shadow that will grow on hover
+    shadowFrame = Instance.new("Frame")
+    shadowFrame.Name = "Shadow"
+    shadowFrame.Size = UDim2.new(1, 6, 1, 6)
+    shadowFrame.Position = UDim2.new(0.5, 0, 0.5, 3)
+    shadowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    shadowFrame.BackgroundTransparency = 0.8
+    shadowFrame.ZIndex = card.ZIndex - 1
+    shadowFrame.Parent = card.Parent
+    self._utilities.CreateCorner(shadowFrame, 10)
+    
+    -- Move card above shadow
+    card.ZIndex = originalZIndex + 2
+    
     button.MouseEnter:Connect(function()
-        self._utilities.Tween(card, {
-            BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.Surface, 0.1)
-        }, self._config.TWEEN_INFO.Fast)
+        -- Bring to front
+        card.ZIndex = originalZIndex + 10
+        shadowFrame.ZIndex = originalZIndex + 9
         
-        -- Scale up slightly
+        -- Create glow effect
+        if not glowFrame then
+            glowFrame = Instance.new("Frame")
+            glowFrame.Name = "GlowEffect"
+            glowFrame.Size = UDim2.new(1, 12, 1, 12)
+            glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+            glowFrame.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
+            glowFrame.BackgroundTransparency = 0.7
+            glowFrame.ZIndex = card.ZIndex - 1
+            glowFrame.Parent = card.Parent
+            self._utilities.CreateCorner(glowFrame, 12)
+        end
+        
+        -- Animate background color
+        self._utilities.Tween(card, {
+            BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.Surface, 0.15)
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        -- Scale up with bounce
         card:TweenSize(
-            UDim2.new(0, CARD_SIZE.X + 5, 0, CARD_SIZE.Y + 5),
+            UDim2.new(0, CARD_SIZE.X * 1.08, 0, CARD_SIZE.Y * 1.08),
             Enum.EasingDirection.Out,
-            Enum.EasingStyle.Quad,
-            0.1,
+            Enum.EasingStyle.Back,
+            0.25,
             true
         )
+        
+        -- Animate shadow growth
+        self._utilities.Tween(shadowFrame, {
+            Size = UDim2.new(1, 16, 1, 16),
+            Position = UDim2.new(0.5, 0, 0.5, 8),
+            BackgroundTransparency = 0.6
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        -- Animate glow
+        self._utilities.Tween(glowFrame, {
+            BackgroundTransparency = 0.5,
+            Size = UDim2.new(1, 16, 1, 16)
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        -- Slight rotation for 3D effect
+        self._utilities.Tween(card, {
+            Rotation = 1
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out))
+        
+        -- Sound effect
+        if self._soundSystem then
+            self._soundSystem:PlayUISound("Hover")
+        end
     end)
     
     button.MouseLeave:Connect(function()
-        self._utilities.Tween(card, {
-            BackgroundColor3 = self._config.COLORS.Surface
-        }, self._config.TWEEN_INFO.Fast)
+        -- Reset Z-index
+        card.ZIndex = originalZIndex + 2
+        shadowFrame.ZIndex = originalZIndex - 1
         
-        -- Scale back
+        -- Animate background color
+        self._utilities.Tween(card, {
+            BackgroundColor3 = self._config.COLORS.Surface,
+            Rotation = 0
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        -- Scale back smoothly
         card:TweenSize(
             UDim2.new(0, CARD_SIZE.X, 0, CARD_SIZE.Y),
             Enum.EasingDirection.Out,
             Enum.EasingStyle.Quad,
-            0.1,
+            0.2,
             true
         )
+        
+        -- Animate shadow shrink
+        self._utilities.Tween(shadowFrame, {
+            Size = UDim2.new(1, 6, 1, 6),
+            Position = UDim2.new(0.5, 0, 0.5, 3),
+            BackgroundTransparency = 0.8
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        -- Fade out glow
+        if glowFrame then
+            self._utilities.Tween(glowFrame, {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 12, 1, 12)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        end
     end)
     
     return card
