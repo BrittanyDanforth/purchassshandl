@@ -768,23 +768,23 @@ end
 
 function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options: {string}, 
                                    size: UDim2, position: UDim2, callback: (string) -> ())
-    local dropdown = Instance.new("Frame")
-    dropdown.Size = size
-    dropdown.Position = position
-    dropdown.BackgroundColor3 = self._config.COLORS.White
-    dropdown.Parent = parent
+    local dropdown = self._uiFactory:CreateFrame(parent, {
+        name = placeholder .. "Dropdown",
+        size = size,
+        position = position,
+        backgroundColor = self._config.COLORS.White,
+        zIndex = self._config.ZINDEX and self._config.ZINDEX.Default or 10,
+    })
     
     self._utilities.CreateCorner(dropdown, 8)
     self._utilities.CreateStroke(dropdown, self._config.COLORS.Primary, 2)
     
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 1, 0)
-    button.BackgroundTransparency = 1
-    button.Text = placeholder
-    button.TextColor3 = self._config.COLORS.Dark
-    button.Font = self._config.FONTS.Primary
-    button.TextScaled = true
-    button.Parent = dropdown
+    local button = self._uiFactory:CreateButton(dropdown, {
+        text = placeholder,
+        size = UDim2.new(1, 0, 1, 0),
+        font = self._config.FONTS.Primary,
+        textColor = self._config.COLORS.Dark,
+    })
     
     local arrow = self._uiFactory:CreateLabel(dropdown, {
         text = "▼",
@@ -793,54 +793,42 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         textColor = self._config.COLORS.TextSecondary
     })
     
-    local isOpen = false
-    local optionsFrame = nil
+    -- This Janitor will manage the "open" state of the dropdown
+    local openStateJanitor = nil
     
-    -- Create a table to store dropdown methods
-    local dropdownMethods = {}
-    
-    dropdownMethods.CloseDropdown = function()
-        if optionsFrame then
-            optionsFrame:Destroy()
-            optionsFrame = nil
+    local function CloseDropdown()
+        if openStateJanitor then
+            -- Destroying the janitor cleans up the options frame and the click connection
+            openStateJanitor:Destroy()
+            openStateJanitor = nil
+            -- Make sure the ZIndex goes back to normal
+            dropdown.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Default or 10
         end
-        isOpen = false
     end
     
-    -- Store the close function on the dropdown frame itself
-    dropdown.CloseDropdown = dropdownMethods.CloseDropdown
-    
-    self._janitor:Add(button.MouseButton1Click:Connect(function()
-        if isOpen then
-            -- Close dropdown
-            dropdownMethods.CloseDropdown()
+    button.MouseButton1Click:Connect(function()
+        if openStateJanitor then
+            -- If it's open, close it
+            CloseDropdown()
         else
-            -- Open dropdown
-            optionsFrame = Instance.new("Frame")
-            optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10)
-            optionsFrame.Position = UDim2.new(0, 0, 1, 5)
-            optionsFrame.BackgroundColor3 = self._config.COLORS.White
-            optionsFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300
-            optionsFrame.Parent = dropdown
+            -- If it's closed, open it
+            openStateJanitor = Janitor.new() -- Create a NEW janitor for this open session
             
-            -- Make dropdown frame not block mouse events on other UI
-            optionsFrame.Active = false
+            -- Raise the ZIndex so it appears on top of other elements
+            dropdown.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300
             
-            -- Ensure all ancestors have proper ZIndex
-            local current = dropdown
-            while current and current.Parent do
-                if current:IsA("GuiObject") then
-                    current.ZIndex = math.max(current.ZIndex or 1, (self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300) - 1)
-                end
-                current = current.Parent
-                if current:IsA("ScreenGui") then break end
-            end
+            local optionsFrame = self._uiFactory:CreateFrame(dropdown, {
+                name = "OptionsFrame",
+                size = UDim2.new(1, 0, 0, #options * 30 + 10),
+                position = UDim2.new(0, 0, 1, 5),
+                backgroundColor = self._config.COLORS.White,
+                zIndex = dropdown.ZIndex,
+            })
+            -- Give the frame to the janitor. When the janitor is destroyed, the frame is destroyed.
+            openStateJanitor:Add(optionsFrame)
             
             self._utilities.CreateCorner(optionsFrame, 8)
             self._utilities.CreateStroke(optionsFrame, self._config.COLORS.Primary, 2)
-            if self._utilities.CreateShadow then
-                self._utilities.CreateShadow(optionsFrame, 0.3)
-            end
             
             for i, option in ipairs(options) do
                 local optionButton = self._uiFactory:CreateButton(optionsFrame, {
@@ -851,45 +839,35 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
                     textColor = self._config.COLORS.Dark,
                     callback = function()
                         button.Text = option
-                        if optionsFrame then
-                            optionsFrame:Destroy()
-                        end
-                        isOpen = false
-                        
+                        CloseDropdown() -- Close after selection
                         if callback then
                             callback(option)
                         end
                     end
                 })
-                
-                -- Hover effect
-                self._janitor:Add(optionButton.MouseEnter:Connect(function()
-                    optionButton.BackgroundColor3 = self._config.COLORS.Surface
+                -- Add hover effects
+                openStateJanitor:Add(optionButton.MouseEnter:Connect(function() 
+                    optionButton.BackgroundColor3 = self._config.COLORS.Surface 
                 end))
-                
-                self._janitor:Add(optionButton.MouseLeave:Connect(function()
-                    optionButton.BackgroundColor3 = self._config.COLORS.White
+                openStateJanitor:Add(optionButton.MouseLeave:Connect(function() 
+                    optionButton.BackgroundColor3 = self._config.COLORS.White 
                 end))
             end
             
-            isOpen = true
-            
-            -- Close dropdown when clicking elsewhere
-            local clickConnection
-            clickConnection = game:GetService("UserInputService").InputBegan:Connect(function(input)
+            -- Give the "click anywhere else to close" connection to the janitor
+            task.wait() -- Wait one frame before connecting to avoid closing instantly
+            openStateJanitor:Add(Services.UserInputService.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    task.wait() -- Wait a frame to avoid closing immediately
-                    if optionsFrame and optionsFrame.Parent then
-                        dropdownMethods.CloseDropdown()
-                    end
-                    if clickConnection then
-                        clickConnection:Disconnect()
-                    end
+                    CloseDropdown()
                 end
-            end)
-            self._janitor:Add(clickConnection)
+            end))
         end
-    end))
+    end)
+    
+    -- IMPORTANT: Add a function to the main janitor to clean up THIS dropdown if the whole inventory closes
+    self._janitor:Add(function()
+        CloseDropdown()
+    end)
     
     return dropdown
 end
