@@ -1092,6 +1092,46 @@ function ProgressionUI:CreateStatisticsView(parent: Frame)
     end)
 end
 
+function ProgressionUI:UpdateStatCardsInPlace()
+    if not self.StatCards or not self.PlayerStats then return end
+    
+    -- Update existing stat cards with new values
+    local statsData = {
+        ["Total Play Time"] = self:FormatPlayTime(self.PlayerStats.totalPlayTime or 0),
+        ["Total Coins Earned"] = self._utilities.FormatNumber(self.PlayerStats.totalCoinsEarned or 0),
+        ["Total Gems Earned"] = self._utilities.FormatNumber(self.PlayerStats.totalGemsEarned or 0),
+        ["Pets Hatched"] = self._utilities.FormatNumber(self.PlayerStats.petsHatched or 0),
+        ["Rare Pets Found"] = self._utilities.FormatNumber(self.PlayerStats.rarePetsFound or 0),
+        ["Battles Won"] = self._utilities.FormatNumber(self.PlayerStats.battlesWon or 0),
+        ["Trades Completed"] = self._utilities.FormatNumber(self.PlayerStats.tradesCompleted or 0),
+        ["Quests Completed"] = self._utilities.FormatNumber(self.PlayerStats.questsCompleted or 0),
+        ["Daily Streak"] = self.PlayerStats.currentDailyStreak .. " / " .. self.PlayerStats.maxDailyStreak .. " days",
+        ["Achievement Points"] = self._utilities.FormatNumber(self.PlayerStats.achievementPoints or 0),
+        ["Collection Progress"] = (self.PlayerStats.uniquePetsOwned or 0) .. " / " .. (self.PlayerStats.totalPetTypes or 999),
+        ["VIP Level"] = "Level " .. (self.PlayerStats.vipLevel or 0)
+    }
+    
+    -- Update each card's value label
+    for cardTitle, newValue in pairs(statsData) do
+        local card = self.StatCards[cardTitle]
+        if card and card.ValueLabel then
+            -- Animate the value change
+            if card.ValueLabel.Text ~= newValue then
+                self._utilities.Tween(card.ValueLabel, {
+                    TextTransparency = 1
+                }, TweenInfo.new(0.15, Enum.EasingStyle.Quad))
+                
+                task.wait(0.15)
+                card.ValueLabel.Text = newValue
+                
+                self._utilities.Tween(card.ValueLabel, {
+                    TextTransparency = 0
+                }, TweenInfo.new(0.15, Enum.EasingStyle.Quad))
+            end
+        end
+    end
+end
+
 function ProgressionUI:CreateStatCards(parent: Frame)
     local stats = {
         {
@@ -1180,6 +1220,11 @@ function ProgressionUI:CreateStatCards(parent: Frame)
         }
     }
     
+    -- Initialize stat cards storage if not exists
+    if not self.StatCards then
+        self.StatCards = {}
+    end
+    
     for _, stat in ipairs(stats) do
         local statCard = Instance.new("Frame")
         statCard.BackgroundColor3 = self._config.COLORS.White
@@ -1187,6 +1232,9 @@ function ProgressionUI:CreateStatCards(parent: Frame)
         
         self._utilities.CreateCorner(statCard, 12)
         self._utilities.CreatePadding(statCard, 15)
+        
+        -- Store reference for in-place updates
+        self.StatCards[stat.title] = {Frame = statCard}
         
         -- Icon
         local iconLabel = self._uiFactory:CreateLabel(statCard, {
@@ -1205,6 +1253,9 @@ function ProgressionUI:CreateStatCards(parent: Frame)
             textColor = stat.color,
             textSize = 20
         })
+        
+        -- Store value label reference for in-place updates
+        self.StatCards[stat.title].ValueLabel = valueLabel
         
         -- Title
         local titleLabel = self._uiFactory:CreateLabel(statCard, {
@@ -1430,9 +1481,9 @@ function ProgressionUI:UpdateStatsDisplay()
         self.PrestigeLabel.Text = "Prestige " .. self.PlayerStats.prestige
     end
     
-    -- Refresh stat cards
+    -- Update stat cards in-place instead of recreating
     if self.TabFrames["Statistics"] and self.TabFrames["Statistics"].Visible then
-        self:CreateStatisticsView(self.TabFrames["Statistics"])
+        self:UpdateStatCardsInPlace()
     end
 end
 
@@ -1496,18 +1547,23 @@ end
 function ProgressionUI:StartSeasonTimer()
     spawn(function()
         while self.Frame and self.Frame.Parent and self.CurrentSeason do
-            local timeLeft = self.CurrentSeason.endDate - os.time()
+            -- Use server time for accuracy
+            local serverTime = workspace:GetServerTimeNow()
+            local timeLeft = self.CurrentSeason.endDate - serverTime
             
             if timeLeft > 0 then
                 local days = math.floor(timeLeft / 86400)
                 local hours = math.floor((timeLeft % 86400) / 3600)
                 local minutes = math.floor((timeLeft % 3600) / 60)
+                local seconds = math.floor(timeLeft % 60)
                 
                 if self.SeasonTimer then
                     if days > 0 then
                         self.SeasonTimer.Text = string.format("Season ends in: %dd %dh %dm", days, hours, minutes)
+                    elseif hours > 0 then
+                        self.SeasonTimer.Text = string.format("Season ends in: %dh %dm %ds", hours, minutes, seconds)
                     else
-                        self.SeasonTimer.Text = string.format("Season ends in: %dh %dm", hours, minutes)
+                        self.SeasonTimer.Text = string.format("Season ends in: %dm %ds", minutes, seconds)
                     end
                 end
             else
@@ -1516,7 +1572,9 @@ function ProgressionUI:StartSeasonTimer()
                 end
             end
             
-            task.wait(60) -- Update every minute
+            -- Update more frequently when time is low
+            local updateInterval = timeLeft > 3600 and 60 or (timeLeft > 60 and 10 or 1)
+            task.wait(updateInterval)
         end
     end)
 end

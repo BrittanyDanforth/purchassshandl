@@ -395,6 +395,20 @@ local function connectRemoteHandlers(modules, folders)
 		end
 		return false
 	end
+	
+	-- SaveSettings handler (MISSING - ADDED)
+	RemoteFunctions.SaveSettings.OnServerInvoke = function(player, settings)
+		if modules.DataStoreModule then
+			local playerData = modules.DataStoreModule:GetPlayerData(player)
+			if playerData then
+				playerData.settings = settings
+				modules.DataStoreModule:MarkPlayerDirty(player.UserId)
+				modules.DataStoreModule:SavePlayerData(player)
+				return true
+			end
+		end
+		return false
+	end
 
 	-- OpenCase
 	RemoteFunctions.OpenCase.OnServerInvoke = function(player, eggId, hatchCount)
