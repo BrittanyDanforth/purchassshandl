@@ -10,6 +10,7 @@ local Types = require(script.Parent.Parent.Core.ClientTypes)
 local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
 
 local InventoryUI = {}
 InventoryUI.__index = InventoryUI
@@ -94,6 +95,9 @@ local SORT_FUNCTIONS = {
 function InventoryUI.new(dependencies)
     local self = setmetatable({}, InventoryUI)
     
+    -- Initialize Janitor for memory management
+    self._janitor = Janitor.new()
+    
     -- Dependencies
     self._eventBus = dependencies.EventBus
     self._stateManager = dependencies.StateManager
@@ -129,6 +133,7 @@ function InventoryUI.new(dependencies)
     self.SearchText = ""
     self.VisiblePets = {}
     self.PetWatcher = nil
+    self.CurrentRefreshThread = nil
     self.SearchDebounce = nil
     
     -- Performance
@@ -145,19 +150,19 @@ function InventoryUI:SetupEventListeners()
     if not self._eventBus then return end
     
     -- Listen for data updates
-    self._eventBus:On("PetsUpdated", function()
+    self._janitor:Add(self._eventBus:On("PetsUpdated", function()
         if self.Frame and self.Frame.Visible then
             self:RefreshInventory()
         end
-    end)
+    end))
     
     -- Listen for case results
-    self._eventBus:On("CaseResultsCollected", function()
+    self._janitor:Add(self._eventBus:On("CaseResultsCollected", function()
         task.wait(0.5) -- Wait for server to update
         if self.Frame and self.Frame.Visible then
             self:RefreshInventory()
         end
-    end)
+    end))
     
     -- Listen for remote inventory updates from server
     if self._remoteManager then
@@ -227,21 +232,21 @@ function InventoryUI:SetupEventListeners()
     end
     
     -- Listen for pet actions
-    self._eventBus:On("PetEquipped", function(data)
+    self._janitor:Add(self._eventBus:On("PetEquipped", function(data)
         self:UpdatePetCardEquipStatus(data.uniqueId, true)
-    end)
+    end))
     
-    self._eventBus:On("PetUnequipped", function(data)
+    self._janitor:Add(self._eventBus:On("PetUnequipped", function(data)
         self:UpdatePetCardEquipStatus(data.uniqueId, false)
-    end)
+    end))
     
-    self._eventBus:On("PetLocked", function(data)
+    self._janitor:Add(self._eventBus:On("PetLocked", function(data)
         self:UpdatePetCardLockStatus(data.uniqueId, true)
-    end)
+    end))
     
-    self._eventBus:On("PetUnlocked", function(data)
+    self._janitor:Add(self._eventBus:On("PetUnlocked", function(data)
         self:UpdatePetCardLockStatus(data.uniqueId, false)
-    end)
+    end))
 end
 
 -- ========================================
@@ -591,7 +596,7 @@ function InventoryUI:CreateControls()
     end)
     
     -- Focus animations
-    searchBox.Focused:Connect(function()
+    self._janitor:Add(searchBox.Focused:Connect(function()
         self._utilities.Tween(searchContainer, {
             BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.White, 0.05)
         }, TweenInfo.new(0.2))
@@ -607,9 +612,9 @@ function InventoryUI:CreateControls()
         self._utilities.Tween(stroke, {
             Transparency = 0
         }, TweenInfo.new(0.2))
-    end)
+    end))
     
-    searchBox.FocusLost:Connect(function()
+    self._janitor:Add(searchBox.FocusLost:Connect(function()
         self._utilities.Tween(searchContainer, {
             BackgroundColor3 = self._config.COLORS.White
         }, TweenInfo.new(0.2))
@@ -622,10 +627,10 @@ function InventoryUI:CreateControls()
             task.wait(0.2)
             stroke:Destroy()
         end
-    end)
+    end))
     
     -- Clear button functionality
-    clearButton.MouseButton1Click:Connect(function()
+    self._janitor:Add(clearButton.MouseButton1Click:Connect(function()
         searchBox.Text = ""
         searchBox:CaptureFocus()
         
@@ -646,7 +651,7 @@ function InventoryUI:CreateControls()
                 )
             end
         )
-    end)
+    end))
     
     -- Store reference
     self.SearchBox = searchBox
@@ -727,7 +732,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
     -- Store the close function on the dropdown frame itself
     dropdown.CloseDropdown = dropdownMethods.CloseDropdown
     
-    button.MouseButton1Click:Connect(function()
+    self._janitor:Add(button.MouseButton1Click:Connect(function()
         if isOpen then
             -- Close dropdown
             dropdownMethods.CloseDropdown()
@@ -780,13 +785,13 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
                 })
                 
                 -- Hover effect
-                optionButton.MouseEnter:Connect(function()
+                self._janitor:Add(optionButton.MouseEnter:Connect(function()
                     optionButton.BackgroundColor3 = self._config.COLORS.Surface
-                end)
+                end))
                 
-                optionButton.MouseLeave:Connect(function()
+                self._janitor:Add(optionButton.MouseLeave:Connect(function()
                     optionButton.BackgroundColor3 = self._config.COLORS.White
-                end)
+                end))
             end
             
             isOpen = true
@@ -804,6 +809,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
                     end
                 end
             end)
+            self._janitor:Add(clickConnection)
         end
     end)
     
@@ -1112,17 +1118,17 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     end)
     
     -- Fade scrollbar on hover
-    scrollFrame.MouseEnter:Connect(function()
+    self._janitor:Add(scrollFrame.MouseEnter:Connect(function()
         self._utilities.Tween(scrollFrame, {
             ScrollBarImageTransparency = 0.2
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
-    end)
+    end))
     
-    scrollFrame.MouseLeave:Connect(function()
+    self._janitor:Add(scrollFrame.MouseLeave:Connect(function()
         self._utilities.Tween(scrollFrame, {
             ScrollBarImageTransparency = 0.6
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
-    end)
+    end))
     
     -- Store connection for cleanup
     self._scrollConnection = scrollConnection
@@ -1356,7 +1362,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     button.ZIndex = 10  -- Ensure button is always on top
     button.Parent = card
     
-    button.MouseButton1Click:Connect(function()
+    self._janitor:Add(button.MouseButton1Click:Connect(function()
         if self._config.DEBUG.ENABLED then
             print("[InventoryUI] Pet card clicked:", petInstance.uniqueId)
         end
@@ -1399,7 +1405,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     -- Move card above shadow
     card.ZIndex = originalZIndex + 2
     
-    button.MouseEnter:Connect(function()
+    self._janitor:Add(button.MouseEnter:Connect(function()
         -- Bring to front
         card.ZIndex = originalZIndex + 10
         button.ZIndex = 20  -- Keep button on top when hovering
@@ -1468,9 +1474,9 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         if self._soundSystem then
             self._soundSystem:PlayUISound("Hover")
         end
-    end)
+    end))
     
-    button.MouseLeave:Connect(function()
+    self._janitor:Add(button.MouseLeave:Connect(function()
         -- Reset Z-index
         card.ZIndex = originalZIndex + 2
         button.ZIndex = 10  -- Reset button ZIndex
@@ -1513,7 +1519,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
                 end
             end)
         end
-    end)
+    end))
     
     return card
 end
@@ -1640,6 +1646,12 @@ function InventoryUI:RefreshInventory()
     end
     self.LastRefreshTime = currentTime
     
+    -- Cancel any existing refresh thread
+    if self.CurrentRefreshThread then
+        task.cancel(self.CurrentRefreshThread)
+        self.CurrentRefreshThread = nil
+    end
+    
     -- Prevent multiple refreshes
     if self.IsRefreshing then
         if self._config.DEBUG.ENABLED then
@@ -1723,7 +1735,7 @@ function InventoryUI:RefreshInventory()
     loadingLabel.Parent = self.PetGrid
     
     -- Process pets data
-    task.spawn(function()
+    self.CurrentRefreshThread = task.spawn(function()
         task.wait(0.1) -- Small delay for loading state
         
         -- Get pet data
@@ -1746,6 +1758,7 @@ function InventoryUI:RefreshInventory()
         
         -- Reset refresh flag
         self.IsRefreshing = false
+        self.CurrentRefreshThread = nil
     end)
 end
 
@@ -2190,7 +2203,7 @@ function InventoryUI:CreateDeleteSelectionCard(parent: ScrollingFrame, petInstan
     button.Text = ""
     button.Parent = card
     
-    button.MouseButton1Click:Connect(function()
+    self._janitor:Add(button.MouseButton1Click:Connect(function()
         if self.SelectedForDeletion[petInstance.uniqueId] then
             self.SelectedForDeletion[petInstance.uniqueId] = nil
             indicator.BackgroundTransparency = 1
@@ -2732,6 +2745,18 @@ function InventoryUI:Destroy()
     -- Cancel any pending operations
     if self.SearchDebounce then
         task.cancel(self.SearchDebounce)
+        self.SearchDebounce = nil
+    end
+    
+    if self.CurrentRefreshThread then
+        task.cancel(self.CurrentRefreshThread)
+        self.CurrentRefreshThread = nil
+    end
+    
+    -- Clean up all connections and objects via Janitor
+    if self._janitor then
+        self._janitor:Cleanup()
+        self._janitor = nil
     end
     
     -- Clean up watchers

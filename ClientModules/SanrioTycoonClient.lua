@@ -65,10 +65,37 @@ print("[SanrioTycoonClient] Loading core modules...")
 -- ========================================
 -- CORE MODULE LOADING
 -- ========================================
-local ClientTypes = require(CoreModules:WaitForChild("ClientTypes"))
-local ClientConfig = require(CoreModules:WaitForChild("ClientConfig"))
-local ClientServices = require(CoreModules:WaitForChild("ClientServices"))
-local ClientUtilities = require(CoreModules:WaitForChild("ClientUtilities"))
+-- Safely load core modules
+local function loadCoreModule(name)
+    local success, result = pcall(function()
+        local module = CoreModules:WaitForChild(name, 5)
+        if not module then
+            error("Core module not found: " .. name)
+        end
+        return require(module)
+    end)
+    
+    if not success then
+        warn("[SanrioTycoonClient] ❌ Failed to load core module: " .. name .. " - " .. tostring(result))
+        -- Core modules are critical, so we'll return empty tables/defaults
+        if name == "ClientTypes" then
+            return {}
+        elseif name == "ClientConfig" then
+            return {COLORS = {}, FONTS = {}, UI = {}, DEBUG = {ENABLED = false}}
+        elseif name == "ClientServices" then
+            return {}
+        elseif name == "ClientUtilities" then
+            return {}
+        end
+    end
+    
+    return result
+end
+
+local ClientTypes = loadCoreModule("ClientTypes")
+local ClientConfig = loadCoreModule("ClientConfig")
+local ClientServices = loadCoreModule("ClientServices")
+local ClientUtilities = loadCoreModule("ClientUtilities")
 
 task.wait(0.1)
 
@@ -110,11 +137,35 @@ end
 -- ========================================
 print("[SanrioTycoonClient] Loading infrastructure...")
 
-local EventBus = require(InfrastructureModules:WaitForChild("EventBus"))
-local StateManager = require(InfrastructureModules:WaitForChild("StateManager"))
-local DataCache = require(InfrastructureModules:WaitForChild("DataCache"))
-local RemoteManager = require(InfrastructureModules:WaitForChild("RemoteManager"))
-local ModuleLoader = require(InfrastructureModules:WaitForChild("ModuleLoader"))
+-- Safely load infrastructure modules
+local function loadInfraModule(name)
+    local success, result = pcall(function()
+        local module = InfrastructureModules:WaitForChild(name, 5)
+        if not module then
+            error("Infrastructure module not found: " .. name)
+        end
+        return require(module)
+    end)
+    
+    if not success then
+        warn("[SanrioTycoonClient] ❌ Failed to load infrastructure: " .. name .. " - " .. tostring(result))
+        return nil
+    end
+    
+    return result
+end
+
+local EventBus = loadInfraModule("EventBus")
+local StateManager = loadInfraModule("StateManager")
+local DataCache = loadInfraModule("DataCache")
+local RemoteManager = loadInfraModule("RemoteManager")
+local ModuleLoader = loadInfraModule("ModuleLoader")
+
+-- Critical infrastructure - if these fail, we can't continue
+if not EventBus or not StateManager or not RemoteManager or not DataCache then
+    error("[SanrioTycoonClient] Critical infrastructure modules failed to load. Cannot continue.")
+    return
+end
 
 local eventBus = EventBus.new({Config = ClientConfig})
 local stateManager = StateManager.new({Config = ClientConfig, Utilities = ClientUtilities, EventBus = eventBus})
@@ -160,25 +211,45 @@ end
 -- ========================================
 print("[SanrioTycoonClient] Loading systems...")
 
-local SoundSystem = require(SystemModules:WaitForChild("SoundSystem"))
-local ParticleSystem = require(SystemModules:WaitForChild("ParticleSystem"))
-local NotificationSystem = require(SystemModules:WaitForChild("NotificationSystem"))
-local UIFactory = require(SystemModules:WaitForChild("UIFactory"))
-local AnimationSystem = require(SystemModules:WaitForChild("AnimationSystem"))
-local EffectsLibrary = require(SystemModules:WaitForChild("EffectsLibrary"))
+-- Safely load system modules
+local function loadSystemModule(name)
+    local success, result = pcall(function()
+        local module = SystemModules:WaitForChild(name, 5)
+        if not module then
+            error("System module not found: " .. name)
+        end
+        return require(module)
+    end)
+    
+    if not success then
+        warn("[SanrioTycoonClient] ❌ Failed to load system: " .. name .. " - " .. tostring(result))
+        return nil
+    end
+    
+    return result
+end
 
-local soundSystem = SoundSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
-local particleSystem = ParticleSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
-local animationSystem = AnimationSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
+local SoundSystem = loadSystemModule("SoundSystem")
+local ParticleSystem = loadSystemModule("ParticleSystem")
+local NotificationSystem = loadSystemModule("NotificationSystem")
+local UIFactory = loadSystemModule("UIFactory")
+local AnimationSystem = loadSystemModule("AnimationSystem")
+local EffectsLibrary = loadSystemModule("EffectsLibrary")
+
+local soundSystem = SoundSystem and SoundSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
+local particleSystem = ParticleSystem and ParticleSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
+local animationSystem = AnimationSystem and AnimationSystem.new({EventBus = eventBus, StateManager = stateManager, Config = ClientConfig})
 
 -- Disable animation warnings
-animationSystem._performanceWarningThreshold = 999999
-animationSystem._performanceWarningCooldown = 999999
+if animationSystem then
+    animationSystem._performanceWarningThreshold = 999999
+    animationSystem._performanceWarningCooldown = 999999
+end
 
 -- ========================================
 -- UI FACTORY
 -- ========================================
-local uiFactory = UIFactory.new({
+local uiFactory = UIFactory and UIFactory.new({
     EventBus = eventBus,
     StateManager = stateManager,
     SoundSystem = soundSystem,
@@ -207,7 +278,7 @@ if originalCreateDropdown then
     end
 end
 
-local notificationSystem = NotificationSystem.new({
+local notificationSystem = NotificationSystem and NotificationSystem.new({
     EventBus = eventBus,
     StateManager = stateManager,
     SoundSystem = soundSystem,
@@ -216,7 +287,7 @@ local notificationSystem = NotificationSystem.new({
     Config = ClientConfig
 })
 
-local effectsLibrary = EffectsLibrary.new({
+local effectsLibrary = EffectsLibrary and EffectsLibrary.new({
     EventBus = eventBus,
     StateManager = stateManager,
     ParticleSystem = particleSystem,
@@ -234,8 +305,26 @@ _G.SpecialEffects = effectsLibrary
 -- ========================================
 print("[SanrioTycoonClient] Loading framework...")
 
-local MainUI = require(FrameworkModules:WaitForChild("MainUI"))
-local WindowManager = require(FrameworkModules:WaitForChild("WindowManager"))
+-- Safely load framework modules
+local function loadFrameworkModule(name)
+    local success, result = pcall(function()
+        local module = FrameworkModules:WaitForChild(name, 5)
+        if not module then
+            error("Framework module not found: " .. name)
+        end
+        return require(module)
+    end)
+    
+    if not success then
+        warn("[SanrioTycoonClient] ❌ Failed to load framework: " .. name .. " - " .. tostring(result))
+        return nil
+    end
+    
+    return result
+end
+
+local MainUI = loadFrameworkModule("MainUI")
+local WindowManager = loadFrameworkModule("WindowManager")
 
 -- Clean existing
 local existingGui = PlayerGui:FindFirstChild("SanrioTycoonUI")
@@ -244,7 +333,7 @@ if existingGui then
     task.wait(0.1)
 end
 
-local windowManager = WindowManager.new({
+local windowManager = WindowManager and WindowManager.new({
     EventBus = eventBus,
     StateManager = stateManager,
     AnimationSystem = animationSystem,
