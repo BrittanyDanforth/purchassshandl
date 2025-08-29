@@ -202,16 +202,7 @@ if originalCreateDropdown then
         end
         
         local dropdown = originalCreateDropdown(self, parent, items, defaultItem, options)
-        -- The dropdown should already have GetValue, but add it if missing
-        if dropdown and type(dropdown.GetValue) ~= "function" then
-            local selectedValue = defaultItem or (items and items[1]) or ""
-            dropdown.GetValue = function()
-                return selectedValue
-            end
-            dropdown.SetValue = function(value)
-                selectedValue = value
-            end
-        end
+        -- Don't add methods to the frame - UIFactory handles this internally now
         return dropdown
     end
 end

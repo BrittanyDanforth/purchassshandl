@@ -239,14 +239,24 @@ function InventoryUI:Open()
     -- Create UI
     self:CreateUI()
     
-    -- Initial load
-    self:RefreshInventory()
+    -- Delay initial load to ensure UI is ready
+    task.defer(function()
+        self:RefreshInventory()
+    end)
 end
 
 function InventoryUI:Close()
     if self.Frame then
         self.Frame.Visible = false
     end
+    
+    -- Clear cached references to prevent stale state
+    self.PetGrid = nil
+    self.TabFrames = {}
+    self.CurrentTab = "Pets"
+    
+    -- Cancel any ongoing refreshes
+    self.IsRefreshing = false
 end
 
 -- ========================================
@@ -409,6 +419,9 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
             barFill.BackgroundColor3 = self._config.COLORS.Primary
         end
     end
+    
+    -- Store reference to the fill bar for direct updates
+    frame:SetAttribute("StorageBarFill", barFill)
     
     -- Initial update
     if self.StorageBars[frame] then

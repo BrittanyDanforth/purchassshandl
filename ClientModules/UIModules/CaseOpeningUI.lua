@@ -143,12 +143,23 @@ function CaseOpeningUI:Open(results: {CaseResult}, eggData: table?)
             if type(result) == "table" then
                 print("  Result", i, ":")
                 print("    petId:", result.petId)
+                print("    petName:", result.petName)
                 print("    pet:", result.pet)
                 if result.pet then
                     print("      pet.petId:", result.pet.petId)
                     print("      pet.uniqueId:", result.pet.uniqueId)
                     print("      pet.displayName:", result.pet.displayName)
+                    print("      pet.name:", result.pet.name)
                 end
+            end
+        end
+    end
+    
+    -- Ensure we have pet names
+    if type(results) == "table" then
+        for i, result in ipairs(results) do
+            if type(result) == "table" and result.pet and result.pet.petId and not result.petId then
+                result.petId = result.pet.petId
             end
         end
     end
