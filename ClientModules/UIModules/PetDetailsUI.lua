@@ -189,8 +189,8 @@ function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
     self:CreateOverlay()
     self:CreateDetailsWindow()
     
-    -- Register with window manager
-    if self._windowManager then
+    -- Register with window manager (if method exists)
+    if self._windowManager and self._windowManager.RegisterOverlay then
         self._windowManager:RegisterOverlay(self._overlay, "PetDetailsOverlay")
     end
     
@@ -205,8 +205,8 @@ function PetDetailsUI:Close()
     
     self._isOpen = false
     
-    -- Unregister from window manager
-    if self._windowManager and self._overlay then
+    -- Unregister from window manager (if method exists)
+    if self._windowManager and self._overlay and self._windowManager.UnregisterOverlay then
         self._windowManager:UnregisterOverlay(self._overlay)
     end
     
@@ -1197,7 +1197,9 @@ function PetDetailsUI:OpenRenameDialog()
     self._renameDialog.Parent = self._overlay
     
     self._utilities.CreateCorner(self._renameDialog, 12)
-    self._utilities.CreateShadow(self._renameDialog, 0.5)
+    if self._utilities.CreateShadow then
+        self._utilities.CreateShadow(self._renameDialog, 0.5)
+    end
     
     -- Title
     local title = self._uiFactory:CreateLabel(self._renameDialog, {

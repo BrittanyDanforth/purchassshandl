@@ -567,7 +567,9 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
             
             self._utilities.CreateCorner(optionsFrame, 8)
             self._utilities.CreateStroke(optionsFrame, self._config.COLORS.Primary, 2)
-            self._utilities.CreateShadow(optionsFrame, 0.3)
+            if self._utilities.CreateShadow then
+                self._utilities.CreateShadow(optionsFrame, 0.3)
+            end
             
             for i, option in ipairs(options) do
                 local optionButton = self._uiFactory:CreateButton(optionsFrame, {
@@ -895,7 +897,7 @@ function InventoryUI:UpdatePetCard(card: Frame, petInstance: PetInstance, petDat
     card.Name = "PetCard_" .. tostring(petInstance.uniqueId or petInstance.petId)
     
     -- Update attributes
-    card:SetAttribute("PetName", petData.displayName or "Unknown")
+    card:SetAttribute("PetName", petData.name or petData.displayName or "Unknown")
     card:SetAttribute("PetNickname", petInstance.nickname or "")
     card:SetAttribute("Rarity", petData.rarity or 1)
     card:SetAttribute("Equipped", petInstance.equipped or false)
@@ -916,7 +918,7 @@ function InventoryUI:UpdatePetCard(card: Frame, petInstance: PetInstance, petDat
     -- Update name
     local nameLabel = card:FindFirstChildOfClass("TextLabel")
     if nameLabel and nameLabel.Parent == card then
-        nameLabel.Text = petInstance.nickname or petData.displayName or "Unknown"
+        nameLabel.Text = petInstance.nickname or petData.name or petData.displayName or "Unknown"
     end
     
     -- Update rarity border
@@ -1111,7 +1113,7 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
                 
                 -- Get pet template data
                 local templateData = self._dataCache and self._dataCache:Get("petDatabase." .. petData.petId) or
-                                   {displayName = "Unknown", rarity = 1}
+                                   {name = "Unknown", displayName = "Unknown", rarity = 1}
                 
                 -- Apply filters
                 local filterFunc = FILTER_DEFINITIONS[self.CurrentFilter]
@@ -1253,7 +1255,10 @@ function InventoryUI:OpenMassDelete()
     deleteWindow.Parent = overlay
     
     self._utilities.CreateCorner(deleteWindow, 20)
-    self._utilities.CreateShadow(deleteWindow, 0.5)
+    -- CreateShadow is optional, skip if not available
+    if self._utilities.CreateShadow then
+        self._utilities.CreateShadow(deleteWindow, 0.5)
+    end
     
     -- Header
     local header = self._uiFactory:CreateFrame(deleteWindow, {
