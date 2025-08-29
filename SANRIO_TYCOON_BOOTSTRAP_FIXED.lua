@@ -198,9 +198,18 @@ local function createRemotes(folders)
 			local func = Instance.new("RemoteFunction")
 			func.Name = functionName
 			func.Parent = folders.RemoteFunctions
+			if functionName == "DeletePet" or functionName == "PurchaseItem" then
+				print("✅ [BOOTSTRAP] Created RemoteFunction:", functionName)
+			end
 		end
 	end
 
+	-- Verify critical RemoteFunctions exist
+	local deletePet = folders.RemoteFunctions:FindFirstChild("DeletePet")
+	local purchaseItem = folders.RemoteFunctions:FindFirstChild("PurchaseItem")
+	print("✅ [BOOTSTRAP] DeletePet exists:", deletePet ~= nil)
+	print("✅ [BOOTSTRAP] PurchaseItem exists:", purchaseItem ~= nil)
+	
 	print("✅ [BOOTSTRAP] All remotes created!")
 end
 

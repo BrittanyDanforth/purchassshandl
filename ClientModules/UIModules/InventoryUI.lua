@@ -653,7 +653,7 @@ function InventoryUI:CreateControls()
     
     -- Sort dropdown
     local sortOptions = {"Rarity", "Level", "Power", "Recent", "Name"}
-    self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
+    self.SortDropdown = self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 220, 0.5, -17.5),
         function(option)
             self.CurrentSort = option
@@ -663,7 +663,7 @@ function InventoryUI:CreateControls()
     
     -- Filter dropdown
     local filterOptions = {"All", "Equipped", "Locked", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Shiny", "Golden", "Rainbow"}
-    self:CreateDropdown(controlsBar, "Filter", filterOptions,
+    self.FilterDropdown = self:CreateDropdown(controlsBar, "Filter", filterOptions,
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 380, 0.5, -17.5),
         function(option)
             self.CurrentFilter = option
@@ -1744,6 +1744,17 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     if self._dataCache then
         pets = self._dataCache:Get("pets")
         print("[InventoryUI] Got pets from cache:", pets)
+        
+        -- Try the full data structure
+        if not pets then
+            local fullData = self._dataCache:Get()
+            print("[InventoryUI] Got full data from cache:", fullData)
+            if fullData and fullData.pets then
+                pets = fullData.pets
+                print("[InventoryUI] Got pets from full data:", pets)
+            end
+        end
+        
         if not pets then
             -- Try under playerData
             local playerData = self._dataCache:Get("playerData")
@@ -1760,6 +1771,7 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
         local playerData = self._stateManager:Get("playerData")
         if playerData then
             pets = playerData.pets
+            print("[InventoryUI] Got pets from state manager:", pets)
         end
     end
     
