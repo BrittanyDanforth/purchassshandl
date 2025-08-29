@@ -48,6 +48,38 @@ local CARD_SIZE = Vector2.new(120, 140)
 local CARDS_PER_ROW = 5
 local SCROLL_THRESHOLD = 5 -- Cards to preload above/below viewport
 local SEARCH_DEBOUNCE = 0.3
+
+-- Sort and Filter type constants to prevent typos
+local SORT_TYPE = {
+    RARITY = "Rarity",
+    LEVEL = "Level",
+    POWER = "Power",
+    RECENT = "Recent",
+    NAME = "Name",
+}
+
+local FILTER_TYPE = {
+    ALL = "All",
+    EQUIPPED = "Equipped",
+    LOCKED = "Locked",
+    COMMON = "Common",
+    UNCOMMON = "Uncommon",
+    RARE = "Rare",
+    EPIC = "Epic",
+    LEGENDARY = "Legendary",
+    MYTHICAL = "Mythical",
+    SHINY = "Shiny",
+    GOLDEN = "Golden",
+    RAINBOW = "Rainbow",
+}
+
+local PET_ATTRIBUTE = {
+    PET_NAME = "PetName",
+    NICKNAME = "PetNickname",
+    RARITY = "Rarity",
+    EQUIPPED = "Equipped",
+    LOCKED = "Locked",
+}
 local MAX_CARD_CACHE = 100
 local MASS_DELETE_WINDOW_SIZE = Vector2.new(600, 500)
 local STATS_UPDATE_RATE = 0.5
@@ -1097,6 +1129,27 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     
     self.PetGrid = scrollFrame
     
+    -- Add responsive grid layout
+    local function updateGridLayout()
+        local frameWidth = self.PetGrid.AbsoluteSize.X
+        if frameWidth == 0 then return end -- Avoid dividing by zero
+        
+        local cardWidth = CARD_SIZE.X + GRID_PADDING
+        local columns = math.max(2, math.floor(frameWidth / cardWidth)) -- At least 2 columns
+        
+        if columns ~= self.ColumnsPerRow then
+            self.ColumnsPerRow = columns
+            -- Recalculate canvas and refresh display if we have pets
+            if self.VisiblePets and #self.VisiblePets > 0 then
+                self:RefreshInventory()
+            end
+        end
+    end
+    
+    -- Update on size change
+    self._janitor:Add(self.PetGrid:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridLayout))
+    task.defer(updateGridLayout) -- Initial update
+    
     -- Add momentum scrolling
     local lastScrollPosition = scrollFrame.CanvasPosition
     local velocity = Vector2.new(0, 0)
@@ -1781,10 +1834,13 @@ function InventoryUI:ReturnCardToPool(card: Frame)
     card:SetAttribute("Equipped", nil)
     card:SetAttribute("Locked", nil)
     
-    -- Clean up all connections associated with this specific card
-    if card.CardJanitor then
-        card.CardJanitor:Destroy()
-        card.CardJanitor = nil
+    -- Clean up janitor from our table
+    if self.CardJanitors then
+        local cardId = tostring(card)
+        if self.CardJanitors[cardId] then
+            self.CardJanitors[cardId]:Destroy()
+            self.CardJanitors[cardId] = nil
+        end
     end
     
     -- Add to pool for reuse
@@ -1826,16 +1882,22 @@ function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, p
     -- Update click handler
     local button = card:FindFirstChild("ClickButton")
     if button then
-        -- If this card already has a janitor from being used before, clean it up
-        if card.CardJanitor then
-            card.CardJanitor:Destroy()
+        -- Store janitor in a table to avoid direct property access
+        if not self.CardJanitors then
+            self.CardJanitors = {}
         end
         
-        -- Create a fresh, new janitor just for this card's connections
-        card.CardJanitor = Janitor.new()
+        -- Clean up old janitor if it exists
+        local cardId = tostring(card)
+        if self.CardJanitors[cardId] then
+            self.CardJanitors[cardId]:Destroy()
+        end
         
-        -- Add the new click connection to the card's personal janitor
-        card.CardJanitor:Add(button.MouseButton1Click:Connect(function()
+        -- Create a fresh janitor for this card
+        self.CardJanitors[cardId] = Janitor.new()
+        
+        -- Add the click connection
+        self.CardJanitors[cardId]:Add(button.MouseButton1Click:Connect(function()
             if self._eventBus then
                 self._eventBus:Fire("ShowPetDetails", {
                     petInstance = petInstance,
@@ -2100,41 +2162,21 @@ function InventoryUI:RefreshInventory()
 end
 
 function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table}}
-    -- Try multiple sources for pet data
+    -- Single source of truth: playerData.pets
     local pets = nil
     
-    -- 1. Try data cache directly
     if self._dataCache then
-        pets = self._dataCache:Get("pets")
-        print("[InventoryUI] Got pets from cache:", pets)
-        
-        -- Try the full data structure
-        if not pets then
-            local fullData = self._dataCache:Get()
-            print("[InventoryUI] Got full data from cache:", fullData)
-            if fullData and fullData.pets then
-                pets = fullData.pets
-                print("[InventoryUI] Got pets from full data:", pets)
-            end
-        end
-        
-        if not pets then
-            -- Try under playerData
-            local playerData = self._dataCache:Get("playerData")
-            print("[InventoryUI] Got playerData from cache:", playerData)
-            if playerData then
-                pets = playerData.pets
-                print("[InventoryUI] Got pets from playerData:", pets)
-            end
+        local playerData = self._dataCache:Get("playerData")
+        if playerData and playerData.pets then
+            pets = playerData.pets
         end
     end
     
-    -- 2. Try state manager
+    -- Fallback to state manager if needed
     if not pets and self._stateManager then
-        local playerData = self._stateManager:Get("playerData")
-        if playerData then
-            pets = playerData.pets
-            print("[InventoryUI] Got pets from state manager:", pets)
+        local state = self._stateManager:GetState()
+        if state and state.playerData and state.playerData.pets then
+            pets = state.playerData.pets
         end
     end
     
@@ -3297,6 +3339,14 @@ function InventoryUI:Destroy()
     if self._janitor then
         self._janitor:Cleanup()
         self._janitor = nil
+    end
+    
+    -- Clean up card janitors
+    if self.CardJanitors then
+        for _, janitor in pairs(self.CardJanitors) do
+            janitor:Destroy()
+        end
+        self.CardJanitors = nil
     end
     
     -- Clean up virtual scrolling
