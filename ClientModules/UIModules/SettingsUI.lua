@@ -1034,26 +1034,162 @@ function SettingsUI:OnKeybindInput(input: InputObject)
     }
     
     if input.KeyCode and not ignoredKeys[input.KeyCode] then
-        -- Update keybind
-        self.Keybinds[self.EditingKeybind] = input.KeyCode
+        -- Check for critical movement keys
+        local criticalKeys = {
+            [Enum.KeyCode.W] = "Forward Movement",
+            [Enum.KeyCode.A] = "Left Movement",
+            [Enum.KeyCode.S] = "Backward Movement",
+            [Enum.KeyCode.D] = "Right Movement",
+            [Enum.KeyCode.Space] = "Jump",
+            [Enum.KeyCode.LeftShift] = "Sprint/Shift",
+            [Enum.KeyCode.LeftControl] = "Crouch/Control"
+        }
         
-        -- Update button
-        local element = self.KeybindElements[self.EditingKeybind]
-        if element then
-            element.button.Text = input.KeyCode.Name
-            element.button.BackgroundColor3 = self._config.COLORS.Surface
+        -- If it's a critical key, show warning dialog
+        if criticalKeys[input.KeyCode] then
+            self:ShowKeybindWarning(input.KeyCode, criticalKeys[input.KeyCode])
+        else
+            -- Safe key, bind immediately
+            self:SetKeybind(input.KeyCode)
         end
-        
-        -- Mark as changed
-        self:UpdateSetting("keybind_" .. self.EditingKeybind, input.KeyCode.Name)
-        
-        -- Stop editing
-        self.EditingKeybind = nil
-        
-        -- Play sound
-        if self._soundSystem then
-            self._soundSystem:PlayUISound("Success")
+    end
+end
+
+function SettingsUI:ShowKeybindWarning(key: Enum.KeyCode, keyFunction: string)
+    -- Create warning dialog
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.ZIndex = 999
+    overlay.Parent = self.Frame
+    
+    local dialog = Instance.new("Frame")
+    dialog.Size = UDim2.new(0, 400, 0, 250)
+    dialog.Position = UDim2.new(0.5, 0, 0.5, 0)
+    dialog.AnchorPoint = Vector2.new(0.5, 0.5)
+    dialog.BackgroundColor3 = self._config.COLORS.Dark
+    dialog.ZIndex = 1000
+    dialog.Parent = overlay
+    self._utilities.CreateCorner(dialog, 12)
+    self._utilities.CreateStroke(dialog, self._config.COLORS.Warning, 2)
+    
+    -- Warning icon and title
+    local titleFrame = Instance.new("Frame")
+    titleFrame.Size = UDim2.new(1, 0, 0, 50)
+    titleFrame.BackgroundColor3 = self._config.COLORS.Warning
+    titleFrame.Parent = dialog
+    self._utilities.CreateCorner(titleFrame, 12)
+    
+    local warningIcon = Instance.new("TextLabel")
+    warningIcon.Size = UDim2.new(0, 40, 0, 40)
+    warningIcon.Position = UDim2.new(0, 10, 0, 5)
+    warningIcon.BackgroundTransparency = 1
+    warningIcon.Text = "⚠️"
+    warningIcon.TextScaled = true
+    warningIcon.TextColor3 = self._config.COLORS.White
+    warningIcon.Font = self._config.FONTS.Primary
+    warningIcon.Parent = titleFrame
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 50, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Critical Key Warning"
+    title.TextScaled = true
+    title.TextColor3 = self._config.COLORS.White
+    title.Font = self._config.FONTS.Bold
+    title.Parent = titleFrame
+    
+    -- Message
+    local message = Instance.new("TextLabel")
+    message.Size = UDim2.new(1, -40, 0, 80)
+    message.Position = UDim2.new(0, 20, 0, 60)
+    message.BackgroundTransparency = 1
+    message.Text = string.format(
+        "The '%s' key is used for %s.\n\nRebinding this key may make the game difficult to play.\nAre you sure you want to continue?",
+        key.Name,
+        keyFunction
+    )
+    message.TextScaled = true
+    message.TextColor3 = self._config.COLORS.Text
+    message.Font = self._config.FONTS.Primary
+    message.TextWrapped = true
+    message.Parent = dialog
+    
+    -- Buttons
+    local buttonFrame = Instance.new("Frame")
+    buttonFrame.Size = UDim2.new(1, -40, 0, 40)
+    buttonFrame.Position = UDim2.new(0, 20, 1, -60)
+    buttonFrame.BackgroundTransparency = 1
+    buttonFrame.Parent = dialog
+    
+    local cancelButton = self._uiFactory:CreateButton(buttonFrame, {
+        text = "Cancel",
+        size = UDim2.new(0.48, 0, 1, 0),
+        position = UDim2.new(0, 0, 0, 0),
+        backgroundColor = self._config.COLORS.Surface,
+        textColor = self._config.COLORS.Text,
+        callback = function()
+            -- Cancel the keybind edit
+            if self.EditingKeybind then
+                local element = self.KeybindElements[self.EditingKeybind]
+                if element then
+                    element.button.Text = (self.Keybinds[self.EditingKeybind] or DEFAULT_KEYBINDS[self.EditingKeybind]).Name
+                    element.button.BackgroundColor3 = self._config.COLORS.Surface
+                end
+                self.EditingKeybind = nil
+            end
+            overlay:Destroy()
+            
+            if self._soundSystem then
+                self._soundSystem:PlayUISound("Cancel")
+            end
         end
+    })
+    
+    local confirmButton = self._uiFactory:CreateButton(buttonFrame, {
+        text = "Yes, Rebind",
+        size = UDim2.new(0.48, 0, 1, 0),
+        position = UDim2.new(0.52, 0, 0, 0),
+        backgroundColor = self._config.COLORS.Danger,
+        textColor = self._config.COLORS.White,
+        callback = function()
+            -- Proceed with the keybind
+            self:SetKeybind(key)
+            overlay:Destroy()
+        end
+    })
+    
+    -- Animate dialog entrance
+    dialog.Size = UDim2.new(0, 400, 0, 0)
+    self._utilities.Tween(dialog, {
+        Size = UDim2.new(0, 400, 0, 250)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+end
+
+function SettingsUI:SetKeybind(key: Enum.KeyCode)
+    if not self.EditingKeybind then return end
+    
+    -- Update keybind
+    self.Keybinds[self.EditingKeybind] = key
+    
+    -- Update button
+    local element = self.KeybindElements[self.EditingKeybind]
+    if element then
+        element.button.Text = key.Name
+        element.button.BackgroundColor3 = self._config.COLORS.Surface
+    end
+    
+    -- Mark as changed
+    self:UpdateSetting("keybind_" .. self.EditingKeybind, key.Name)
+    
+    -- Stop editing
+    self.EditingKeybind = nil
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Success")
     end
 end
 
