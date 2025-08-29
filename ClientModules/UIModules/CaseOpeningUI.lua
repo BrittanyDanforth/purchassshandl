@@ -324,22 +324,28 @@ end
 
 function CaseOpeningUI:StartCaseOpeningSequence()
     spawn(function()
-        for i, result in ipairs(self._currentResults) do
-            if not self._isOpen then break end
+        -- For multiple results, show them in a grid
+        if #self._currentResults > 1 then
+            self:ShowMultipleResults(self._currentResults)
             
-            self._currentIndex = i
-            
-            -- Delay between multiple opens
-            if i > 1 then
-                task.wait(0.5)
-            end
-            
-            -- Show animation for this result
-            self:ShowCaseAnimation(result, i, #self._currentResults)
-            
-            -- Wait if not skipping
+            -- Wait for animations
             if not self._skipAnimation then
-                task.wait(RESULT_DISPLAY_TIME)
+                task.wait(RESULT_DISPLAY_TIME * 1.5)
+            end
+        else
+            -- Single result - use original animation
+            for i, result in ipairs(self._currentResults) do
+                if not self._isOpen then break end
+                
+                self._currentIndex = i
+                
+                -- Show animation for this result
+                self:ShowCaseAnimation(result, i, #self._currentResults)
+                
+                -- Wait if not skipping
+                if not self._skipAnimation then
+                    task.wait(RESULT_DISPLAY_TIME)
+                end
             end
         end
         
@@ -391,6 +397,169 @@ function CaseOpeningUI:ShowCaseAnimation(result: CaseResult, index: number, tota
     end
     
     self._animationInProgress = false
+end
+
+function CaseOpeningUI:ShowMultipleResults(results: {CaseResult})
+    self._animationInProgress = true
+    
+    -- Clear previous content
+    for _, child in ipairs(self._container:GetChildren()) do
+        if child.Name == "CaseContent" or child.Name == "MultiResultContent" then
+            child:Destroy()
+        end
+    end
+    
+    local content = Instance.new("Frame")
+    content.Name = "MultiResultContent"
+    content.Size = UDim2.new(1, 0, 1, 0)
+    content.BackgroundTransparency = 1
+    content.ZIndex = self._config.ZINDEX.CaseOpeningContent + 1
+    content.Parent = self._container
+    
+    -- Title
+    local titleLabel = self._uiFactory:CreateLabel(content, {
+        text = string.format("You opened %d pets!", #results),
+        size = UDim2.new(1, 0, 0, 40),
+        position = UDim2.new(0, 0, 0, 20),
+        font = self._config.FONTS.Display,
+        textColor = self._config.COLORS.White,
+        textSize = 28,
+        zIndex = 103
+    })
+    
+    -- Create scroll frame for results
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -40, 1, -100)
+    scrollFrame.Position = UDim2.new(0, 20, 0, 70)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.ScrollBarImageColor3 = self._config.COLORS.Primary
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.ZIndex = 103
+    scrollFrame.Parent = content
+    
+    -- Grid layout
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.CellSize = UDim2.new(0, 180, 0, 220)
+    gridLayout.CellPadding = UDim2.new(0, 15, 0, 15)
+    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    gridLayout.Parent = scrollFrame
+    
+    -- Update canvas size when layout changes
+    gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    -- Create pet cards with staggered animations
+    for i, result in ipairs(results) do
+        task.spawn(function()
+            -- Stagger the animations
+            task.wait((i - 1) * 0.1)
+            
+            local petCard = self:CreateMultiResultCard(result, i)
+            petCard.Parent = scrollFrame
+            
+            -- Entrance animation
+            petCard.Size = UDim2.new(0, 0, 0, 0)
+            petCard.ImageTransparency = 1
+            
+            self._utilities.Tween(petCard, {
+                Size = UDim2.new(0, 180, 0, 220),
+                ImageTransparency = 0
+            }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            -- Play sound for each card
+            if self._soundSystem and self._options.soundEffects then
+                self._soundSystem:PlayUISound("CardReveal")
+            end
+        end)
+    end
+    
+    self._animationInProgress = false
+end
+
+function CaseOpeningUI:CreateMultiResultCard(result: CaseResult, index: number): ImageLabel
+    -- Get pet data
+    local petData = result.pet or {}
+    if result.petData then
+        petData = result.petData
+    elseif result.petId or result.petName then
+        -- Fallback logic for pet data
+        local petId = result.petId or result.petName
+        petData.name = petId
+        petData.displayName = petId:gsub("_", " "):gsub("(%a)([%w_']*)", function(first, rest)
+            return first:upper() .. rest:lower()
+        end)
+    end
+    
+    -- Create card
+    local card = Instance.new("ImageLabel")
+    card.Name = "PetCard_" .. index
+    card.BackgroundColor3 = self._config.COLORS.Surface
+    card.BorderSizePixel = 0
+    card.LayoutOrder = index
+    card.ZIndex = 104
+    
+    self._utilities.CreateCorner(card, 12)
+    
+    -- Rarity border
+    local rarityColor = self._utilities.GetRarityColor(petData.rarity or 1)
+    local border = Instance.new("UIStroke")
+    border.Color = rarityColor
+    border.Thickness = 3
+    border.Transparency = 0
+    border.Parent = card
+    
+    -- Pet image
+    local petImage = Instance.new("ImageLabel")
+    petImage.Size = UDim2.new(1, -20, 0.7, -20)
+    petImage.Position = UDim2.new(0, 10, 0, 10)
+    petImage.BackgroundTransparency = 1
+    petImage.Image = petData.imageId or ""
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.ZIndex = 105
+    petImage.Parent = card
+    
+    -- Pet name
+    local nameLabel = self._uiFactory:CreateLabel(card, {
+        text = petData.displayName or petData.name or "Unknown",
+        size = UDim2.new(1, -10, 0.2, 0),
+        position = UDim2.new(0, 5, 0.75, 0),
+        textSize = 16,
+        font = self._config.FONTS.Secondary,
+        textColor = self._config.COLORS.Text,
+        zIndex = 105
+    })
+    
+    -- Rarity label
+    local rarityName = RARITY_NAMES[petData.rarity or 1] or "Common"
+    local rarityLabel = self._uiFactory:CreateLabel(card, {
+        text = rarityName,
+        size = UDim2.new(1, -10, 0.1, 0),
+        position = UDim2.new(0, 5, 0.9, 0),
+        textSize = 14,
+        font = self._config.FONTS.Primary,
+        textColor = rarityColor,
+        zIndex = 105
+    })
+    
+    -- New indicator
+    if result.isNew then
+        local newBadge = self._uiFactory:CreateLabel(card, {
+            text = "NEW!",
+            size = UDim2.new(0, 50, 0, 25),
+            position = UDim2.new(1, -55, 0, 5),
+            backgroundColor = self._config.COLORS.Success,
+            textColor = self._config.COLORS.White,
+            font = self._config.FONTS.Bold,
+            textSize = 12,
+            zIndex = 106
+        })
+        self._utilities.CreateCorner(newBadge, 6)
+    end
+    
+    return card
 end
 
 -- ========================================

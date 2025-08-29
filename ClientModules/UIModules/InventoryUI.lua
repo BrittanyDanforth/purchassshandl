@@ -783,6 +783,9 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
 end
 
 function InventoryUI:CreateTabs()
+    -- Initialize TabFrames early to prevent nil errors
+    self.TabFrames = {}
+    
     local tabs = {
         {name = "Pets", callback = function(frame) self:CreatePetGrid(frame) end},
         {name = "Storage", callback = function(frame) self:CreateStorageTab(frame) end},
@@ -815,7 +818,7 @@ function InventoryUI:CreateTabs()
     
     self._utilities.CreateCorner(tabContent, 12)
     
-    local tabFrames = {}
+    -- TabFrames already initialized at function start
     
     for i, tab in ipairs(tabs) do
         -- Create tab button
@@ -826,7 +829,7 @@ function InventoryUI:CreateTabs()
             textColor = i == 1 and self._config.COLORS.White or self._config.COLORS.Dark,
             callback = function()
                 -- Smooth tab switching animation
-                self:SwitchTab(tab.name, tabButtonsFrame, tabFrames, i)
+                self:SwitchTab(tab.name, tabButtonsFrame, self.TabFrames, i)
             end
         })
         
@@ -839,11 +842,17 @@ function InventoryUI:CreateTabs()
         tabFrame.Parent = tabContent
         
         tab.callback(tabFrame)
-        tabFrames[tab.name] = tabFrame
+        self.TabFrames[tab.name] = tabFrame
     end
     
-    self.TabFrames = tabFrames
+    -- TabFrames already initialized at the start of the function
     self.CurrentTab = "Pets"
+    
+    -- If there was a pending tab to show, show it now
+    if self._pendingTabName then
+        self:ShowTab(self._pendingTabName)
+        self._pendingTabName = nil
+    end
 end
 
 function InventoryUI:ShowTab(tabName: string)
@@ -1604,12 +1613,32 @@ function InventoryUI:RefreshInventory()
     end
     self.IsRefreshing = true
     
+    -- Ensure we have a frame first
+    if not self.Frame or not self.Frame.Parent then
+        warn("[InventoryUI] Frame not found, cannot refresh")
+        self.IsRefreshing = false
+        return
+    end
+    
     -- Find PetGrid in current tab
     if not self.PetGrid or not self.PetGrid.Parent then
         -- Try to find it in the Pets tab
         local petsTab = self.TabFrames and self.TabFrames["Pets"]
         if petsTab then
             self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+        end
+        
+        -- If still not found and we're on Pets tab, try to create it
+        if not self.PetGrid and self.CurrentTab == "Pets" then
+            -- Tabs might not be initialized yet
+            if not next(self.TabFrames or {}) then
+                warn("[InventoryUI] Tabs not initialized yet, deferring refresh")
+                self.IsRefreshing = false
+                -- Try again after a short delay
+                task.wait(0.1)
+                self:RefreshInventory()
+                return
+            end
         end
         
         if not self.PetGrid then

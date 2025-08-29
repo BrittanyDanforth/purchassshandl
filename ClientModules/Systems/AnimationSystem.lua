@@ -888,8 +888,8 @@ function AnimationSystem:StartUpdateLoop()
         end
         self._performanceMetrics.averageFrameTime = sum / #self._performanceMetrics.frameTimeHistory
         
-        -- Check for performance issues (only warn for severe drops)
-        if frameTime > 1/15 then -- Less than 15 FPS (more tolerant)
+        -- Check for performance issues (only warn for very severe drops)
+        if frameTime > 1/10 then -- Less than 10 FPS (very tolerant)
             self:OnPerformanceIssue(frameTime)
         end
         
@@ -917,12 +917,13 @@ function AnimationSystem:ProcessAnimationQueue()
 end
 
 function AnimationSystem:OnPerformanceIssue(frameTime: number)
-    if self._debugMode then
-        warn("[AnimationSystem] Performance issue detected. Frame time:", frameTime)
+    -- Only log extreme performance issues to reduce console spam
+    if self._debugMode and frameTime > 0.5 then -- 500ms = 2 FPS
+        warn("[AnimationSystem] Severe performance issue detected. Frame time:", frameTime)
     end
     
     -- Reduce max concurrent animations temporarily
-    if frameTime > 0.1 then -- More than 100ms
+    if frameTime > 0.2 then -- More than 200ms
         self._maxConcurrentAnimations = math.max(10, self._maxConcurrentAnimations - 10)
         -- Restore after 2 seconds (don't use task.wait in performance-critical code)
         task.spawn(function()
