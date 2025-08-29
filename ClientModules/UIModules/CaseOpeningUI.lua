@@ -135,6 +135,14 @@ function CaseOpeningUI:Open(results: {CaseResult}, eggData: table?)
     self._currentResults = results
     self._currentIndex = 1
     self._isOpen = true
+    
+    -- Debug logging
+    print("[CaseOpeningUI] Opening with results:", results)
+    if type(results) == "table" then
+        for i, result in ipairs(results) do
+            print("  Result", i, ":", result.petId or result.petName or "unknown", "pet data:", result.pet)
+        end
+    end
     self._skipAnimation = false
     
     -- Create UI

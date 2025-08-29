@@ -156,6 +156,43 @@ function InventoryUI:SetupEventListeners()
         end
     end)
     
+    -- Listen for remote inventory updates from server
+    if self._remoteManager then
+        self._remoteManager:On("InventoryUpdated", function(data)
+            print("[InventoryUI] Received inventory update from server:", data)
+            if data and data.pets then
+                -- Update data cache with new pets
+                if self._dataCache then
+                    self._dataCache:Set("pets", data.pets)
+                    self._dataCache:Set("petCount", data.petCount or 0)
+                end
+                -- Refresh UI
+                if self.Frame and self.Frame.Visible then
+                    self:RefreshInventory()
+                end
+            end
+        end)
+        
+        self._remoteManager:On("PetUpdated", function(data)
+            print("[InventoryUI] Received pet update from server:", data)
+            if data and data.action == "added" and data.pet then
+                -- Update data cache with new pet
+                if self._dataCache then
+                    local pets = self._dataCache:Get("pets") or {}
+                    pets[data.petId] = data.pet
+                    self._dataCache:Set("pets", pets)
+                    
+                    local petCount = self._dataCache:Get("petCount") or 0
+                    self._dataCache:Set("petCount", petCount + 1)
+                end
+                -- Refresh UI
+                if self.Frame and self.Frame.Visible then
+                    self:RefreshInventory()
+                end
+            end
+        end)
+    end
+    
     -- Listen for pet actions
     self._eventBus:On("PetEquipped", function(data)
         self:UpdatePetCardEquipStatus(data.uniqueId, true)
@@ -947,19 +984,41 @@ function InventoryUI:RefreshInventory()
 end
 
 function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table}}
-    local playerData = self._dataCache and self._dataCache:Get() or 
-                      self._stateManager and self._stateManager:Get("playerData") or
-                      {}
+    -- Try multiple sources for pet data
+    local pets = nil
     
-    if not playerData.pets then
+    -- 1. Try data cache directly
+    if self._dataCache then
+        pets = self._dataCache:Get("pets")
+        if not pets then
+            -- Try under playerData
+            local playerData = self._dataCache:Get("playerData")
+            if playerData then
+                pets = playerData.pets
+            end
+        end
+    end
+    
+    -- 2. Try state manager
+    if not pets and self._stateManager then
+        local playerData = self._stateManager:Get("playerData")
+        if playerData then
+            pets = playerData.pets
+        end
+    end
+    
+    -- Debug logging
+    print("[InventoryUI] Getting pets - found:", pets and "yes" or "no", "count:", pets and table.maxn(pets) or 0)
+    
+    if not pets then
         return {}
     end
     
-    local pets = {}
+    local petsArray = {}
     
     -- Convert to array format
-    if type(playerData.pets) == "table" then
-        for uniqueId, petData in pairs(playerData.pets) do
+    if type(pets) == "table" then
+        for uniqueId, petData in pairs(pets) do
             if type(petData) == "table" then
                 petData.uniqueId = uniqueId
                 
@@ -972,7 +1031,7 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
                 if filterFunc and filterFunc(petData, templateData) then
                     -- Apply search filter
                     if self.SearchText == "" or self:MatchesSearch(petData, templateData) then
-                        table.insert(pets, {pet = petData, data = templateData})
+                        table.insert(petsArray, {pet = petData, data = templateData})
                     end
                 end
             end
@@ -982,12 +1041,12 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     -- Sort pets
     local sortFunc = SORT_FUNCTIONS[self.CurrentSort]
     if sortFunc then
-        table.sort(pets, function(a, b)
+        table.sort(petsArray, function(a, b)
             return sortFunc(a.pet, b.pet, a.data, b.data)
         end)
     end
     
-    return pets
+    return petsArray
 end
 
 function InventoryUI:MatchesSearch(petInstance: PetInstance, petData: table): boolean

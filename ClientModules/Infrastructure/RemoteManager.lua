@@ -572,7 +572,21 @@ function RemoteManager:SetupDefaultHandlers()
 
 	self:On("DataUpdated", function(data)
 		if self._debugMode then
-			print("[RemoteManager] Data updated:", data.type or "unknown")
+			print("[RemoteManager] Data updated:", data)
+		end
+		
+		-- Forward to event bus for other systems
+		if self._eventBus then
+			-- If it's raw player data (from server), wrap it
+			if data and data.currencies and data.pets then
+				self._eventBus:Fire("DataUpdated", {
+					type = "full",
+					playerData = data
+				})
+			else
+				-- Already formatted, forward as-is
+				self._eventBus:Fire("DataUpdated", data)
+			end
 		end
 	end)
 
