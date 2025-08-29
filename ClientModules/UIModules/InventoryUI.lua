@@ -884,7 +884,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
             end)
             self._janitor:Add(clickConnection)
         end
-    end)
+    end))
     
     return dropdown
 end
