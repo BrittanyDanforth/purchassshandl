@@ -11,6 +11,7 @@ local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
 local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
+local EffectPool = require(script.Parent.Parent.Systems.EffectPool)
 
 local InventoryUI = {}
 InventoryUI.__index = InventoryUI
@@ -151,6 +152,52 @@ function InventoryUI.new(dependencies)
     self.ScrollConnection = nil
     self.LastScrollPosition = 0
     
+    -- Effect Pools
+    self.GlowEffectPool = EffectPool.new({
+        effectType = "GlowEffect",
+        initialSize = 20,
+        maxSize = 100,
+        createFunction = function()
+            local glow = Instance.new("ImageLabel")
+            glow.Name = "PooledGlowEffect"
+            glow.BackgroundTransparency = 1
+            glow.Image = "rbxassetid://5028857084"
+            glow.ImageTransparency = 0.7
+            glow.ScaleType = Enum.ScaleType.Slice
+            glow.SliceCenter = Rect.new(24, 24, 24, 24)
+            glow.Size = UDim2.new(1, 20, 1, 20)
+            glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+            glow.AnchorPoint = Vector2.new(0.5, 0.5)
+            return glow
+        end
+    })
+    
+    self.ShineEffectPool = EffectPool.new({
+        effectType = "ShineEffect",
+        initialSize = 20,
+        maxSize = 100,
+        createFunction = function()
+            local shine = Instance.new("Frame")
+            shine.Name = "PooledShineEffect"
+            shine.Size = UDim2.new(0, 5, 2, 0)
+            shine.Position = UDim2.new(-0.5, 0, -0.5, 0)
+            shine.BackgroundColor3 = Color3.new(1, 1, 1)
+            shine.BackgroundTransparency = 0.8
+            shine.BorderSizePixel = 0
+            shine.Rotation = 45
+            
+            local gradient = Instance.new("UIGradient")
+            gradient.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5, 0),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+            gradient.Parent = shine
+            
+            return shine
+        end
+    })
+    
     -- Set up event listeners
     self:SetupEventListeners()
     
@@ -257,6 +304,21 @@ function InventoryUI:SetupEventListeners()
     
     self._janitor:Add(self._eventBus:On("PetUnlocked", function(data)
         self:UpdatePetCardLockStatus(data.uniqueId, false)
+    end))
+    
+    -- Listen for pet deletion
+    self._janitor:Add(self._eventBus:On("PetDeleted", function(data)
+        self:RemovePetCard(data.uniqueId)
+    end))
+    
+    -- Listen for pet level changes
+    self._janitor:Add(self._eventBus:On("PetLevelUp", function(data)
+        self:UpdatePetCardLevel(data.uniqueId, data.newLevel)
+    end))
+    
+    -- Listen for pet nickname changes
+    self._janitor:Add(self._eventBus:On("PetRenamed", function(data)
+        self:UpdatePetCardName(data.uniqueId, data.newName)
     end))
 end
 
@@ -1438,16 +1500,19 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
             bgContainer.Parent = card
         end
         
-        glowFrame = Instance.new("Frame")
+        -- Get glow effect from pool
+        glowFrame = self.GlowEffectPool:GetEffect()
         glowFrame.Name = "GlowEffect"
         glowFrame.Size = UDim2.new(1, 16, 1, 16)
         glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
         glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        glowFrame.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
-        glowFrame.BackgroundTransparency = 0.7
+        glowFrame.ImageColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
+        glowFrame.ImageTransparency = 0.7
         glowFrame.ZIndex = 1
         glowFrame.Parent = bgContainer
-        self._utilities.CreateCorner(glowFrame, 12)
+        
+        -- Store reference for cleanup
+        card:SetAttribute("ActiveGlowEffect", glowFrame)
         
         -- Animate background color
         self._utilities.Tween(card, {
@@ -1472,7 +1537,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         
         -- Animate glow
         self._utilities.Tween(glowFrame, {
-            BackgroundTransparency = 0.5,
+            ImageTransparency = 0.5,
             Size = UDim2.new(1, 16, 1, 16)
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
@@ -1515,18 +1580,19 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
             BackgroundTransparency = 0.8
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
-        -- Fade out and destroy glow
+        -- Fade out and return glow to pool
         if glowFrame and glowFrame.Parent then
             self._utilities.Tween(glowFrame, {
-                BackgroundTransparency = 1,
+                ImageTransparency = 1,
                 Size = UDim2.new(1, 12, 1, 12)
             }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
             
-            -- Schedule destruction after animation
+            -- Return to pool after animation
             task.delay(0.2, function()
                 if glowFrame and glowFrame.Parent then
-                    glowFrame:Destroy()
+                    self.GlowEffectPool:ReturnEffect(glowFrame)
                     glowFrame = nil
+                    card:SetAttribute("ActiveGlowEffect", nil)
                 end
             end)
         end
@@ -2988,53 +3054,239 @@ function InventoryUI:OnSearchChanged(text: string)
 end
 
 function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolean)
-    -- Find and update the specific pet card
-    for _, card in ipairs(self.PetCardCache) do
-        if card.Name == "PetCard_" .. uniqueId then
-            card:SetAttribute("Equipped", equipped)
-            
-            local indicator = card:FindFirstChild("EquippedIndicator")
-            if equipped and not indicator then
-                -- Add equipped indicator
-                indicator = Instance.new("ImageLabel")
-                indicator.Name = "EquippedIndicator"
-                indicator.Size = UDim2.new(0, 24, 0, 24)
-                indicator.Position = UDim2.new(1, -26, 0, 2)
-                indicator.BackgroundTransparency = 1
-                indicator.Image = "rbxassetid://7072717697"
-                indicator.ImageColor3 = self._config.COLORS.Success
-                indicator.Parent = card
-            elseif not equipped and indicator then
-                indicator:Destroy()
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode - update the data and visible cards
+        if self.VisiblePets then
+            for _, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    petInfo.pet.equipped = equipped
+                    break
+                end
             end
-            
-            break
+        end
+        
+        -- Update any visible cards
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:SetAttribute("Equipped", equipped)
+                
+                local indicator = card:FindFirstChild("EquippedIndicator")
+                if equipped and not indicator then
+                    -- Add equipped indicator
+                    indicator = Instance.new("ImageLabel")
+                    indicator.Name = "EquippedIndicator"
+                    indicator.Size = UDim2.new(0, 30, 0, 30)
+                    indicator.Position = UDim2.new(1, -35, 0, 5)
+                    indicator.BackgroundTransparency = 1
+                    indicator.Image = "rbxassetid://7734053426" -- Checkmark icon
+                    indicator.ImageColor3 = self._config.COLORS.Success
+                    indicator.Parent = card
+                elseif not equipped and indicator then
+                    indicator:Destroy()
+                end
+                break
+            end
+        end
+    else
+        -- Traditional mode - use cache
+        for _, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:SetAttribute("Equipped", equipped)
+                
+                local indicator = card:FindFirstChild("EquippedIndicator")
+                if equipped and not indicator then
+                    -- Add equipped indicator
+                    indicator = Instance.new("ImageLabel")
+                    indicator.Name = "EquippedIndicator"
+                    indicator.Size = UDim2.new(0, 24, 0, 24)
+                    indicator.Position = UDim2.new(1, -26, 0, 2)
+                    indicator.BackgroundTransparency = 1
+                    indicator.Image = "rbxassetid://7072717697"
+                    indicator.ImageColor3 = self._config.COLORS.Success
+                    indicator.Parent = card
+                elseif not equipped and indicator then
+                    indicator:Destroy()
+                end
+                
+                break
+            end
         end
     end
 end
 
 function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
-    -- Find and update the specific pet card
-    for _, card in ipairs(self.PetCardCache) do
-        if card.Name == "PetCard_" .. uniqueId then
-            card:SetAttribute("Locked", locked)
-            
-            local indicator = card:FindFirstChild("LockIndicator")
-            if locked and not indicator then
-                -- Add lock indicator
-                indicator = Instance.new("ImageLabel")
-                indicator.Name = "LockIndicator"
-                indicator.Size = UDim2.new(0, 20, 0, 20)
-                indicator.Position = UDim2.new(1, -24, 1, -24)
-                indicator.BackgroundTransparency = 1
-                indicator.Image = "rbxassetid://7072718266"
-                indicator.ImageColor3 = self._config.COLORS.Warning
-                indicator.Parent = card
-            elseif not locked and indicator then
-                indicator:Destroy()
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode - update the data and visible cards
+        if self.VisiblePets then
+            for _, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    petInfo.pet.locked = locked
+                    break
+                end
             end
-            
-            break
+        end
+        
+        -- Update any visible cards
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:SetAttribute("Locked", locked)
+                
+                local indicator = card:FindFirstChild("LockedIndicator")
+                if locked and not indicator then
+                    -- Add lock indicator
+                    indicator = Instance.new("ImageLabel")
+                    indicator.Name = "LockedIndicator"
+                    indicator.Size = UDim2.new(0, 25, 0, 25)
+                    indicator.Position = UDim2.new(1, -30, 1, -30)
+                    indicator.BackgroundTransparency = 1
+                    indicator.Image = "rbxassetid://7734021047" -- Lock icon
+                    indicator.ImageColor3 = self._config.COLORS.Warning
+                    indicator.Parent = card
+                elseif not locked and indicator then
+                    indicator:Destroy()
+                end
+                break
+            end
+        end
+    else
+        -- Traditional mode - use cache
+        for _, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:SetAttribute("Locked", locked)
+                
+                local indicator = card:FindFirstChild("LockIndicator")
+                if locked and not indicator then
+                    -- Add lock indicator
+                    indicator = Instance.new("ImageLabel")
+                    indicator.Name = "LockIndicator"
+                    indicator.Size = UDim2.new(0, 20, 0, 20)
+                    indicator.Position = UDim2.new(1, -24, 1, -24)
+                    indicator.BackgroundTransparency = 1
+                    indicator.Image = "rbxassetid://7072718266"
+                    indicator.ImageColor3 = self._config.COLORS.Warning
+                    indicator.Parent = card
+                elseif not locked and indicator then
+                    indicator:Destroy()
+                end
+                
+                break
+            end
+        end
+    end
+end
+
+function InventoryUI:RemovePetCard(uniqueId: string)
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode - remove from data and refresh if visible
+        if self.VisiblePets then
+            for i, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    table.remove(self.VisiblePets, i)
+                    
+                    -- Recalculate canvas size
+                    local totalRows = math.ceil(#self.VisiblePets / self.ColumnsPerRow)
+                    local canvasHeight = totalRows * (self.CardHeight + self.CardPadding)
+                    self.PetGrid.CanvasSize = UDim2.new(0, 0, 0, canvasHeight)
+                    
+                    -- Refresh visible area
+                    self:OnVirtualScroll()
+                    break
+                end
+            end
+        end
+    else
+        -- Traditional mode - find and remove card
+        for i, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                table.remove(self.PetCardCache, i)
+                card:Destroy()
+                break
+            end
+        end
+    end
+end
+
+function InventoryUI:UpdatePetCardLevel(uniqueId: string, newLevel: number)
+    if self.VirtualScrollEnabled then
+        -- Update data
+        if self.VisiblePets then
+            for _, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    petInfo.pet.level = newLevel
+                    break
+                end
+            end
+        end
+        
+        -- Update visible card
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                local levelLabel = card:FindFirstChild("LevelLabel")
+                if levelLabel then
+                    levelLabel.Text = "Lv." .. tostring(newLevel)
+                end
+                break
+            end
+        end
+    else
+        -- Traditional mode
+        for _, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                local levelLabel = card:FindFirstChild("LevelLabel")
+                if levelLabel then
+                    levelLabel.Text = "Lv." .. tostring(newLevel)
+                end
+                break
+            end
+        end
+    end
+end
+
+function InventoryUI:UpdatePetCardName(uniqueId: string, newName: string)
+    if self.VirtualScrollEnabled then
+        -- Update data
+        if self.VisiblePets then
+            for _, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    petInfo.pet.nickname = newName
+                    break
+                end
+            end
+        end
+        
+        -- Update visible card
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                local nameLabel = card:FindFirstChild("NameLabel")
+                if nameLabel then
+                    nameLabel.Text = newName or "Unknown"
+                end
+                card:SetAttribute("PetNickname", newName or "")
+                break
+            end
+        end
+    else
+        -- Traditional mode
+        for _, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                local nameLabel = card:FindFirstChild("NameLabel")
+                if nameLabel then
+                    -- Find pet data to get display name
+                    local petData = nil
+                    if self._dataCache then
+                        local pets = self._dataCache:GetPets()
+                        for _, pet in ipairs(pets) do
+                            if pet.uniqueId == uniqueId then
+                                petData = self._dataCache:GetPetData(pet.petId)
+                                break
+                            end
+                        end
+                    end
+                    nameLabel.Text = newName or (petData and (petData.displayName or petData.name)) or "Unknown"
+                end
+                card:SetAttribute("PetNickname", newName or "")
+                break
+            end
         end
     end
 end
@@ -3078,6 +3330,17 @@ function InventoryUI:Destroy()
         card:Destroy()
     end
     self.VisibleCardPool = {}
+    
+    -- Clean up effect pools
+    if self.GlowEffectPool then
+        self.GlowEffectPool:Destroy()
+        self.GlowEffectPool = nil
+    end
+    
+    if self.ShineEffectPool then
+        self.ShineEffectPool:Destroy()
+        self.ShineEffectPool = nil
+    end
     
     -- Clean up watchers
     if self.PetWatcher then
