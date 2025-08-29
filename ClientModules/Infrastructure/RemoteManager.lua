@@ -174,14 +174,34 @@ function RemoteManager:Initialize()
 		end
 	end
 
-	-- Load RemoteFunctions
+	-- Load RemoteFunctions with delayed retry for missing ones
+	local missingFunctions = {}
 	for _, functionName in ipairs(REMOTE_FUNCTIONS) do
 		local remote = remoteFunctionsFolder:FindFirstChild(functionName)
 		if remote and remote:IsA("RemoteFunction") then
 			self._remoteFunctions[functionName] = remote
 			self._traffic.byFunction[functionName] = {sent = 0, received = 0}
 		else
-			warn("[RemoteManager] RemoteFunction not found:", functionName)
+			-- Don't warn immediately for certain functions that may be created later
+			if functionName ~= "DeletePet" and functionName ~= "PurchaseItem" then
+				warn("[RemoteManager] RemoteFunction not found:", functionName)
+			else
+				table.insert(missingFunctions, functionName)
+			end
+		end
+	end
+	
+	-- Retry missing functions after a delay
+	if #missingFunctions > 0 then
+		task.wait(1)
+		for _, functionName in ipairs(missingFunctions) do
+			local remote = remoteFunctionsFolder:FindFirstChild(functionName)
+			if remote and remote:IsA("RemoteFunction") then
+				self._remoteFunctions[functionName] = remote
+				self._traffic.byFunction[functionName] = {sent = 0, received = 0}
+			else
+				warn("[RemoteManager] RemoteFunction still not found after retry:", functionName)
+			end
 		end
 	end
 

@@ -465,12 +465,13 @@ end
 function MainUI:CreateCurrencyDisplay()
     local currencyFrame = Instance.new("Frame")
     currencyFrame.Name = "CurrencyDisplay"
-    currencyFrame.Size = UDim2.new(1, -20, 0, CURRENCY_DISPLAY_HEIGHT)
-    currencyFrame.Position = UDim2.new(0, 10, 1, -CURRENCY_DISPLAY_HEIGHT - 20)
+    currencyFrame.Size = UDim2.new(0, CURRENCY_DISPLAY_WIDTH, 0, CURRENCY_DISPLAY_HEIGHT)
+    currencyFrame.Position = UDim2.new(0.5, 0, 0, 10)
+    currencyFrame.AnchorPoint = Vector2.new(0.5, 0)
     currencyFrame.BackgroundColor3 = self._config.COLORS.White
     currencyFrame.BorderSizePixel = 0
-    currencyFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.CurrencyDisplay or 35
-    currencyFrame.Parent = self.NavigationBar
+    currencyFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.CurrencyDisplay or 100
+    currencyFrame.Parent = self.ScreenGui
     
     self._utilities.CreateCorner(currencyFrame, 12)
     
@@ -483,7 +484,7 @@ function MainUI:CreateCurrencyDisplay()
     shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
     shadowFrame.BackgroundTransparency = 0.9
     shadowFrame.ZIndex = currencyFrame.ZIndex - 1
-    shadowFrame.Parent = currencyFrame.Parent
+    shadowFrame.Parent = self.ScreenGui
     self._utilities.CreateCorner(shadowFrame, 14)
     
     -- Add subtle gradient
@@ -548,21 +549,23 @@ function MainUI:CreateCurrencyItem(parent: Frame, currencyData: {name: string, i
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
     end)
     
-    -- Icon
+    -- Icon with padding
     local icon = Instance.new("ImageLabel")
     icon.Name = "Icon"
-    icon.Size = UDim2.new(0, 30, 0, 30)
-    icon.Position = UDim2.new(0, 0, 0.5, -15)
+    icon.Size = UDim2.new(0, 35, 0, 35)
+    icon.Position = UDim2.new(0, 10, 0.5, 0)
+    icon.AnchorPoint = Vector2.new(0, 0.5)
     icon.BackgroundTransparency = 1
     icon.Image = currencyData.icon
     icon.ScaleType = Enum.ScaleType.Fit
+    icon.ImageColor3 = Color3.new(1, 1, 1)
     icon.Parent = container
     
     -- Value label
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "Value"
-    valueLabel.Size = UDim2.new(1, -40, 1, 0)
-    valueLabel.Position = UDim2.new(0, 40, 0, 0)
+    valueLabel.Size = UDim2.new(1, -55, 1, 0)
+    valueLabel.Position = UDim2.new(0, 50, 0, 0)
     valueLabel.BackgroundTransparency = 1
     valueLabel.Text = "0"
     valueLabel.TextColor3 = self._config.COLORS.Text
