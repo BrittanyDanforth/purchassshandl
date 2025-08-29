@@ -81,8 +81,8 @@ local SORT_FUNCTIONS = {
         return (a.obtained or 0) > (b.obtained or 0)
     end,
     Name = function(a, b, aData, bData)
-        local aName = a.nickname or aData.displayName or "Unknown"
-        local bName = b.nickname or bData.displayName or "Unknown"
+        local aName = a.nickname or aData.name or aData.displayName or "Unknown"
+        local bName = b.nickname or bData.name or bData.displayName or "Unknown"
         return aName < bName
     end,
 }
@@ -758,7 +758,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     card.Parent = parent
     
     -- Store pet data as attributes for filtering
-    card:SetAttribute("PetName", petData.displayName or "Unknown")
+    card:SetAttribute("PetName", petData.name or petData.displayName or "Unknown")
     card:SetAttribute("PetNickname", petInstance.nickname or "")
     card:SetAttribute("Rarity", petData.rarity or 1)
     card:SetAttribute("Equipped", petInstance.equipped or false)
@@ -835,7 +835,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     
     -- Pet name
     local nameLabel = self._uiFactory:CreateLabel(card, {
-        text = petInstance.nickname or petData.displayName or "Unknown",
+        text = petInstance.nickname or petData.name or petData.displayName or "Unknown",
         size = UDim2.new(1, -10, 0, 25),
         position = UDim2.new(0, 5, 1, -30),
         textScaled = true,
@@ -1140,7 +1140,7 @@ end
 
 function InventoryUI:MatchesSearch(petInstance: PetInstance, petData: table): boolean
     local searchLower = self.SearchText:lower()
-    local petName = (petInstance.nickname or petData.displayName or ""):lower()
+    local petName = (petInstance.nickname or petData.name or petData.displayName or ""):lower()
     return petName:find(searchLower, 1, true) ~= nil
 end
 
@@ -1438,7 +1438,7 @@ function InventoryUI:LoadPetsForDeletion(parent: ScrollingFrame)
     -- Create selection cards
     for _, pet in ipairs(pets) do
         local petData = self._dataCache and self._dataCache:Get("petDatabase." .. pet.petId) or
-                       {displayName = "Unknown", rarity = 1}
+                       {name = "Unknown", displayName = "Unknown", rarity = 1}
         
         local card = self:CreateDeleteSelectionCard(parent, pet, petData)
     end
@@ -1474,7 +1474,7 @@ function InventoryUI:CreateDeleteSelectionCard(parent: ScrollingFrame, petInstan
     
     -- Name label
     local nameLabel = self._uiFactory:CreateLabel(card, {
-        text = petInstance.nickname or petData.displayName or "Unknown",
+        text = petInstance.nickname or petData.name or petData.displayName or "Unknown",
         size = UDim2.new(1, -4, 0, 20),
         position = UDim2.new(0, 2, 1, -22),
         textScaled = true,
@@ -1582,14 +1582,62 @@ function InventoryUI:ConfirmMassDelete()
     -- Create confirmation dialog
     local confirmText = string.format("Are you sure you want to delete %d pets?\n\nThis action cannot be undone!", count)
     
-    -- Show confirmation
-    local confirmDialog = self._uiFactory:CreateConfirmDialog({
-        title = "Confirm Mass Delete",
-        message = confirmText,
-        confirmText = "Delete " .. count .. " Pets",
-        confirmColor = self._config.COLORS.Error,
-        onConfirm = function()
+    -- Create simple confirmation dialog
+    local overlay = Instance.new("Frame")
+    overlay.Name = "ConfirmOverlay"
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.ZIndex = 400
+    overlay.Parent = self.ScreenGui
+    
+    local dialog = Instance.new("Frame")
+    dialog.Name = "ConfirmDialog"
+    dialog.Size = UDim2.new(0, 400, 0, 200)
+    dialog.Position = UDim2.new(0.5, -200, 0.5, -100)
+    dialog.BackgroundColor3 = self._config.COLORS.Background
+    dialog.ZIndex = 401
+    dialog.Parent = overlay
+    
+    self._utilities.CreateCorner(dialog, 12)
+    
+    -- Title
+    local title = self._uiFactory:CreateLabel(dialog, {
+        text = "Confirm Mass Delete",
+        size = UDim2.new(1, -20, 0, 40),
+        position = UDim2.new(0, 10, 0, 10),
+        font = self._config.FONTS.Bold,
+        textSize = 20
+    })
+    
+    -- Message
+    local message = self._uiFactory:CreateLabel(dialog, {
+        text = confirmText,
+        size = UDim2.new(1, -20, 0, 60),
+        position = UDim2.new(0, 10, 0, 50),
+        font = self._config.FONTS.Primary,
+        textSize = 16,
+        textWrapped = true
+    })
+    
+    -- Buttons
+    local confirmButton = self._uiFactory:CreateButton(dialog, {
+        text = "Delete " .. count .. " Pets",
+        size = UDim2.new(0.5, -15, 0, 40),
+        position = UDim2.new(0, 10, 1, -50),
+        backgroundColor = self._config.COLORS.Error,
+        callback = function()
+            overlay:Destroy()
             self:ExecuteMassDelete(petIds)
+        end
+    })
+    
+    local cancelButton = self._uiFactory:CreateButton(dialog, {
+        text = "Cancel",
+        size = UDim2.new(0.5, -15, 0, 40),
+        position = UDim2.new(0.5, 5, 1, -50),
+        callback = function()
+            overlay:Destroy()
         end
     })
 end

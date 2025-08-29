@@ -196,7 +196,7 @@ function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
     
     -- Play sound
     if self._soundSystem then
-        self._soundSystem:PlayUISound("OpenMenu")
+        self._soundSystem:PlayUISound("Open")
     end
 end
 
@@ -238,7 +238,7 @@ function PetDetailsUI:Close()
     
     -- Play sound
     if self._soundSystem then
-        self._soundSystem:PlayUISound("CloseMenu")
+        self._soundSystem:PlayUISound("Close")
     end
 end
 
@@ -1090,7 +1090,14 @@ function PetDetailsUI:OnEquipClicked()
             -- Show notification
             local message = self._currentPetInstance.equipped and 
                           "Pet equipped!" or "Pet unequipped!"
-            self._notificationSystem:SendNotification("Success", message, "success")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Success",
+                    message = message,
+                    type = "success",
+                    duration = 3
+                })
+            end
             
             -- Fire event
             if self._eventBus then
@@ -1102,8 +1109,14 @@ function PetDetailsUI:OnEquipClicked()
             end
         else
             -- Show error
-            self._notificationSystem:SendNotification("Error", 
-                result or "Failed to update pet", "error")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Error",
+                    message = result or "Failed to update pet",
+                    type = "error",
+                    duration = 3
+                })
+            end
             
             -- Reset button
             self:UpdateEquipButton()
@@ -1138,7 +1151,14 @@ function PetDetailsUI:OnLockClicked()
             -- Show notification
             local message = self._currentPetInstance.locked and 
                           "Pet locked!" or "Pet unlocked!"
-            self._notificationSystem:SendNotification("Info", message, "info")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Info",
+                    message = message,
+                    type = "info",
+                    duration = 3
+                })
+            end
             
             -- Fire event
             if self._eventBus then
@@ -1150,8 +1170,14 @@ function PetDetailsUI:OnLockClicked()
             end
         else
             -- Show error
-            self._notificationSystem:SendNotification("Error", 
-                result or "Failed to update pet", "error")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Error",
+                    message = result or "Failed to update pet",
+                    type = "error",
+                    duration = 3
+                })
+            end
             
             -- Reset button
             self:UpdateLockButton()
@@ -1249,8 +1275,14 @@ function PetDetailsUI:ConfirmRename(newName: string)
     
     -- Validate name length
     if #newName > 20 then
-        self._notificationSystem:SendNotification("Error", 
-            "Name must be 20 characters or less", "error")
+        if self._notificationSystem then
+            self._notificationSystem:Show({
+                title = "Error",
+                message = "Name must be 20 characters or less",
+                type = "error",
+                duration = 3
+            })
+        end
         return
     end
     
@@ -1265,8 +1297,14 @@ function PetDetailsUI:ConfirmRename(newName: string)
             self:UpdatePetName()
             
             -- Show notification
-            self._notificationSystem:SendNotification("Success", 
-                "Pet renamed successfully!", "success")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Success",
+                    message = "Pet renamed successfully!",
+                    type = "success",
+                    duration = 3
+                })
+            end
             
             -- Fire event
             if self._eventBus then
@@ -1281,8 +1319,14 @@ function PetDetailsUI:ConfirmRename(newName: string)
                 self._soundSystem:PlayUISound("Success")
             end
         else
-            self._notificationSystem:SendNotification("Error", 
-                result or "Failed to rename pet", "error")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Error",
+                    message = result or "Failed to rename pet",
+                    type = "error",
+                    duration = 3
+                })
+            end
         end
     end
     
