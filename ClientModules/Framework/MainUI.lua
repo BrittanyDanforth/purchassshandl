@@ -465,12 +465,12 @@ end
 function MainUI:CreateCurrencyDisplay()
     local currencyFrame = Instance.new("Frame")
     currencyFrame.Name = "CurrencyDisplay"
-    currencyFrame.Size = UDim2.new(0, CURRENCY_DISPLAY_WIDTH, 0, CURRENCY_DISPLAY_HEIGHT)
-    currencyFrame.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
+    currencyFrame.Size = UDim2.new(1, -20, 0, CURRENCY_DISPLAY_HEIGHT)
+    currencyFrame.Position = UDim2.new(0, 10, 1, -CURRENCY_DISPLAY_HEIGHT - 20)
     currencyFrame.BackgroundColor3 = self._config.COLORS.White
     currencyFrame.BorderSizePixel = 0
     currencyFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.CurrencyDisplay or 35
-    currencyFrame.Parent = self.MainPanel
+    currencyFrame.Parent = self.NavigationBar
     
     self._utilities.CreateCorner(currencyFrame, 12)
     

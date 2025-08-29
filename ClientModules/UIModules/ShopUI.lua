@@ -717,63 +717,78 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     
     local card = Instance.new("Frame")
     card.Name = "EggCard_" .. eggData.id
-    card.BackgroundColor3 = self._config.COLORS.Surface
+    card.BackgroundColor3 = Color3.new(1, 1, 1) -- Pure white
     card.BorderSizePixel = 0
     card.Parent = parent
     
-    self._utilities.CreateCorner(card, 12)
+    self._utilities.CreateCorner(card, 16) -- Larger corner radius
     
-    -- Create effects container for shadow
-    local effectsContainer = Instance.new("Frame")
-    effectsContainer.Name = "EffectsContainer"
-    effectsContainer.Size = UDim2.new(1, 0, 1, 0)
-    effectsContainer.BackgroundTransparency = 1
-    effectsContainer.ZIndex = 0
-    effectsContainer.Parent = card
+    -- Add subtle border
+    local border = Instance.new("UIStroke")
+    border.Color = self._config.COLORS.Primary
+    border.Transparency = 0.95
+    border.Thickness = 1
+    border.Parent = card
     
-    -- Create shadow inside effects container
-    local shadow = Instance.new("Frame")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 8, 1, 8)
-    shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 0.85
-    shadow.ZIndex = 0
-    shadow.Parent = effectsContainer
-    self._utilities.CreateCorner(shadow, 14)
+    -- Gradient background
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(0.98, 0.98, 0.98))
+    })
+    gradient.Rotation = 90
+    gradient.Parent = card
+    
+    -- Top section with image
+    local imageContainer = Instance.new("Frame")
+    imageContainer.Name = "ImageContainer"
+    imageContainer.Size = UDim2.new(1, 0, 0.6, 0)
+    imageContainer.BackgroundTransparency = 1
+    imageContainer.Parent = card
     
     -- Egg image
     local eggImage = Instance.new("ImageLabel")
     eggImage.Name = "EggImage"
-    eggImage.Size = UDim2.new(0, 120, 0, 120)
-    eggImage.Position = UDim2.new(0.5, -60, 0, 20)
+    eggImage.Size = UDim2.new(0.8, 0, 0.8, 0)
+    eggImage.Position = UDim2.new(0.5, 0, 0.5, 0)
+    eggImage.AnchorPoint = Vector2.new(0.5, 0.5)
     eggImage.BackgroundTransparency = 1
     eggImage.Image = eggData.icon or ""
     eggImage.ScaleType = Enum.ScaleType.Fit
-    eggImage.ZIndex = 2
-    eggImage.Parent = card
+    eggImage.Parent = imageContainer
+    
+    -- Info section
+    local infoSection = Instance.new("Frame")
+    infoSection.Name = "InfoSection"
+    infoSection.Size = UDim2.new(1, 0, 0.4, 0)
+    infoSection.Position = UDim2.new(0, 0, 0.6, 0)
+    infoSection.BackgroundTransparency = 1
+    infoSection.Parent = card
     
     -- Egg name
-    local nameLabel = self._uiFactory:CreateLabel(card, {
+    local nameLabel = self._uiFactory:CreateLabel(infoSection, {
         text = eggData.displayName or eggData.name,
-        size = UDim2.new(1, -20, 0, 25),
-        position = UDim2.new(0, 10, 0, 150),
+        size = UDim2.new(1, -20, 0, 24),
+        position = UDim2.new(0, 10, 0, 5),
         font = self._config.FONTS.Secondary,
-        textColor = self._config.COLORS.Text
+        textColor = self._config.COLORS.Text,
+        textSize = 18
     })
     
     -- Price container
     local priceContainer = Instance.new("Frame")
-    priceContainer.Size = UDim2.new(1, -20, 0, 30)
-    priceContainer.Position = UDim2.new(0, 10, 0, 180)
-    priceContainer.BackgroundTransparency = 1
-    priceContainer.Parent = card
+    priceContainer.Size = UDim2.new(1, -20, 0, 32)
+    priceContainer.Position = UDim2.new(0, 10, 0, 35)
+    priceContainer.BackgroundColor3 = self._config.COLORS.Primary
+    priceContainer.BackgroundTransparency = 0.95
+    priceContainer.Parent = infoSection
+    
+    self._utilities.CreateCorner(priceContainer, 8)
     
     -- Currency icon
     local currencyIcon = Instance.new("ImageLabel")
-    currencyIcon.Size = UDim2.new(0, 25, 0, 25)
-    currencyIcon.Position = UDim2.new(0, 0, 0.5, -12.5)
+    currencyIcon.Size = UDim2.new(0, 24, 0, 24)
+    currencyIcon.Position = UDim2.new(0, 8, 0.5, -12)
     currencyIcon.BackgroundTransparency = 1
     currencyIcon.Image = self:GetCurrencyIcon(eggData.currency)
     currencyIcon.Parent = priceContainer
@@ -781,42 +796,37 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     -- Price label
     local priceLabel = self._uiFactory:CreateLabel(priceContainer, {
         text = self._utilities.FormatNumber(eggData.price),
-        size = UDim2.new(1, -35, 1, 0),
+        size = UDim2.new(1, -40, 1, 0),
         position = UDim2.new(0, 35, 0, 0),
         font = self._config.FONTS.Numbers,
+        textSize = 20,
         textColor = self._config.COLORS.Text
     })
     
     -- Buy button
-    local buyButton = self._uiFactory:CreateButton(card, {
-        text = "Open",
-        size = UDim2.new(1, -20, 0, 35),
+    local buyButton = self._uiFactory:CreateButton(infoSection, {
+        text = "OPEN",
+        size = UDim2.new(1, -20, 0, 36),
         position = UDim2.new(0, 10, 1, -45),
-        backgroundColor = self._config.COLORS.Success,
+        backgroundColor = self._config.COLORS.Primary,
+        font = self._config.FONTS.Primary,
+        textSize = 16,
         callback = function()
             self:ShowEggPurchaseDialog(eggData)
         end
     })
     
-    -- Premium hover effects with 3D tilt
-    local originalRotation = 0
-    local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-    local hoverConnection = nil
+    -- Add gradient to button
+    local buttonGradient = Instance.new("UIGradient")
+    buttonGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1.1, 1.1, 1.1)),
+        ColorSequenceKeypoint.new(1, Color3.new(0.9, 0.9, 0.9))
+    })
+    buttonGradient.Rotation = 90
+    buttonGradient.Parent = buyButton
     
-    -- Create shadow for depth
-    local shadow = Instance.new("Frame")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 8, 1, 8)
-    shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 0.8
-    shadow.ZIndex = card.ZIndex - 1
-    shadow.Parent = card.Parent
-    self._utilities.CreateCorner(shadow, 14)
-    
-    -- Position card above shadow
-    card.ZIndex = card.ZIndex + 1
+    -- Premium hover effects
+    local originalBorderTransparency = border.Transparency
     
     -- Add holographic effect for rare items (if rarity data exists)
     if eggData.rarity and eggData.rarity >= 4 then
@@ -850,28 +860,10 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         end)
     end
     
-    -- Price badge enhancement
-    local priceBadge = Instance.new("Frame")
-    priceBadge.Name = "PriceBadge"
-    priceBadge.Size = UDim2.new(0, 100, 0, 30)
-    priceBadge.Position = UDim2.new(1, -105, 0, 5)
-    priceBadge.BackgroundColor3 = self._config.COLORS.Success
-    priceBadge.ZIndex = card.ZIndex + 2
-    priceBadge.Parent = card
-    
-    self._utilities.CreateCorner(priceBadge, 15)
-    
-    -- Move price to badge
-    priceContainer.Parent = priceBadge
-    priceContainer.Size = UDim2.new(1, 0, 1, 0)
-    priceContainer.Position = UDim2.new(0, 0, 0, 0)
+
     
     card.MouseEnter:Connect(function()
-        -- Bring to front
-        card.ZIndex = card.ZIndex + 10
-        shadow.ZIndex = card.ZIndex - 1
-        
-        -- Scale up with bounce
+        -- Scale up animation
         card:TweenSize(
             UDim2.new(0, EGG_CARD_SIZE.X * 1.05, 0, EGG_CARD_SIZE.Y * 1.05),
             Enum.EasingDirection.Out,
@@ -880,46 +872,30 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             true
         )
         
-        -- Enhance shadow
-        self._utilities.Tween(shadow, {
-            Size = UDim2.new(1, 16, 1, 16),
-            Position = UDim2.new(0.5, 0, 0.5, 8),
-            BackgroundTransparency = 0.6
+        -- Border glow
+        self._utilities.Tween(border, {
+            Transparency = 0.7,
+            Thickness = 2
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
-        -- Background color change
-        self._utilities.Tween(card, {
-            BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.Surface, 0.1)
-        }, self._config.TWEEN_INFO.Fast)
+        -- Subtle elevation with drop shadow
+        local dropShadow = Instance.new("ImageLabel")
+        dropShadow.Name = "DropShadow"
+        dropShadow.Size = UDim2.new(1, 20, 1, 20)
+        dropShadow.Position = UDim2.new(0.5, 0, 0.5, 5)
+        dropShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+        dropShadow.BackgroundTransparency = 1
+        dropShadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+        dropShadow.ImageColor3 = Color3.new(0, 0, 0)
+        dropShadow.ImageTransparency = 0.8
+        dropShadow.ZIndex = card.ZIndex - 1
+        dropShadow.Parent = card
+        card:SetAttribute("DropShadow", dropShadow)
         
-        -- Scale egg image with bounce
+        -- Scale egg image
         self._utilities.Tween(eggImage, {
-            Size = UDim2.new(0, 135, 0, 135),
-            Position = UDim2.new(0.5, -67.5, 0, 12.5)
+            Size = UDim2.new(0.85, 0, 0.85, 0)
         }, TweenInfo.new(0.3, Enum.EasingStyle.Back))
-        
-        -- 3D tilt effect based on mouse position
-        hoverConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            local cardPos = card.AbsolutePosition + card.AbsoluteSize / 2
-            local mousePos = Vector2.new(mouse.X, mouse.Y)
-            local delta = (mousePos - cardPos) / card.AbsoluteSize
-            
-            -- Clamp delta
-            delta = Vector2.new(
-                math.clamp(delta.X, -0.5, 0.5),
-                math.clamp(delta.Y, -0.5, 0.5)
-            )
-            
-            -- Apply rotation
-            local rotationY = -delta.X * 8
-            
-            card.Rotation = rotationY
-            
-            -- Simulate 3D with position offset
-            local imageOffsetX = delta.X * 5
-            local imageOffsetY = -delta.Y * 5
-            eggImage.Position = UDim2.new(0.5, -67.5 + imageOffsetX, 0, 12.5 + imageOffsetY)
-        end)
         
         -- Sound effect
         if self._soundSystem then
@@ -928,10 +904,6 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     end)
     
     card.MouseLeave:Connect(function()
-        -- Reset Z-index
-        card.ZIndex = card.ZIndex - 10
-        shadow.ZIndex = card.ZIndex - 1
-        
         -- Scale back
         card:TweenSize(
             UDim2.new(0, EGG_CARD_SIZE.X, 0, EGG_CARD_SIZE.Y),
@@ -941,30 +913,23 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             true
         )
         
-        -- Reset shadow
-        self._utilities.Tween(shadow, {
-            Size = UDim2.new(1, 8, 1, 8),
-            Position = UDim2.new(0.5, 0, 0.5, 4),
-            BackgroundTransparency = 0.8
+        -- Reset border
+        self._utilities.Tween(border, {
+            Transparency = originalBorderTransparency,
+            Thickness = 1
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
-        -- Reset background
-        self._utilities.Tween(card, {
-            BackgroundColor3 = self._config.COLORS.Surface,
-            Rotation = 0
-        }, self._config.TWEEN_INFO.Fast)
+        -- Remove drop shadow
+        local dropShadow = card:GetAttribute("DropShadow")
+        if dropShadow then
+            dropShadow:Destroy()
+            card:SetAttribute("DropShadow", nil)
+        end
         
         -- Reset egg image
         self._utilities.Tween(eggImage, {
-            Size = UDim2.new(0, 120, 0, 120),
-            Position = UDim2.new(0.5, -60, 0, 20)
+            Size = UDim2.new(0.8, 0, 0.8, 0)
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
-        
-        -- Disconnect hover
-        if hoverConnection then
-            hoverConnection:Disconnect()
-            hoverConnection = nil
-        end
     end)
     
     return card
