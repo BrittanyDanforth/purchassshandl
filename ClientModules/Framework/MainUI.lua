@@ -104,6 +104,7 @@ function MainUI.new(dependencies)
     -- Currency tracking
     self._currencyLabels = {}
     self._currencyAnimations = {}
+    self._currencyValues = {}
     
     -- Settings
     self._uiScale = 1
@@ -565,26 +566,123 @@ function MainUI:UpdateCurrency(currencyName: string, value: number)
     local label = self._currencyLabels[currencyName]
     if not label then return end
     
-    local formattedValue = self._utilities.FormatNumber(value)
-    label.Text = formattedValue
+    -- Get old value
+    local oldValue = self._currencyValues[currencyName] or value
+    self._currencyValues[currencyName] = value
     
-    -- Animate currency change
-    if self._currencyAnimations[currencyName] then
-        self._currencyAnimations[currencyName]:Cancel()
+    -- Animate number change
+    if oldValue ~= value then
+        -- Show difference indicator
+        self:ShowCurrencyDifference(label, value - oldValue)
+        
+        -- Animate the number counting
+        self:AnimateCurrencyCount(label, oldValue, value)
+        
+        -- Glow effect on change
+        self:AnimateCurrencyGlow(label.Parent)
+    else
+        -- Just update text if no change
+        label.Text = self._utilities.FormatNumber(value)
+    end
+end
+
+function MainUI:AnimateCurrencyCount(label: TextLabel, fromValue: number, toValue: number)
+    local startTime = tick()
+    local duration = 0.5
+    local difference = toValue - fromValue
+    
+    -- Cancel previous animation
+    if self._currencyAnimations[label] then
+        self._currencyAnimations[label]:Disconnect()
     end
     
-    -- Flash animation
-    self._currencyAnimations[currencyName] = self._utilities.Tween(label, {
-        TextColor3 = self._config.COLORS.Success
-    }, self._config.TWEEN_INFO.Fast)
+    -- Create counting animation
+    self._currencyAnimations[label] = game:GetService("RunService").Heartbeat:Connect(function()
+        local elapsed = tick() - startTime
+        local progress = math.min(elapsed / duration, 1)
+        
+        -- Ease out cubic
+        progress = 1 - math.pow(1 - progress, 3)
+        
+        local currentValue = fromValue + (difference * progress)
+        label.Text = self._utilities.FormatNumber(math.floor(currentValue))
+        
+        if progress >= 1 then
+            self._currencyAnimations[label]:Disconnect()
+            self._currencyAnimations[label] = nil
+            label.Text = self._utilities.FormatNumber(toValue)
+        end
+    end)
+end
+
+function MainUI:ShowCurrencyDifference(label: TextLabel, difference: number)
+    local container = label.Parent
     
-    task.wait(0.3)
+    -- Create difference indicator
+    local diffLabel = Instance.new("TextLabel")
+    diffLabel.Size = UDim2.new(0, 100, 0, 30)
+    diffLabel.Position = UDim2.new(0.5, 0, 0, -10)
+    diffLabel.AnchorPoint = Vector2.new(0.5, 1)
+    diffLabel.BackgroundTransparency = 1
+    diffLabel.Font = self._config.FONTS.Numbers
+    diffLabel.TextScaled = true
+    diffLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    diffLabel.TextStrokeTransparency = 0
+    diffLabel.ZIndex = container.ZIndex + 10
+    diffLabel.Parent = container
     
-    if label and label.Parent then
-        self._utilities.Tween(label, {
-            TextColor3 = self._config.COLORS.Text
-        }, self._config.TWEEN_INFO.Fast)
+    if difference > 0 then
+        diffLabel.Text = "+" .. self._utilities.FormatNumber(difference)
+        diffLabel.TextColor3 = self._config.COLORS.Success
+    else
+        diffLabel.Text = self._utilities.FormatNumber(difference)
+        diffLabel.TextColor3 = self._config.COLORS.Error
     end
+    
+    -- Animate floating up
+    self._utilities.Tween(diffLabel, {
+        Position = UDim2.new(0.5, 0, 0, -40),
+        TextTransparency = 1,
+        TextStrokeTransparency = 1
+    }, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    game:GetService("Debris"):AddItem(diffLabel, 1.5)
+end
+
+function MainUI:AnimateCurrencyGlow(container: Frame)
+    -- Create glow effect
+    local glow = Instance.new("Frame")
+    glow.Name = "CurrencyGlow"
+    glow.Size = UDim2.new(1, 10, 1, 10)
+    glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    glow.BackgroundColor3 = self._config.COLORS.Success
+    glow.BackgroundTransparency = 0.5
+    glow.ZIndex = container.ZIndex - 1
+    glow.Parent = container.Parent
+    
+    self._utilities.CreateCorner(glow, 12)
+    
+    -- Pulse animation
+    self._utilities.Tween(glow, {
+        Size = UDim2.new(1, 20, 1, 20),
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    game:GetService("Debris"):AddItem(glow, 0.5)
+    
+    -- Scale bounce effect
+    local originalSize = container.Size
+    self._utilities.Tween(container, {
+        Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset + 5, 
+                        originalSize.Y.Scale, originalSize.Y.Offset + 5)
+    }, TweenInfo.new(0.1, Enum.EasingStyle.Quad))
+    
+    task.wait(0.1)
+    
+    self._utilities.Tween(container, {
+        Size = originalSize
+    }, TweenInfo.new(0.1, Enum.EasingStyle.Quad))
 end
 
 -- ========================================
