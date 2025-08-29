@@ -1367,6 +1367,37 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
     
     self._purchaseInProgress = true
     
+    -- Request egg opening from server FIRST
+    local success, result = pcall(function()
+        if self._remoteManager then
+            return self._remoteManager:InvokeFunction("OpenCase", eggData.id, amount)
+        else
+            return RemoteFunctions.OpenCase:InvokeServer(eggData.id, amount)
+        end
+    end)
+    
+    self._purchaseInProgress = false
+    
+    -- Handle the response
+    if not success then
+        self._notificationSystem:Show({
+            title = "Error",
+            text = "Could not connect to server. Please try again.",
+            type = "error"
+        })
+        return
+    end
+    
+    if not result or not result.success then
+        self._notificationSystem:Show({
+            title = "Error",
+            text = result and result.error or "Failed to open egg",
+            type = "error"
+        })
+        return
+    end
+    
+    -- ONLY NOW do we show success animations
     -- Create purchase animation overlay
     local overlay = Instance.new("Frame")
     overlay.Name = "PurchaseOverlay"
@@ -1438,16 +1469,9 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
         end)
     end
     
-    -- Request egg opening from server
-    local success, result = pcall(function()
-        if self._remoteManager then
-            return self._remoteManager:InvokeFunction("OpenCase", eggData.id, amount)
-        else
-            return RemoteFunctions.OpenCase:InvokeServer(eggData.id, amount)
-        end
-    end)
+    -- Continue with animations
     
-    -- Clean up overlay
+    -- Clean up overlay after animation
     task.wait(0.5)
     if overlay then
         self._utilities.Tween(overlay, {
@@ -1457,51 +1481,32 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
         overlay:Destroy()
     end
     
-    self._purchaseInProgress = false
+    -- Create success particles at purchase location
+    self:CreatePurchaseSuccessEffects(eggCard)
     
-    if not success then
-        self._notificationSystem:Show({
-            title = "Error",
-            text = "Could not connect to server. Please try again.",
-            type = "error"
+    -- Animate currency deduction
+    self:AnimateCurrencyDeduction(eggData.currency, eggData.price * amount)
+    
+    -- Fire event to open case opening UI
+    if self._eventBus then
+        self._eventBus:Fire("OpenCaseAnimation", {
+            results = result.results,
+            eggData = eggData
         })
-        return
     end
     
-    if result and result.success then
-        -- Create success particles at purchase location
-        self:CreatePurchaseSuccessEffects(eggCard)
-        
-        -- Animate currency deduction
-        self:AnimateCurrencyDeduction(eggData.currency, eggData.price * amount)
-        
-        -- Fire event to open case opening UI
-        if self._eventBus then
-            self._eventBus:Fire("OpenCaseAnimation", {
-                results = result.results,
-                eggData = eggData
-            })
-        end
-        
-        -- Update local currency immediately with animation
-        if result.newCurrencies then
-            for currency, value in pairs(result.newCurrencies) do
-                if self._dataCache then
-                    self._dataCache:Set("currencies." .. currency, value)
-                end
+    -- Update local currency immediately with animation
+    if result.newCurrencies then
+        for currency, value in pairs(result.newCurrencies) do
+            if self._dataCache then
+                self._dataCache:Set("currencies." .. currency, value)
             end
         end
-        
-        -- Play success sound
-        if self._soundSystem then
-            self._soundSystem:PlayUISound("Purchase")
-        end
-    else
-        self._notificationSystem:Show({
-            title = "Error",
-            text = result and result.error or "Failed to open egg",
-            type = "error"
-        })
+    end
+    
+    -- Play success sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Purchase")
     end
 end
 

@@ -10,6 +10,7 @@ local Types = require(script.Parent.Parent.Core.ClientTypes)
 local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
 
 local TradingUI = {}
 TradingUI.__index = TradingUI
@@ -71,6 +72,9 @@ local STATUS_COLORS = {
 
 function TradingUI.new(dependencies)
     local self = setmetatable({}, TradingUI)
+    
+    -- Initialize Janitor for memory management
+    self._janitor = Janitor.new()
     
     -- Dependencies
     self._eventBus = dependencies.EventBus
