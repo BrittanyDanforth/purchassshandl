@@ -113,6 +113,7 @@ function QuestUI.new(dependencies)
     self.TabFrames = {}
     self.DailyQuestContainer = nil
     self.WeeklyQuestContainer = nil
+    self.SpecialQuestContainer = nil
     self.AchievementContainer = nil
     self.QuestCards = {}
     self.AchievementCards = {}
@@ -262,19 +263,33 @@ end
 function QuestUI:CreateTabs()
     local tabs = {
         {
+            id = "daily",
             name = "Daily Quests",
+            icon = "🌅",
             callback = function(frame)
                 self:CreateQuestList(frame, "daily")
             end
         },
         {
-            name = "Weekly Quests", 
+            id = "weekly",
+            name = "Weekly Quests",
+            icon = "📅", 
             callback = function(frame)
                 self:CreateQuestList(frame, "weekly")
             end
         },
         {
+            id = "special",
+            name = "Special Events",
+            icon = "⭐",
+            callback = function(frame)
+                self:CreateQuestList(frame, "special")
+            end
+        },
+        {
+            id = "achievements",
             name = "Achievements",
+            icon = "🏆",
             callback = function(frame)
                 self:CreateAchievementList(frame)
             end
@@ -307,35 +322,72 @@ function QuestUI:CreateTabs()
     
     self._utilities.CreateCorner(tabContent, 12)
     
+    -- Store tab buttons for animations
+    self._tabButtons = {}
+    self._currentTab = 1
+    
     for i, tab in ipairs(tabs) do
+        -- Tab button container
+        local buttonContainer = Instance.new("Frame")
+        buttonContainer.Size = UDim2.new(0, 150, 1, 0)
+        buttonContainer.BackgroundTransparency = 1
+        buttonContainer.Parent = tabButtonsFrame
+        
         -- Tab button
-        local tabButton = self._uiFactory:CreateButton(tabButtonsFrame, {
-            text = tab.name,
-            size = UDim2.new(0, 150, 1, 0),
+        local tabButton = self._uiFactory:CreateButton(buttonContainer, {
+            text = tab.icon .. " " .. tab.name,
+            size = UDim2.new(1, 0, 1, 0),
             backgroundColor = i == 1 and self._config.COLORS.Primary or self._config.COLORS.Surface,
             textColor = i == 1 and self._config.COLORS.White or self._config.COLORS.Dark,
             callback = function()
-                -- Update button states
-                for j, btn in ipairs(tabButtonsFrame:GetChildren()) do
-                    if btn:IsA("TextButton") then
-                        btn.BackgroundColor3 = j == i and self._config.COLORS.Primary or self._config.COLORS.Surface
-                        btn.TextColor3 = j == i and self._config.COLORS.White or self._config.COLORS.Dark
-                    end
-                end
-                
-                -- Show tab content
-                for name, frame in pairs(self.TabFrames) do
-                    frame.Visible = name == tab.name
-                end
-                
-                -- Refresh data when switching tabs
-                if tab.name:match("Quests") then
-                    self:RefreshQuests()
-                elseif tab.name == "Achievements" then
-                    self:RefreshAchievements()
-                end
+                self:SwitchToTab(i, tabs)
             end
         })
+        
+        -- Store reference
+        self._tabButtons[i] = tabButton
+        tab.button = tabButton
+        
+        -- New quest badge
+        local badge = Instance.new("Frame")
+        badge.Name = "NewBadge"
+        badge.Size = UDim2.new(0, 20, 0, 20)
+        badge.Position = UDim2.new(1, -25, 0, 5)
+        badge.BackgroundColor3 = self._config.COLORS.Error
+        badge.BorderSizePixel = 0
+        badge.Visible = false
+        badge.ZIndex = tabButton.ZIndex + 1
+        badge.Parent = tabButton
+        
+        local badgeCorner = Instance.new("UICorner")
+        badgeCorner.CornerRadius = UDim.new(0.5, 0)
+        badgeCorner.Parent = badge
+        
+        local badgeText = Instance.new("TextLabel")
+        badgeText.Size = UDim2.new(1, 0, 1, 0)
+        badgeText.BackgroundTransparency = 1
+        badgeText.Text = "!"
+        badgeText.TextColor3 = Color3.new(1, 1, 1)
+        badgeText.TextScaled = true
+        badgeText.Font = Enum.Font.SourceSansBold
+        badgeText.ZIndex = badge.ZIndex + 1
+        badgeText.Parent = badge
+        
+        -- Pulse animation for badge
+        if badge.Visible then
+            task.spawn(function()
+                while badge.Parent and badge.Visible do
+                    self._utilities.Tween(badge, {
+                        Size = UDim2.new(0, 25, 0, 25)
+                    }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+                    task.wait(0.5)
+                    self._utilities.Tween(badge, {
+                        Size = UDim2.new(0, 20, 0, 20)
+                    }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+                    task.wait(0.5)
+                end
+            end)
+        end
         
         -- Tab frame
         local tabFrame = Instance.new("Frame")
@@ -348,6 +400,115 @@ function QuestUI:CreateTabs()
         
         tab.callback(tabFrame)
         self.TabFrames[tab.name] = tabFrame
+    end
+end
+
+function QuestUI:SwitchToTab(index: number, tabs: table)
+    if index == self._currentTab then return end
+    
+    local oldTab = tabs[self._currentTab]
+    local newTab = tabs[index]
+    
+    -- Animate button states
+    for i, button in ipairs(self._tabButtons) do
+        if i == index then
+            -- Active state
+            self._utilities.Tween(button, {
+                BackgroundColor3 = self._config.COLORS.Primary,
+                TextColor3 = self._config.COLORS.White,
+                Size = UDim2.new(1, 5, 1, 0)
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+            
+            -- Hide badge when tab is viewed
+            local badge = button:FindFirstChild("NewBadge")
+            if badge and badge.Visible then
+                self._utilities.Tween(badge, {
+                    Size = UDim2.new(0, 0, 0, 0)
+                }, TweenInfo.new(0.2))
+                task.wait(0.2)
+                badge.Visible = false
+            end
+        else
+            -- Inactive state
+            self._utilities.Tween(button, {
+                BackgroundColor3 = self._config.COLORS.Surface,
+                TextColor3 = self._config.COLORS.Dark,
+                Size = UDim2.new(1, 0, 1, 0)
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+        end
+    end
+    
+    -- Animate tab content transition
+    local oldFrame = self.TabFrames[oldTab.name]
+    local newFrame = self.TabFrames[newTab.name]
+    
+    if oldFrame and newFrame then
+        -- Slide out old tab
+        self._utilities.Tween(oldFrame, {
+            Position = UDim2.new(-1, 0, 0, 10),
+            BackgroundTransparency = 0.5
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+        
+        task.wait(0.15)
+        oldFrame.Visible = false
+        
+        -- Reset and slide in new tab
+        newFrame.Position = UDim2.new(1, 0, 0, 10)
+        newFrame.BackgroundTransparency = 0.5
+        newFrame.Visible = true
+        
+        self._utilities.Tween(newFrame, {
+            Position = UDim2.new(0, 10, 0, 10),
+            BackgroundTransparency = 0
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+    end
+    
+    -- Update current tab
+    self._currentTab = index
+    
+    -- Refresh data
+    if newTab.name:match("Quests") then
+        self:RefreshQuests()
+    elseif newTab.name == "Achievements" then
+        self:RefreshAchievements()
+    end
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("TabSwitch")
+    end
+end
+
+function QuestUI:ShowNewQuestBadge(tabId: string)
+    -- Find the tab with matching id
+    for i, button in ipairs(self._tabButtons) do
+        if button.Parent and button.Text:match(tabId) then
+            local badge = button:FindFirstChild("NewBadge")
+            if badge then
+                badge.Visible = true
+                
+                -- Animate entrance
+                badge.Size = UDim2.new(0, 0, 0, 0)
+                self._utilities.Tween(badge, {
+                    Size = UDim2.new(0, 20, 0, 20)
+                }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+                
+                -- Start pulse
+                task.spawn(function()
+                    while badge.Parent and badge.Visible do
+                        self._utilities.Tween(badge, {
+                            Size = UDim2.new(0, 25, 0, 25)
+                        }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+                        task.wait(0.5)
+                        self._utilities.Tween(badge, {
+                            Size = UDim2.new(0, 20, 0, 20)
+                        }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+                        task.wait(0.5)
+                    end
+                end)
+            end
+            break
+        end
     end
 end
 
@@ -382,8 +543,10 @@ function QuestUI:CreateQuestList(parent: Frame, questType: string)
     -- Store reference
     if questType == "daily" then
         self.DailyQuestContainer = questContainer
-    else
+    elseif questType == "weekly" then
         self.WeeklyQuestContainer = questContainer
+    elseif questType == "special" then
+        self.SpecialQuestContainer = questContainer
     end
     
     -- Update canvas size when content changes
@@ -930,27 +1093,299 @@ function QuestUI:PlayClaimAnimation(quest: Quest)
     local card = self.QuestCards[quest.id]
     if not card then return end
     
-    -- Create reward particles
-    if self._particleSystem then
-        self._particleSystem:CreateBurst(card, "coin", 
-            UDim2.new(0.5, 0, 0.5, 0), 20)
+    -- Create chest opening effect
+    self:CreateChestOpeningEffect(card, quest.rewards)
+    
+    -- Update card appearance after animation
+    task.wait(1.5)
+    
+    local statusBar = card:FindFirstChild("StatusBar")
+    if statusBar then
+        self._utilities.Tween(statusBar, {
+            BackgroundColor3 = self._config.COLORS.Success
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+    end
+end
+
+function QuestUI:CreateChestOpeningEffect(card: Frame, rewards: table)
+    local playerGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not playerGui then return end
+    
+    -- Create overlay
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 1
+    overlay.ZIndex = 600
+    overlay.Parent = playerGui
+    
+    -- Fade in overlay
+    self._utilities.Tween(overlay, {
+        BackgroundTransparency = 0.5
+    }, TweenInfo.new(0.3))
+    
+    -- Create chest
+    local chest = Instance.new("Frame")
+    chest.Size = UDim2.new(0, 150, 0, 150)
+    chest.Position = UDim2.new(0.5, 0, 0.5, 0)
+    chest.AnchorPoint = Vector2.new(0.5, 0.5)
+    chest.BackgroundColor3 = Color3.fromRGB(139, 90, 43) -- Brown
+    chest.BorderSizePixel = 0
+    chest.ZIndex = 601
+    chest.Parent = overlay
+    
+    self._utilities.CreateCorner(chest, 10)
+    
+    -- Chest lid
+    local lid = Instance.new("Frame")
+    lid.Size = UDim2.new(1, 10, 0, 40)
+    lid.Position = UDim2.new(0.5, 0, 0, -5)
+    lid.AnchorPoint = Vector2.new(0.5, 1)
+    lid.BackgroundColor3 = Color3.fromRGB(160, 110, 60)
+    lid.BorderSizePixel = 0
+    lid.ZIndex = 602
+    lid.Parent = chest
+    
+    self._utilities.CreateCorner(lid, 8)
+    
+    -- Gold trim
+    local trim = Instance.new("Frame")
+    trim.Size = UDim2.new(1, -20, 0, 10)
+    trim.Position = UDim2.new(0.5, 0, 0.5, 0)
+    trim.AnchorPoint = Vector2.new(0.5, 0.5)
+    trim.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    trim.BorderSizePixel = 0
+    trim.ZIndex = 603
+    trim.Parent = chest
+    
+    -- Animate chest bounce
+    chest.Size = UDim2.new(0, 0, 0, 0)
+    self._utilities.Tween(chest, {
+        Size = UDim2.new(0, 150, 0, 150)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    task.wait(0.5)
+    
+    -- Open chest
+    self._utilities.Tween(lid, {
+        Rotation = -45,
+        Position = UDim2.new(0.3, 0, 0, -20)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back))
+    
+    -- Glow effect from inside
+    local glow = Instance.new("Frame")
+    glow.Size = UDim2.new(0, 200, 0, 200)
+    glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    glow.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    glow.BackgroundTransparency = 0.5
+    glow.ZIndex = 600
+    glow.Parent = chest
+    
+    local glowCorner = Instance.new("UICorner")
+    glowCorner.CornerRadius = UDim.new(0.5, 0)
+    glowCorner.Parent = glow
+    
+    -- Animate glow
+    glow.Size = UDim2.new(0, 0, 0, 0)
+    self._utilities.Tween(glow, {
+        Size = UDim2.new(0, 300, 0, 300),
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.8, Enum.EasingStyle.Quad))
+    
+    -- Create reward items flying out
+    task.wait(0.2)
+    self:CreateRewardBurst(chest, rewards)
+    
+    -- Particles
+    for i = 1, 30 do
+        task.spawn(function()
+            local particle = Instance.new("Frame")
+            particle.Size = UDim2.new(0, math.random(4, 8), 0, math.random(4, 8))
+            particle.Position = UDim2.new(0.5, 0, 0.5, 0)
+            particle.AnchorPoint = Vector2.new(0.5, 0.5)
+            particle.BackgroundColor3 = Color3.fromRGB(255, math.random(200, 255), 0)
+            particle.BorderSizePixel = 0
+            particle.ZIndex = 604
+            particle.Parent = chest
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = particle
+            
+            -- Random direction
+            local angle = math.random() * math.pi * 2
+            local distance = math.random(50, 150)
+            
+            self._utilities.Tween(particle, {
+                Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance - 50),
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1
+            }, TweenInfo.new(1, Enum.EasingStyle.Quad))
+            
+            game:GetService("Debris"):AddItem(particle, 1)
+        end)
     end
     
-    -- Fade and slide animation
-    if self._animationSystem then
-        self._animationSystem:PlayAnimation("ClaimReward", {
-            target = card,
-            onComplete = function()
-                -- Update card appearance
-                local statusBar = card:FindFirstChild("StatusBar")
-                if statusBar then
-                    self._utilities.Tween(statusBar, {
-                        BackgroundColor3 = self._config.COLORS.Success
-                    }, self._config.TWEEN_INFO.Normal)
-                end
-            end
+    -- Wait then clean up
+    task.wait(2)
+    
+    self._utilities.Tween(overlay, {
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.3))
+    
+    task.wait(0.3)
+    overlay:Destroy()
+end
+
+function QuestUI:CreateRewardBurst(chestFrame: Frame, rewards: table)
+    local rewardItems = {}
+    
+    -- Collect reward info
+    if rewards.coins then
+        table.insert(rewardItems, {
+            text = "+" .. self._utilities.FormatNumber(rewards.coins) .. " Coins",
+            color = Color3.fromRGB(255, 215, 0),
+            icon = "💰"
         })
     end
+    
+    if rewards.experience then
+        table.insert(rewardItems, {
+            text = "+" .. rewards.experience .. " XP",
+            color = self._config.COLORS.Primary,
+            icon = "⭐"
+        })
+    end
+    
+    if rewards.items then
+        for _, item in ipairs(rewards.items) do
+            table.insert(rewardItems, {
+                text = item.name,
+                color = self._config.COLORS.Secondary,
+                icon = "🎁"
+            })
+        end
+    end
+    
+    -- Create reward displays
+    for i, reward in ipairs(rewardItems) do
+        task.spawn(function()
+            task.wait((i - 1) * 0.1)
+            
+            local rewardFrame = Instance.new("Frame")
+            rewardFrame.Size = UDim2.new(0, 150, 0, 40)
+            rewardFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            rewardFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+            rewardFrame.BackgroundColor3 = self._config.COLORS.White
+            rewardFrame.BorderSizePixel = 0
+            rewardFrame.ZIndex = 605
+            rewardFrame.Parent = chestFrame.Parent
+            
+            self._utilities.CreateCorner(rewardFrame, 8)
+            self._utilities.CreateShadow(rewardFrame, 10)
+            
+            -- Icon
+            local icon = Instance.new("TextLabel")
+            icon.Size = UDim2.new(0, 30, 1, 0)
+            icon.Position = UDim2.new(0, 5, 0, 0)
+            icon.BackgroundTransparency = 1
+            icon.Text = reward.icon
+            icon.TextScaled = true
+            icon.Font = Enum.Font.SourceSans
+            icon.ZIndex = 606
+            icon.Parent = rewardFrame
+            
+            -- Text
+            local text = Instance.new("TextLabel")
+            text.Size = UDim2.new(1, -40, 1, 0)
+            text.Position = UDim2.new(0, 35, 0, 0)
+            text.BackgroundTransparency = 1
+            text.Text = reward.text
+            text.TextColor3 = reward.color
+            text.TextScaled = true
+            text.Font = Enum.Font.SourceSansBold
+            text.ZIndex = 606
+            text.Parent = rewardFrame
+            
+            -- Animate flying to currency display
+            local angle = (i - 1) * (math.pi * 2 / #rewardItems)
+            local midDistance = 100
+            
+            -- First fly out
+            self._utilities.Tween(rewardFrame, {
+                Position = UDim2.new(0.5, math.cos(angle) * midDistance, 0.5, math.sin(angle) * midDistance - 50)
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            task.wait(0.8)
+            
+            -- Then fly to currency display
+            local targetPos = UDim2.new(1, -100, 0, 30)
+            if reward.icon == "💰" then
+                self:AnimateRewardToUI(rewardFrame, targetPos, reward)
+            else
+                -- Just fade out for other rewards
+                self._utilities.Tween(rewardFrame, {
+                    Position = UDim2.new(0.5, 0, 0, -100),
+                    BackgroundTransparency = 1
+                }, TweenInfo.new(0.5, Enum.EasingStyle.Quad))
+                
+                self._utilities.Tween(text, {
+                    TextTransparency = 1
+                }, TweenInfo.new(0.5))
+                
+                self._utilities.Tween(icon, {
+                    TextTransparency = 1
+                }, TweenInfo.new(0.5))
+            end
+            
+            game:GetService("Debris"):AddItem(rewardFrame, 1)
+        end)
+    end
+end
+
+function QuestUI:AnimateRewardToUI(rewardFrame: Frame, targetPos: UDim2, reward: table)
+    -- Create trail
+    for i = 1, 5 do
+        task.spawn(function()
+            task.wait(i * 0.05)
+            
+            local trail = Instance.new("Frame")
+            trail.Size = UDim2.new(0, 20, 0, 20)
+            trail.Position = rewardFrame.Position
+            trail.AnchorPoint = Vector2.new(0.5, 0.5)
+            trail.BackgroundColor3 = reward.color
+            trail.BackgroundTransparency = 0.5
+            trail.BorderSizePixel = 0
+            trail.ZIndex = 604
+            trail.Parent = rewardFrame.Parent
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = trail
+            
+            self._utilities.Tween(trail, {
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1
+            }, TweenInfo.new(0.5))
+            
+            game:GetService("Debris"):AddItem(trail, 0.5)
+        end)
+    end
+    
+    -- Animate to currency display
+    self._utilities.Tween(rewardFrame, {
+        Position = targetPos,
+        Size = UDim2.new(0, 0, 0, 0)
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad))
+    
+    -- Flash currency display
+    task.spawn(function()
+        task.wait(0.5)
+        if self._mainUI then
+            self._mainUI:UpdateCurrency("Coins", self._dataCache:GetCurrency("Coins"))
+        end
+    end)
 end
 
 function QuestUI:ShowRewardsNotification(rewards: table)
@@ -1662,8 +2097,21 @@ function QuestUI:OnQuestClaimed(data: {questId: string, rewards: table})
 end
 
 function QuestUI:OnNewQuest(quest: Quest)
-    -- Add new quest to appropriate container
-    local container = quest.type == "daily" and self.DailyQuestContainer or self.WeeklyQuestContainer
+    -- Determine container based on quest type
+    local container
+    local tabId
+    
+    if quest.type == "daily" then
+        container = self.DailyQuestContainer
+        tabId = "daily"
+    elseif quest.type == "weekly" then
+        container = self.WeeklyQuestContainer
+        tabId = "weekly"
+    elseif quest.type == "special" then
+        container = self.SpecialQuestContainer
+        tabId = "special"
+    end
+    
     if container then
         -- Remove empty state if present
         local emptyState = container:FindFirstChild("EmptyState")
@@ -1671,12 +2119,29 @@ function QuestUI:OnNewQuest(quest: Quest)
             emptyState:Destroy()
         end
         
-        -- Create card
-        self:CreateQuestCard(container, quest)
+        -- Create card with entrance animation
+        local card = self:CreateQuestCard(container, quest)
         
-        -- Notification
-        self._notificationSystem:SendNotification("New Quest!", 
-            quest.name, "info", 5)
+        -- Animate card entrance
+        card.Position = UDim2.new(0, -300, 0, card.Position.Y.Offset)
+        card.BackgroundTransparency = 0.5
+        
+        self._utilities.Tween(card, {
+            Position = UDim2.new(0, 0, 0, card.Position.Y.Offset),
+            BackgroundTransparency = 0
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        -- Show new quest badge on tab
+        self:ShowNewQuestBadge(tabId)
+        
+        -- Notification with more detail
+        self._notificationSystem:SendNotification("New Quest Available!", 
+            quest.name .. " - " .. quest.description, "info", 5)
+        
+        -- Play sound
+        if self._soundSystem then
+            self._soundSystem:PlayUISound("NewQuest")
+        end
     end
 end
 
