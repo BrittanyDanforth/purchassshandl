@@ -368,33 +368,83 @@ end
 function ShopUI:SelectTab(tabName: string)
     if self._currentTab == tabName then return end
     
-    -- Update buttons
+    local currentTab = self._tabs[self._currentTab]
+    local targetTab = self._tabs[tabName]
+    
+    -- Update button states with animations
     for name, tab in pairs(self._tabs) do
         if name == tabName then
+            -- Active button animation
             self._utilities.Tween(tab.button, {
                 BackgroundColor3 = self._config.COLORS.Primary,
                 TextColor3 = self._config.COLORS.White
-            }, self._config.TWEEN_INFO.Fast)
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            -- Scale effect
+            tab.button:TweenSize(
+                UDim2.new(tab.button.Size.X.Scale, tab.button.Size.X.Offset, 1, 2),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Back,
+                0.2,
+                true
+            )
         else
+            -- Inactive button animation
             self._utilities.Tween(tab.button, {
                 BackgroundColor3 = self._config.COLORS.White,
                 TextColor3 = self._config.COLORS.Dark
-            }, self._config.TWEEN_INFO.Fast)
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            -- Reset scale
+            tab.button:TweenSize(
+                UDim2.new(tab.button.Size.X.Scale, tab.button.Size.X.Offset, 1, 0),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.2,
+                true
+            )
         end
     end
     
-    -- Update content
-    for name, tab in pairs(self._tabs) do
-        tab.frame.Visible = name == tabName
+    -- Smooth content transition
+    if currentTab and currentTab.frame then
+        -- Fade out current tab
+        self._utilities.Tween(currentTab.frame, {
+            GroupTransparency = 1
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+        
+        -- Slide out
+        local originalPos = currentTab.frame.Position
+        self._utilities.Tween(currentTab.frame, {
+            Position = UDim2.new(-0.5, 0, currentTab.frame.Position.Y.Scale, currentTab.frame.Position.Y.Offset)
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+        
+        task.wait(0.2)
+        currentTab.frame.Visible = false
+        currentTab.frame.Position = originalPos
+        currentTab.frame.GroupTransparency = 0
     end
-    
-    self._currentTab = tabName
     
     -- Initialize tab if needed
     if not self._tabs[tabName].initialized then
         self:InitializeTab(tabName)
         self._tabs[tabName].initialized = true
     end
+    
+    -- Show new tab with animation
+    if targetTab and targetTab.frame then
+        targetTab.frame.Visible = true
+        targetTab.frame.GroupTransparency = 1
+        targetTab.frame.Position = UDim2.new(1.5, 0, targetTab.frame.Position.Y.Scale, targetTab.frame.Position.Y.Offset)
+        
+        -- Slide in
+        self._utilities.Tween(targetTab.frame, {
+            Position = UDim2.new(0, 0, targetTab.frame.Position.Y.Scale, targetTab.frame.Position.Y.Offset),
+            GroupTransparency = 0
+        }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    end
+    
+    self._currentTab = tabName
     
     -- Play sound
     if self._soundSystem then
@@ -596,29 +646,173 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         end
     })
     
-    -- Hover effect for card
+    -- Premium hover effects with 3D tilt
+    local originalRotation = 0
+    local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+    local hoverConnection = nil
+    
+    -- Create shadow for depth
+    local shadow = Instance.new("Frame")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 8, 1, 8)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+    shadow.BackgroundTransparency = 0.8
+    shadow.ZIndex = card.ZIndex - 1
+    shadow.Parent = card.Parent
+    self._utilities.CreateCorner(shadow, 14)
+    
+    -- Position card above shadow
+    card.ZIndex = card.ZIndex + 1
+    
+    -- Add holographic effect for rare items (if rarity data exists)
+    if eggData.rarity and eggData.rarity >= 4 then
+        local holo = Instance.new("Frame")
+        holo.Name = "HolographicEffect"
+        holo.Size = UDim2.new(1, -4, 1, -4)
+        holo.Position = UDim2.new(0, 2, 0, 2)
+        holo.BackgroundTransparency = 0.9
+        holo.ZIndex = card.ZIndex + 10
+        holo.Parent = card
+        
+        local holoGradient = Instance.new("UIGradient")
+        holoGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 100, 255))
+        })
+        holoGradient.Rotation = 45
+        holoGradient.Parent = holo
+        
+        self._utilities.CreateCorner(holo, 12)
+        
+        -- Animate holographic effect
+        task.spawn(function()
+            while holo.Parent do
+                self._utilities.Tween(holoGradient, {
+                    Rotation = holoGradient.Rotation + 360
+                }, TweenInfo.new(4, Enum.EasingStyle.Linear))
+                task.wait(4)
+            end
+        end)
+    end
+    
+    -- Price badge enhancement
+    local priceBadge = Instance.new("Frame")
+    priceBadge.Name = "PriceBadge"
+    priceBadge.Size = UDim2.new(0, 100, 0, 30)
+    priceBadge.Position = UDim2.new(1, -105, 0, 5)
+    priceBadge.BackgroundColor3 = self._config.COLORS.Success
+    priceBadge.ZIndex = card.ZIndex + 2
+    priceBadge.Parent = card
+    
+    self._utilities.CreateCorner(priceBadge, 15)
+    
+    -- Move price to badge
+    priceContainer.Parent = priceBadge
+    priceContainer.Size = UDim2.new(1, 0, 1, 0)
+    priceContainer.Position = UDim2.new(0, 0, 0, 0)
+    
     card.MouseEnter:Connect(function()
+        -- Bring to front
+        card.ZIndex = card.ZIndex + 10
+        shadow.ZIndex = card.ZIndex - 1
+        
+        -- Scale up with bounce
+        card:TweenSize(
+            UDim2.new(0, EGG_CARD_SIZE.X * 1.05, 0, EGG_CARD_SIZE.Y * 1.05),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Back,
+            0.25,
+            true
+        )
+        
+        -- Enhance shadow
+        self._utilities.Tween(shadow, {
+            Size = UDim2.new(1, 16, 1, 16),
+            Position = UDim2.new(0.5, 0, 0.5, 8),
+            BackgroundTransparency = 0.6
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        
+        -- Background color change
         self._utilities.Tween(card, {
-            BackgroundColor3 = self._utilities.DarkenColor(self._config.COLORS.Surface, 0.05)
+            BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.Surface, 0.1)
         }, self._config.TWEEN_INFO.Fast)
         
-        -- Scale egg image
+        -- Scale egg image with bounce
         self._utilities.Tween(eggImage, {
-            Size = UDim2.new(0, 130, 0, 130),
-            Position = UDim2.new(0.5, -65, 0, 15)
-        }, self._config.TWEEN_INFO.Fast)
+            Size = UDim2.new(0, 135, 0, 135),
+            Position = UDim2.new(0.5, -67.5, 0, 12.5)
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Back))
+        
+        -- 3D tilt effect based on mouse position
+        hoverConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            local cardPos = card.AbsolutePosition + card.AbsoluteSize / 2
+            local mousePos = Vector2.new(mouse.X, mouse.Y)
+            local delta = (mousePos - cardPos) / card.AbsoluteSize
+            
+            -- Clamp delta
+            delta = Vector2.new(
+                math.clamp(delta.X, -0.5, 0.5),
+                math.clamp(delta.Y, -0.5, 0.5)
+            )
+            
+            -- Apply rotation
+            local rotationY = -delta.X * 8
+            
+            card.Rotation = rotationY
+            
+            -- Simulate 3D with position offset
+            local imageOffsetX = delta.X * 5
+            local imageOffsetY = -delta.Y * 5
+            eggImage.Position = UDim2.new(0.5, -67.5 + imageOffsetX, 0, 12.5 + imageOffsetY)
+        end)
+        
+        -- Sound effect
+        if self._soundSystem then
+            self._soundSystem:PlayUISound("Hover")
+        end
     end)
     
     card.MouseLeave:Connect(function()
+        -- Reset Z-index
+        card.ZIndex = card.ZIndex - 10
+        shadow.ZIndex = card.ZIndex - 1
+        
+        -- Scale back
+        card:TweenSize(
+            UDim2.new(0, EGG_CARD_SIZE.X, 0, EGG_CARD_SIZE.Y),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.2,
+            true
+        )
+        
+        -- Reset shadow
+        self._utilities.Tween(shadow, {
+            Size = UDim2.new(1, 8, 1, 8),
+            Position = UDim2.new(0.5, 0, 0.5, 4),
+            BackgroundTransparency = 0.8
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        
+        -- Reset background
         self._utilities.Tween(card, {
-            BackgroundColor3 = self._config.COLORS.Surface
+            BackgroundColor3 = self._config.COLORS.Surface,
+            Rotation = 0
         }, self._config.TWEEN_INFO.Fast)
         
         -- Reset egg image
         self._utilities.Tween(eggImage, {
             Size = UDim2.new(0, 120, 0, 120),
             Position = UDim2.new(0.5, -60, 0, 20)
-        }, self._config.TWEEN_INFO.Fast)
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        
+        -- Disconnect hover
+        if hoverConnection then
+            hoverConnection:Disconnect()
+            hoverConnection = nil
+        end
     end)
     
     return card
