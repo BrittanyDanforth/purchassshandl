@@ -657,4 +657,93 @@ print("[SanrioTycoonClient]   ✅ Case Opening shows visuals")
 print("[SanrioTycoonClient]   ✅ Trading PlaceholderText fixed")
 print("[SanrioTycoonClient]   ✅ InventoryUI UpdateValue fixed")
 
+-- ========================================
+-- ERROR RECOVERY
+-- ========================================
+
+-- Add global error handler for UI operations
+local function safeCall(func, ...)
+    local success, result = pcall(func, ...)
+    if not success then
+        warn("[SanrioTycoonClient] Error caught:", result)
+        
+        -- Log to console if debug mode
+        if config.DEBUG.ENABLED then
+            print(debug.traceback())
+        end
+        
+        -- Show user-friendly error notification
+        if notificationSystem then
+            notificationSystem:Show({
+                title = "UI Error",
+                message = "Something went wrong. Please try again.",
+                duration = 3,
+                type = "error"
+            })
+        end
+        
+        return nil
+    end
+    return result
+end
+
+-- Wrap critical functions with error handling
+if mainUI then
+    local originalOpenModule = mainUI.OpenModule
+    mainUI.OpenModule = function(self, moduleName)
+        return safeCall(originalOpenModule, self, moduleName)
+    end
+end
+
+-- Setup debug overlay
+local DebugOverlay = require(script.Parent.Systems.DebugOverlay)
+local debugOverlay = DebugOverlay.new({
+    config = config
+})
+
+-- Track navigation events
+eventBus:On("NavigationClicked", function(data)
+    if debugOverlay then
+        debugOverlay:TrackNavigation(data.name or data.module or "Unknown")
+    end
+end)
+
+-- Monitor for repeated errors
+local errorCount = 0
+local lastErrorTime = 0
+
+game:GetService("ScriptContext").Error:Connect(function(message, stack, script)
+    if script and script:IsDescendantOf(player.PlayerScripts) then
+        if debugOverlay then
+            debugOverlay:TrackError()
+        end
+        
+        local currentTime = tick()
+        if currentTime - lastErrorTime < 1 then
+            errorCount = errorCount + 1
+        else
+            errorCount = 1
+        end
+        lastErrorTime = currentTime
+        
+        -- If too many errors in short time, suggest reload
+        if errorCount > 5 then
+            notificationSystem:Show({
+                title = "Multiple Errors Detected",
+                message = "The game may be unstable. Consider rejoining.",
+                duration = 5,
+                type = "error"
+            })
+            errorCount = 0
+        end
+    end
+end)
+
+-- Track warnings
+game:GetService("LogService").MessageOut:Connect(function(message, messageType)
+    if messageType == Enum.MessageType.MessageWarning and debugOverlay then
+        debugOverlay:TrackWarning()
+    end
+end)
+
 return _G.SanrioTycoonClient

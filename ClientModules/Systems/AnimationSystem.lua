@@ -921,6 +921,14 @@ function AnimationSystem:OnPerformanceIssue(frameTime: number)
         warn("[AnimationSystem] Performance issue detected. Frame time:", frameTime)
     end
     
+    -- Reduce max concurrent animations temporarily
+    if frameTime > 0.1 then -- More than 100ms
+        self._maxConcurrentAnimations = math.max(10, self._maxConcurrentAnimations - 10)
+        -- Restore after 5 seconds
+        task.wait(5)
+        self._maxConcurrentAnimations = MAX_CONCURRENT_ANIMATIONS
+    end
+    
     -- Fire event for other systems to react
     if self._eventBus then
         self._eventBus:Fire("AnimationPerformanceIssue", {

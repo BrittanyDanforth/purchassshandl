@@ -548,6 +548,11 @@ function RemoteManager:SetupDefaultHandlers()
 		if self._dataCache then
 			self._dataCache:Set("playerData", playerData)
 			
+			-- Store pet database separately for easy access
+			if playerData.petDatabase then
+				self._dataCache:Set("petDatabase", playerData.petDatabase)
+			end
+			
 			-- Update currencies specifically
 			if playerData.currencies then
 				self._dataCache:Set("currencies", playerData.currencies)

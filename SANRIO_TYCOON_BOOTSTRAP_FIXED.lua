@@ -767,6 +767,22 @@ local function setupPlayerHandlers(modules, folders)
 			-- Send initial data
 			local playerData = modules.DataStoreModule:GetPlayerData(player)
 			if playerData then
+				-- Include pet database for client display
+				if modules.PetDatabase then
+					playerData.petDatabase = {}
+					-- Only send essential display data, not server-side logic
+					for petId, petData in pairs(modules.PetDatabase) do
+						if type(petData) == "table" and petData.displayName then
+							playerData.petDatabase[petId] = {
+								displayName = petData.displayName,
+								name = petData.name or petData.displayName,
+								rarity = petData.rarity,
+								imageId = petData.imageId,
+								description = petData.description
+							}
+						end
+					end
+				end
 				folders.RemoteEvents.DataLoaded:FireClient(player, playerData)
 			end
 

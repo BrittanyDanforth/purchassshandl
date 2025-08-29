@@ -346,12 +346,22 @@ function MainUI:SetupNavButtonInteractions(button: TextButton, navData: Navigati
         -- Remove tooltip
         self:RemoveNavTooltip(navData.Name)
         
+        -- Debounce navigation clicks
+        if self._navigationDebounce then
+            return
+        end
+        self._navigationDebounce = true
+        
         -- Handle click
         if navData.Callback then
             navData.Callback()
         elseif navData.Module then
             self:OpenModule(navData.Module)
         end
+        
+        -- Reset debounce after a short delay
+        task.wait(0.2)
+        self._navigationDebounce = false
         
         -- Fire event
         if self._eventBus then
@@ -627,8 +637,18 @@ function MainUI:OpenModule(moduleName: string)
         return
     end
     
-    -- Close current module if different
+    -- Close current module if different with animation
     if self._currentModule and self._currentModule ~= moduleName then
+        -- Fade out current module
+        local currentState = self._moduleStates[self._currentModule]
+        if currentState and currentState.instance and currentState.instance.Frame then
+            self._utilities.Tween(currentState.instance.Frame, {
+                Position = UDim2.new(0, -50, 0, 0),
+                BackgroundTransparency = 1
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        end
+        
+        task.wait(0.1)
         self:CloseModule(self._currentModule)
     end
     
@@ -642,6 +662,17 @@ function MainUI:OpenModule(moduleName: string)
         moduleState.instance:Open()
         moduleState.isOpen = true
         self._currentModule = moduleName
+        
+        -- Animate in the new module
+        if moduleState.instance.Frame then
+            moduleState.instance.Frame.Position = UDim2.new(0, 50, 0, 0)
+            moduleState.instance.Frame.BackgroundTransparency = 1
+            
+            self._utilities.Tween(moduleState.instance.Frame, {
+                Position = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 0
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        end
         
         -- Fire event
         if self._eventBus then
