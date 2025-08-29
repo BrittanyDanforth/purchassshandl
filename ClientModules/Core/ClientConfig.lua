@@ -55,14 +55,20 @@ ClientConfig.ZINDEX = {
 	Background = 1,
 	Default = 10,
 	Card = 20,
+	Navigation = 30,
+	CurrencyDisplay = 35,
 	Window = 50,
+	WindowContent = 60,
 	Modal = 100,
-	Overlay = 200,
+	ModalContent = 110,
+	CaseOpening = 200,
+	CaseOpeningContent = 210,
+	Overlay = 250,
 	Dropdown = 300,
-	Tooltip = 999,
-	Debug = 1000,
 	Notification = 500,
 	Loading = 900,
+	Tooltip = 999,
+	Debug = 1000,
 }
 
 -- ========================================

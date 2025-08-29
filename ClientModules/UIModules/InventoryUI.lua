@@ -250,7 +250,23 @@ end
 
 function InventoryUI:Open()
     if self.Frame then
+        -- Smooth fade in animation
         self.Frame.Visible = true
+        self.Frame.BackgroundTransparency = 1
+        
+        -- Fade in background
+        self._utilities.Tween(self.Frame, {
+            BackgroundTransparency = 0
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        -- Animate content with slide effect
+        local originalPosition = self.Frame.Position
+        self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
+        
+        self._utilities.Tween(self.Frame, {
+            Position = originalPosition
+        }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
         -- Always ensure we're on Pets tab first to create PetGrid
         self:ShowTab("Pets")
         -- Small delay to ensure UI is ready
@@ -287,6 +303,13 @@ end
 
 function InventoryUI:Close()
     if self.Frame then
+        -- Smooth fade out animation
+        self._utilities.Tween(self.Frame, {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+        
+        task.wait(0.3)
         self.Frame.Visible = false
     end
     
@@ -565,7 +588,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
             optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10)
             optionsFrame.Position = UDim2.new(0, 0, 1, 5)
             optionsFrame.BackgroundColor3 = self._config.COLORS.White
-            optionsFrame.ZIndex = dropdown.ZIndex + 10
+            optionsFrame.ZIndex = self._config.ZINDEX.Dropdown
             optionsFrame.Parent = dropdown
             
             self._utilities.CreateCorner(optionsFrame, 8)
@@ -1263,7 +1286,7 @@ function InventoryUI:OpenMassDelete()
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.3
-    overlay.ZIndex = 300
+    overlay.ZIndex = self._config.ZINDEX.Overlay
     overlay.Parent = self.Frame.Parent
     
     self.DeleteOverlay = overlay
@@ -1274,7 +1297,7 @@ function InventoryUI:OpenMassDelete()
     deleteWindow.Size = UDim2.new(0, MASS_DELETE_WINDOW_SIZE.X, 0, MASS_DELETE_WINDOW_SIZE.Y)
     deleteWindow.Position = UDim2.new(0.5, -MASS_DELETE_WINDOW_SIZE.X/2, 0.5, -MASS_DELETE_WINDOW_SIZE.Y/2)
     deleteWindow.BackgroundColor3 = self._config.COLORS.Background
-    deleteWindow.ZIndex = 301
+    deleteWindow.ZIndex = self._config.ZINDEX.Modal
     deleteWindow.Parent = overlay
     
     self._utilities.CreateCorner(deleteWindow, 20)
@@ -1289,7 +1312,7 @@ function InventoryUI:OpenMassDelete()
         size = UDim2.new(1, 0, 0, 60),
         position = UDim2.new(0, 0, 0, 0),
         backgroundColor = self._config.COLORS.Error,
-        zIndex = 302
+        zIndex = self._config.ZINDEX.ModalContent
     })
     
     local headerLabel = self._uiFactory:CreateLabel(header, {
@@ -1299,7 +1322,7 @@ function InventoryUI:OpenMassDelete()
         font = self._config.FONTS.Display,
         textColor = self._config.COLORS.White,
         textSize = 20,
-        zIndex = 303
+        zIndex = self._config.ZINDEX.ModalContent
     })
     
     -- Close button
@@ -1310,7 +1333,7 @@ function InventoryUI:OpenMassDelete()
         backgroundColor = Color3.new(1, 1, 1),
         backgroundTransparency = 0.9,
         textColor = self._config.COLORS.White,
-        zIndex = 303,
+        zIndex = self._config.ZINDEX.ModalContent,
         callback = function()
             self:CloseMassDelete()
         end
@@ -1331,7 +1354,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     content.Size = UDim2.new(1, -20, 1, -140)
     content.Position = UDim2.new(0, 10, 0, 70)
     content.BackgroundTransparency = 1
-    content.ZIndex = 302
+    content.ZIndex = self._config.ZINDEX.ModalContent
     content.Parent = window
     
     -- Instructions
@@ -1341,7 +1364,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         position = UDim2.new(0, 0, 0, 0),
         textColor = self._config.COLORS.Error,
         textWrapped = true,
-        zIndex = 303
+        zIndex = self._config.ZINDEX.ModalContent
     })
     
     -- Quick select buttons
@@ -1349,7 +1372,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     quickSelectFrame.Size = UDim2.new(1, 0, 0, 40)
     quickSelectFrame.Position = UDim2.new(0, 0, 0, 50)
     quickSelectFrame.BackgroundTransparency = 1
-    quickSelectFrame.ZIndex = 303
+    quickSelectFrame.ZIndex = self._config.ZINDEX.ModalContent
     quickSelectFrame.Parent = content
     
     local selectAllCommon = self._uiFactory:CreateButton(quickSelectFrame, {
@@ -1409,7 +1432,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     bottomBar.Size = UDim2.new(1, 0, 0, 60)
     bottomBar.Position = UDim2.new(0, 0, 1, -60)
     bottomBar.BackgroundColor3 = self._config.COLORS.Dark
-    bottomBar.ZIndex = 302
+    bottomBar.ZIndex = self._config.ZINDEX.ModalContent
     bottomBar.Parent = window
     
     self._utilities.CreateCorner(bottomBar, 20)
@@ -1420,7 +1443,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         size = UDim2.new(0, 200, 1, 0),
         position = UDim2.new(0, 20, 0, 0),
         textXAlignment = Enum.TextXAlignment.Left,
-        zIndex = 303
+        zIndex = self._config.ZINDEX.ModalContent
     })
     self.DeleteSelectedLabel = selectedLabel
     
@@ -1430,7 +1453,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         size = UDim2.new(0, 150, 0, 40),
         position = UDim2.new(1, -170, 0.5, -20),
         backgroundColor = self._config.COLORS.Error,
-        zIndex = 303,
+        zIndex = self._config.ZINDEX.ModalContent,
         callback = function()
             self:ConfirmMassDelete()
         end
@@ -1626,7 +1649,7 @@ function InventoryUI:ConfirmMassDelete()
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.5
-    overlay.ZIndex = 400
+    overlay.ZIndex = self._config.ZINDEX.Overlay
     overlay.Parent = self.ScreenGui
     
     local dialog = Instance.new("Frame")
@@ -1634,7 +1657,7 @@ function InventoryUI:ConfirmMassDelete()
     dialog.Size = UDim2.new(0, 400, 0, 200)
     dialog.Position = UDim2.new(0.5, -200, 0.5, -100)
     dialog.BackgroundColor3 = self._config.COLORS.Background
-    dialog.ZIndex = 401
+    dialog.ZIndex = self._config.ZINDEX.Modal
     dialog.Parent = overlay
     
     self._utilities.CreateCorner(dialog, 12)
@@ -1689,7 +1712,7 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
             position = UDim2.new(0.5, -100, 0.5, -25),
             backgroundColor = self._config.COLORS.Dark,
             textColor = self._config.COLORS.White,
-            zIndex = 400
+            zIndex = self._config.ZINDEX.ModalContent
         })
         
         self._utilities.CreateCorner(loadingLabel, 8)

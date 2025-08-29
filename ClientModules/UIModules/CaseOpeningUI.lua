@@ -36,19 +36,19 @@ type CaseOpeningOptions = {
 -- CONSTANTS
 -- ========================================
 
-local OVERLAY_FADE_TIME = 0.3
-local CONTAINER_SIZE = Vector2.new(800, 600)
-local SPINNER_HEIGHT = 200
-local CASE_ITEM_WIDTH = 150
+local OVERLAY_FADE_TIME = 0.5
+local CONTAINER_SIZE = Vector2.new(900, 650)
+local SPINNER_HEIGHT = 250
+local CASE_ITEM_WIDTH = 180
 local CASE_ITEMS_VISIBLE = 5
-local CASE_SPIN_TIME = 5
-local CASE_DECELERATION = 0.98
+local CASE_SPIN_TIME = 4.5
+local CASE_DECELERATION = 0.96
 local RESULT_DISPLAY_TIME = 3
 local SKIP_BUTTON_DELAY = 1
-local COLLECT_BUTTON_SIZE = Vector2.new(200, 50)
-local PET_DISPLAY_SIZE = 200
-local GLOW_EFFECT_SIZE = 300
-local PARTICLE_BURST_COUNT = 20
+local COLLECT_BUTTON_SIZE = Vector2.new(250, 60)
+local PET_DISPLAY_SIZE = 280
+local GLOW_EFFECT_SIZE = 400
+local PARTICLE_BURST_COUNT = 30
 local SHINE_EFFECT_DELAY = 0.1
 
 -- Rarity names
@@ -232,7 +232,7 @@ function CaseOpeningUI:CreateOverlay()
     self._overlay.Size = UDim2.new(1, 0, 1, 0)
     self._overlay.BackgroundColor3 = Color3.fromRGB(10, 10, 15) -- Very dark background
     self._overlay.BackgroundTransparency = 1
-    self._overlay.ZIndex = 100
+    self._overlay.ZIndex = self._config.ZINDEX.CaseOpening
     self._overlay.Parent = screenGui
     
     -- Fade in
@@ -246,10 +246,11 @@ function CaseOpeningUI:CreateContainer()
     self._container = Instance.new("Frame")
     self._container.Name = "CaseContainer"
     self._container.Size = UDim2.new(0, CONTAINER_SIZE.X, 0, CONTAINER_SIZE.Y)
-    self._container.Position = UDim2.new(0.5, -CONTAINER_SIZE.X/2, 0.5, -CONTAINER_SIZE.Y/2)
+    self._container.Position = UDim2.new(0.5, 0, 0.5, 0)
+    self._container.AnchorPoint = Vector2.new(0.5, 0.5)
     self._container.BackgroundColor3 = Color3.fromRGB(25, 25, 35) -- Dark premium color
     self._container.BorderSizePixel = 0
-    self._container.ZIndex = 101
+    self._container.ZIndex = self._config.ZINDEX.CaseOpeningContent
     self._container.Parent = self._overlay
     
     self._utilities.CreateCorner(self._container, 20)
@@ -355,7 +356,7 @@ function CaseOpeningUI:ShowCaseAnimation(result: CaseResult, index: number, tota
     content.Name = "CaseContent"
     content.Size = UDim2.new(1, 0, 1, 0)
     content.BackgroundTransparency = 1
-    content.ZIndex = 102
+    content.ZIndex = self._config.ZINDEX.CaseOpeningContent + 1
     content.Parent = self._container
     
     -- Title
@@ -393,10 +394,28 @@ function CaseOpeningUI:CreateSpinnerAnimation(container: Frame, result: CaseResu
     spinnerFrame.Name = "SpinnerFrame"
     spinnerFrame.Size = UDim2.new(1, -100, 0, SPINNER_HEIGHT)
     spinnerFrame.Position = UDim2.new(0, 50, 0.5, -SPINNER_HEIGHT/2)
-    spinnerFrame.BackgroundColor3 = self._config.COLORS.Surface
+    -- Premium spinner background
+    spinnerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    
+    -- Add gradient to spinner
+    local spinnerGradient = Instance.new("UIGradient")
+    spinnerGradient.Rotation = 90
+    spinnerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 30, 40)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 40, 50))
+    })
+    spinnerGradient.Parent = spinnerFrame
+    
+    -- Add border glow
+    local spinnerStroke = Instance.new("UIStroke")
+    spinnerStroke.Color = Color3.fromRGB(100, 80, 255)
+    spinnerStroke.Thickness = 2
+    spinnerStroke.Transparency = 0.5
+    spinnerStroke.Parent = spinnerFrame
     spinnerFrame.BorderSizePixel = 0
     spinnerFrame.ClipsDescendants = true
-    spinnerFrame.ZIndex = 103
+    spinnerFrame.ZIndex = 203 -- Spinner above container
     spinnerFrame.Parent = container
     
     self._utilities.CreateCorner(spinnerFrame, 12)
@@ -415,7 +434,7 @@ function CaseOpeningUI:CreateSpinnerAnimation(container: Frame, result: CaseResu
     indicator.Size = UDim2.new(0, 4, 1, 20)
     indicator.Position = UDim2.new(0.5, -2, 0, -10)
     indicator.BackgroundColor3 = self._config.COLORS.Error
-    indicator.ZIndex = 104
+    indicator.ZIndex = 205 -- Indicator on top of spinner
     indicator.Parent = spinnerFrame
     
     -- Generate case items

@@ -151,7 +151,12 @@ end
 function ShopUI:Open()
     if self._isOpen then
         if self.Frame then
+            -- Smooth reopen animation
             self.Frame.Visible = true
+            self.Frame.BackgroundTransparency = 1
+            self._utilities.Tween(self.Frame, {
+                BackgroundTransparency = 0
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         end
         return
     end
@@ -161,7 +166,18 @@ function ShopUI:Open()
         self:CreateUI()
     end
     
+    -- Smooth entrance animation
     self.Frame.Visible = true
+    self.Frame.BackgroundTransparency = 1
+    local originalPosition = self.Frame.Position
+    self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
+    
+    -- Fade in and slide up
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 0,
+        Position = originalPosition
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
     self._isOpen = true
     
     -- Load shop data
@@ -181,6 +197,13 @@ end
 function ShopUI:Close()
     if not self._isOpen or not self.Frame then return end
     
+    -- Smooth exit animation
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+    
+    task.wait(0.3)
     self.Frame.Visible = false
     self._isOpen = false
     
