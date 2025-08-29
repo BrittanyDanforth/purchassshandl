@@ -329,8 +329,7 @@ function TradingUI:CreateSendTradeView(parent: Frame)
     searchFrame.BackgroundTransparency = 1
     searchFrame.Parent = parent
     
-    local searchBox = self._uiFactory:CreateTextBox(searchFrame, {
-        placeholder = "Enter player name...",
+    local searchBox = self._uiFactory:CreateTextBox(searchFrame, "Enter player name...", {
         size = UDim2.new(0.7, -10, 1, 0),
         position = UDim2.new(0, 0, 0, 0),
         callback = function(text)
@@ -894,8 +893,7 @@ function TradingUI:CreateCurrencyInput(parent: Frame, currencyType: string,
     iconLabel.Parent = container
     
     if isEditable then
-        local input = self._uiFactory:CreateTextBox(container, {
-            placeholder = "0",
+        local input = self._uiFactory:CreateTextBox(container, "0", {
             size = UDim2.new(1, -25, 1, 0),
             position = UDim2.new(0, 25, 0, 0),
             textColor = self._config.COLORS.Dark,

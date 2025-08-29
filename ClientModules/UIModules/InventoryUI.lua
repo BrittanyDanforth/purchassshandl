@@ -165,6 +165,12 @@ function InventoryUI:SetupEventListeners()
                 if self._dataCache then
                     self._dataCache:Set("pets", data.pets)
                     self._dataCache:Set("petCount", data.petCount or 0)
+                    
+                    -- Also update playerData pets
+                    local playerData = self._dataCache:Get("playerData") or {}
+                    playerData.pets = data.pets
+                    playerData.petCount = data.petCount or 0
+                    self._dataCache:Set("playerData", playerData)
                 end
                 -- Refresh UI
                 if self.Frame and self.Frame.Visible then
@@ -184,6 +190,14 @@ function InventoryUI:SetupEventListeners()
                     
                     local petCount = self._dataCache:Get("petCount") or 0
                     self._dataCache:Set("petCount", petCount + 1)
+                    
+                    -- Also update playerData
+                    local playerData = self._dataCache:Get("playerData") or {}
+                    playerData.pets = pets
+                    playerData.petCount = petCount
+                    self._dataCache:Set("playerData", playerData)
+                    
+                    print("[InventoryUI] Updated pet cache. Total pets:", petCount)
                 end
                 -- Refresh UI
                 if self.Frame and self.Frame.Visible then
