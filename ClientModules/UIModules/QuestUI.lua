@@ -613,31 +613,131 @@ function QuestUI:CreateQuestProgressBar(parent: Frame, quest: Quest): Frame
     
     self._utilities.CreateCorner(progressFrame, 10)
     
+    -- Add inner shadow for depth
+    local innerShadow = Instance.new("Frame")
+    innerShadow.Size = UDim2.new(1, -4, 1, -4)
+    innerShadow.Position = UDim2.new(0, 2, 0, 2)
+    innerShadow.BackgroundColor3 = Color3.new(0, 0, 0)
+    innerShadow.BackgroundTransparency = 0.9
+    innerShadow.ZIndex = progressFrame.ZIndex + 1
+    innerShadow.Parent = progressFrame
+    self._utilities.CreateCorner(innerShadow, 8)
+    
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
-    fill.Size = UDim2.new(math.min(quest.progress / quest.target, 1), 0, 1, 0)
+    fill.Size = UDim2.new(0, 0, 1, 0) -- Start at 0 for animation
     fill.BackgroundColor3 = quest.completed and self._config.COLORS.Success or self._config.COLORS.Primary
     fill.BorderSizePixel = 0
+    fill.ZIndex = progressFrame.ZIndex + 2
     fill.Parent = progressFrame
     
     self._utilities.CreateCorner(fill, 10)
     
-    -- Add gradient for visual appeal
-    local gradient = self._utilities.CreateGradient(fill, 
-        {quest.completed and self._config.COLORS.Success or self._config.COLORS.Primary,
-         quest.completed and Color3.fromRGB(46, 204, 113) or self._config.COLORS.Accent}
-    )
+    -- Add gradient for premium look
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = 90
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1.2, 1.2, 1.2)),
+        ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(0.8, 0.8, 0.8))
+    })
+    gradient.Parent = fill
     
+    -- Add milestone markers
+    local milestones = {0.25, 0.5, 0.75}
+    for _, milestone in ipairs(milestones) do
+        local marker = Instance.new("Frame")
+        marker.Size = UDim2.new(0, 2, 1, 0)
+        marker.Position = UDim2.new(milestone, -1, 0, 0)
+        marker.BackgroundColor3 = self._config.COLORS.Dark
+        marker.BackgroundTransparency = 0.5
+        marker.ZIndex = progressFrame.ZIndex + 3
+        marker.Parent = progressFrame
+    end
+    
+    -- Animate fill on creation
+    local targetSize = math.min(quest.progress / quest.target, 1)
+    task.defer(function()
+        self._utilities.Tween(fill, {
+            Size = UDim2.new(targetSize, 0, 1, 0)
+        }, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+        
+        -- Add pulse effect if completed
+        if quest.completed then
+            task.wait(0.8)
+            self:AddCompletedPulse(fill)
+        end
+    end)
+    
+    -- Progress text with animated counter
     local progressText = self._uiFactory:CreateLabel(progressFrame, {
-        text = string.format("%d / %d", quest.progress, quest.target),
+        text = "0%",
         size = UDim2.new(1, 0, 1, 0),
-        font = self._config.FONTS.Numbers,
         textColor = self._config.COLORS.White,
-        textSize = 14,
-        zIndex = progressFrame.ZIndex + 1
+        font = self._config.FONTS.Numbers,
+        textSize = 12,
+        zIndex = progressFrame.ZIndex + 4
     })
     
+    -- Store references for updates
+    progressFrame:SetAttribute("QuestId", quest.id)
+    progressFrame:SetAttribute("LastProgress", 0)
+    
+    -- Animate percentage text
+    task.defer(function()
+        self:AnimateProgressText(progressText, 0, quest.progress, quest.target)
+    end)
+    
     return progressFrame
+end
+
+function QuestUI:AnimateProgressText(label: TextLabel, fromProgress: number, toProgress: number, target: number)
+    local startTime = tick()
+    local duration = 0.8
+    
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        local elapsed = tick() - startTime
+        local progress = math.min(elapsed / duration, 1)
+        
+        -- Ease out quint
+        progress = 1 - math.pow(1 - progress, 5)
+        
+        local currentProgress = fromProgress + (toProgress - fromProgress) * progress
+        local percentage = math.floor((currentProgress / target) * 100)
+        
+        label.Text = string.format("%d%% (%d/%d)", percentage, math.floor(currentProgress), target)
+        
+        if progress >= 1 then
+            connection:Disconnect()
+        end
+    end)
+end
+
+function QuestUI:AddCompletedPulse(fill: Frame)
+    -- Create pulse effect for completed quests
+    local pulseFrame = Instance.new("Frame")
+    pulseFrame.Size = UDim2.new(1, 0, 1, 0)
+    pulseFrame.BackgroundColor3 = self._config.COLORS.Success
+    pulseFrame.BackgroundTransparency = 0.5
+    pulseFrame.ZIndex = fill.ZIndex + 1
+    pulseFrame.Parent = fill
+    
+    self._utilities.CreateCorner(pulseFrame, 10)
+    
+    -- Pulse animation
+    task.spawn(function()
+        while pulseFrame.Parent do
+            self._utilities.Tween(pulseFrame, {
+                BackgroundTransparency = 0.8
+            }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+            task.wait(0.5)
+            self._utilities.Tween(pulseFrame, {
+                BackgroundTransparency = 0.5
+            }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+            task.wait(0.5)
+        end
+    end)
 end
 
 function QuestUI:CreateQuestRewards(parent: Frame, quest: Quest): Frame

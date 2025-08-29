@@ -614,15 +614,48 @@ function NotificationSystem:GetPositions(index: number): (UDim2, UDim2)
 end
 
 function NotificationSystem:UpdateNotificationPositions()
+    -- Stack notifications nicely with smooth transitions
+    local currentY = NOTIFICATION_SPACING
+    
     for i, notification in ipairs(self._notifications) do
         if notification.frame then
-            local _, endPos = self:GetPositions(i)
+            local targetPos = self._position == "right" and 
+                UDim2.new(1, -NOTIFICATION_WIDTH - NOTIFICATION_SPACING, 0, currentY) or
+                UDim2.new(0, NOTIFICATION_SPACING, 0, currentY)
             
-            Services.TweenService:Create(
-                notification.frame,
-                TweenInfo.new(SLIDE_TIME, Enum.EasingStyle.Quad),
-                {Position = endPos}
-            ):Play()
+            -- Stagger animation for cascade effect
+            task.spawn(function()
+                task.wait((i - 1) * 0.03)
+                
+                -- Animate to new position with smooth easing
+                local tween = Services.TweenService:Create(
+                    notification.frame,
+                    TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                    {Position = targetPos}
+                )
+                tween:Play()
+                
+                -- Add subtle bounce effect
+                if i == 1 then
+                    local bounce = Services.TweenService:Create(
+                        notification.frame,
+                        TweenInfo.new(0.1, Enum.EasingStyle.Sine),
+                        {Size = UDim2.new(0, NOTIFICATION_WIDTH + 5, 0, notification.frame.Size.Y.Offset)}
+                    )
+                    bounce:Play()
+                    task.wait(0.1)
+                    
+                    local bounceBack = Services.TweenService:Create(
+                        notification.frame,
+                        TweenInfo.new(0.1, Enum.EasingStyle.Sine),
+                        {Size = UDim2.new(0, NOTIFICATION_WIDTH, 0, notification.frame.Size.Y.Offset)}
+                    )
+                    bounceBack:Play()
+                end
+            end)
+            
+            -- Update Y position for next notification
+            currentY = currentY + notification.frame.AbsoluteSize.Y + NOTIFICATION_SPACING
         end
     end
 end

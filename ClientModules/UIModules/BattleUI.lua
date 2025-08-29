@@ -1678,25 +1678,132 @@ function BattleUI:UpdateHealthBars()
     local playerHealth = self:CalculateTeamHealth(1)
     local opponentHealth = self:CalculateTeamHealth(2)
     
-    -- Update player health bar
+    -- Update player health bar with smooth animation
     if self.HealthBars.Player then
         local percentage = playerHealth.current / playerHealth.max
+        local oldPercentage = self.HealthBars.Player.lastPercentage or percentage
+        
+        -- Smooth size transition
         self._utilities.Tween(self.HealthBars.Player.fill, {
             Size = UDim2.new(percentage, 0, 1, 0)
-        }, self._config.TWEEN_INFO.Fast)
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
-        self.HealthBars.Player.label.Text = string.format("%d%%", percentage * 100)
+        -- Color based on health percentage
+        local healthColor = self:GetHealthColor(percentage)
+        self._utilities.Tween(self.HealthBars.Player.fill, {
+            BackgroundColor3 = healthColor
+        }, TweenInfo.new(0.3))
+        
+        -- Animate percentage text
+        self:AnimateHealthText(self.HealthBars.Player.label, oldPercentage * 100, percentage * 100)
+        
+        -- Show damage if health decreased
+        if percentage < oldPercentage then
+            local damage = math.floor((oldPercentage - percentage) * playerHealth.max)
+            self:ShowDamageNumber(self.HealthBars.Player.bar, damage)
+        end
+        
+        self.HealthBars.Player.lastPercentage = percentage
     end
     
-    -- Update opponent health bar
+    -- Update opponent health bar with smooth animation
     if self.HealthBars.Opponent then
         local percentage = opponentHealth.current / opponentHealth.max
+        local oldPercentage = self.HealthBars.Opponent.lastPercentage or percentage
+        
+        -- Smooth size transition
         self._utilities.Tween(self.HealthBars.Opponent.fill, {
             Size = UDim2.new(percentage, 0, 1, 0)
-        }, self._config.TWEEN_INFO.Fast)
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
-        self.HealthBars.Opponent.label.Text = string.format("%d%%", percentage * 100)
+        -- Color based on health percentage
+        local healthColor = self:GetHealthColor(percentage)
+        self._utilities.Tween(self.HealthBars.Opponent.fill, {
+            BackgroundColor3 = healthColor
+        }, TweenInfo.new(0.3))
+        
+        -- Animate percentage text
+        self:AnimateHealthText(self.HealthBars.Opponent.label, oldPercentage * 100, percentage * 100)
+        
+        -- Show damage if health decreased
+        if percentage < oldPercentage then
+            local damage = math.floor((oldPercentage - percentage) * opponentHealth.max)
+            self:ShowDamageNumber(self.HealthBars.Opponent.bar, damage)
+        end
+        
+        self.HealthBars.Opponent.lastPercentage = percentage
     end
+end
+
+function BattleUI:GetHealthColor(percentage: number): Color3
+    if percentage > 0.7 then
+        return self._config.COLORS.Success -- Green
+    elseif percentage > 0.4 then
+        return Color3.fromRGB(255, 200, 0) -- Yellow
+    elseif percentage > 0.2 then
+        return Color3.fromRGB(255, 140, 0) -- Orange
+    else
+        return self._config.COLORS.Error -- Red
+    end
+end
+
+function BattleUI:AnimateHealthText(label: TextLabel, fromValue: number, toValue: number)
+    local startTime = tick()
+    local duration = 0.5
+    
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        local elapsed = tick() - startTime
+        local progress = math.min(elapsed / duration, 1)
+        
+        -- Ease out quad
+        progress = 1 - (1 - progress) * (1 - progress)
+        
+        local currentValue = fromValue + (toValue - fromValue) * progress
+        label.Text = string.format("%d%%", math.floor(currentValue))
+        
+        if progress >= 1 then
+            connection:Disconnect()
+        end
+    end)
+end
+
+function BattleUI:ShowDamageNumber(healthBar: Frame, damage: number)
+    -- Create floating damage text
+    local damageText = Instance.new("TextLabel")
+    damageText.Size = UDim2.new(0, 100, 0, 50)
+    damageText.Position = UDim2.new(0.5, 0, 0.5, 0)
+    damageText.AnchorPoint = Vector2.new(0.5, 0.5)
+    damageText.BackgroundTransparency = 1
+    damageText.Text = "-" .. tostring(damage)
+    damageText.Font = self._config.FONTS.Numbers
+    damageText.TextColor3 = self._config.COLORS.Error
+    damageText.TextScaled = true
+    damageText.TextStrokeColor3 = Color3.new(0, 0, 0)
+    damageText.TextStrokeTransparency = 0
+    damageText.ZIndex = 600
+    damageText.Parent = healthBar.Parent
+    
+    -- Start small and grow
+    damageText.Size = UDim2.new(0, 0, 0, 0)
+    
+    -- Animate floating up
+    self._utilities.Tween(damageText, {
+        Size = UDim2.new(0, 100, 0, 50),
+        Position = UDim2.new(0.5, math.random(-20, 20), 0, -50),
+        TextTransparency = 0
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    task.wait(0.3)
+    
+    -- Fade out
+    self._utilities.Tween(damageText, {
+        Position = UDim2.new(0.5, math.random(-20, 20), 0, -80),
+        TextTransparency = 1,
+        TextStrokeTransparency = 1
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad))
+    
+    game:GetService("Debris"):AddItem(damageText, 1)
 end
 
 function BattleUI:CalculateTeamHealth(teamIndex: number): {current: number, max: number}
