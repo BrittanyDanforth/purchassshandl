@@ -1340,7 +1340,10 @@ function PetDetailsUI:ShowDeleteConfirmation()
 end
 
 function PetDetailsUI:ExecuteDelete()
-    if not self._currentPetInstance then return end
+    if not self._currentPetInstance then 
+        warn("[PetDetailsUI] No current pet instance to delete")
+        return 
+    end
     
     self._isUpdating = true
     
@@ -1352,10 +1355,43 @@ function PetDetailsUI:ExecuteDelete()
     
     -- Send delete request
     if self._remoteManager then
-        local success, result = self._remoteManager:InvokeServer("DeletePet", 
-                                                               self._currentPetInstance.uniqueId)
+        print("[PetDetailsUI] Attempting to delete pet:", self._currentPetInstance.uniqueId)
         
-        if success and result.success then
+        -- Try RemoteManager first
+        local response = self._remoteManager:InvokeServer("DeletePet", self._currentPetInstance.uniqueId)
+        
+        -- If RemoteManager fails, try direct approach
+        if not response or (response.error and response.error:find("not found")) then
+            warn("[PetDetailsUI] RemoteManager failed, trying direct approach")
+            
+            -- Look for RemoteFunction in ReplicatedStorage
+            local remoteFunctions = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteFunctions")
+            if remoteFunctions then
+                local deleteRemote = remoteFunctions:FindFirstChild("DeletePet")
+                if deleteRemote and deleteRemote:IsA("RemoteFunction") then
+                    print("[PetDetailsUI] Found DeletePet RemoteFunction, invoking directly")
+                    local success, result = pcall(function()
+                        return deleteRemote:InvokeServer(self._currentPetInstance.uniqueId)
+                    end)
+                    
+                    if success then
+                        response = result
+                    else
+                        response = {success = false, error = "Failed to invoke: " .. tostring(result)}
+                    end
+                else
+                    warn("[PetDetailsUI] DeletePet RemoteFunction not found in RemoteFunctions folder")
+                    response = {success = false, error = "DeletePet RemoteFunction not found"}
+                end
+            else
+                warn("[PetDetailsUI] RemoteFunctions folder not found")
+                response = {success = false, error = "RemoteFunctions folder not found"}
+            end
+        end
+        
+        print("[PetDetailsUI] Delete response:", response)
+        
+        if response and response.success then
             -- Show success notification
             if self._notificationSystem then
                 self._notificationSystem:Show({
@@ -1377,10 +1413,21 @@ function PetDetailsUI:ExecuteDelete()
             -- Fire event to update inventory
             if self._eventBus then
                 self._eventBus:Fire("PetDeleted", self._currentPetInstance.uniqueId)
+                -- Also fire inventory refresh
+                self._eventBus:Fire("RefreshInventory")
+            end
+            
+            -- Update data cache to remove the pet
+            if self._dataCache then
+                local playerData = self._dataCache:Get() or {}
+                if playerData.pets and playerData.pets[self._currentPetInstance.uniqueId] then
+                    playerData.pets[self._currentPetInstance.uniqueId] = nil
+                    self._dataCache:Set(playerData)
+                end
             end
         else
             -- Show error
-            local errorMsg = result and result.error or "Failed to delete pet"
+            local errorMsg = response and response.error or "Failed to delete pet"
             if self._notificationSystem then
                 self._notificationSystem:Show({
                     title = "Error",

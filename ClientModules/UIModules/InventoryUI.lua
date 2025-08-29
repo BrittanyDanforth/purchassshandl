@@ -653,20 +653,34 @@ function InventoryUI:CreateControls()
     
     -- Sort dropdown
     local sortOptions = {"Rarity", "Level", "Power", "Recent", "Name"}
-    self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
+    self.SortDropdown = self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 220, 0.5, -17.5),
         function(option)
             self.CurrentSort = option
+            -- Close any open dropdowns before refresh
+            if self.SortDropdown and self.SortDropdown.CloseDropdown then
+                self.SortDropdown.CloseDropdown()
+            end
+            if self.FilterDropdown and self.FilterDropdown.CloseDropdown then
+                self.FilterDropdown.CloseDropdown()
+            end
             self:RefreshInventory()
         end
     )
     
     -- Filter dropdown
     local filterOptions = {"All", "Equipped", "Locked", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Shiny", "Golden", "Rainbow"}
-    self:CreateDropdown(controlsBar, "Filter", filterOptions,
+    self.FilterDropdown = self:CreateDropdown(controlsBar, "Filter", filterOptions,
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 380, 0.5, -17.5),
         function(option)
             self.CurrentFilter = option
+            -- Close any open dropdowns before refresh
+            if self.SortDropdown and self.SortDropdown.CloseDropdown then
+                self.SortDropdown.CloseDropdown()
+            end
+            if self.FilterDropdown and self.FilterDropdown.CloseDropdown then
+                self.FilterDropdown.CloseDropdown()
+            end
             self:RefreshInventory()
         end
     )
@@ -713,13 +727,19 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
     local isOpen = false
     local optionsFrame = nil
     
+    -- Store reference for cleanup
+    dropdown.CloseDropdown = function()
+        if optionsFrame then
+            optionsFrame:Destroy()
+            optionsFrame = nil
+        end
+        isOpen = false
+    end
+    
     button.MouseButton1Click:Connect(function()
         if isOpen then
             -- Close dropdown
-            if optionsFrame then
-                optionsFrame:Destroy()
-            end
-            isOpen = false
+            dropdown.CloseDropdown()
         else
             -- Open dropdown
             optionsFrame = Instance.new("Frame")
@@ -728,6 +748,9 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
             optionsFrame.BackgroundColor3 = self._config.COLORS.White
             optionsFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300
             optionsFrame.Parent = dropdown
+            
+            -- Make dropdown frame not block mouse events on other UI
+            optionsFrame.Active = false
             
             -- Ensure all ancestors have proper ZIndex
             local current = dropdown
@@ -776,6 +799,20 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
             end
             
             isOpen = true
+            
+            -- Close dropdown when clicking elsewhere
+            local clickConnection
+            clickConnection = game:GetService("UserInputService").InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    task.wait() -- Wait a frame to avoid closing immediately
+                    if optionsFrame and optionsFrame.Parent then
+                        dropdown.CloseDropdown()
+                    end
+                    if clickConnection then
+                        clickConnection:Disconnect()
+                    end
+                end
+            end)
         end
     end)
     
@@ -1862,14 +1899,21 @@ function InventoryUI:OpenMassDelete()
         self.DeleteOverlay:Destroy()
     end
     
-    -- Create overlay
+    -- Get the highest parent (ScreenGui)
+    local screenGui = self.Frame.Parent
+    while screenGui.Parent and not screenGui:IsA("ScreenGui") do
+        screenGui = screenGui.Parent
+    end
+    
+    -- Create overlay at ScreenGui level
     local overlay = Instance.new("Frame")
     overlay.Name = "MassDeleteOverlay"
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.3
-    overlay.ZIndex = self._config.ZINDEX.Overlay
-    overlay.Parent = self.Frame.Parent
+    overlay.ZIndex = 900  -- Very high to ensure it's on top
+    overlay.DisplayOrder = 10  -- High display order
+    overlay.Parent = screenGui
     
     self.DeleteOverlay = overlay
     
@@ -1879,7 +1923,7 @@ function InventoryUI:OpenMassDelete()
     deleteWindow.Size = UDim2.new(0, MASS_DELETE_WINDOW_SIZE.X, 0, MASS_DELETE_WINDOW_SIZE.Y)
     deleteWindow.Position = UDim2.new(0.5, -MASS_DELETE_WINDOW_SIZE.X/2, 0.5, -MASS_DELETE_WINDOW_SIZE.Y/2)
     deleteWindow.BackgroundColor3 = self._config.COLORS.Background
-    deleteWindow.ZIndex = self._config.ZINDEX.Modal
+    deleteWindow.ZIndex = 901  -- Above overlay
     deleteWindow.Parent = overlay
     
     self._utilities.CreateCorner(deleteWindow, 20)
@@ -1894,7 +1938,7 @@ function InventoryUI:OpenMassDelete()
         size = UDim2.new(1, 0, 0, 60),
         position = UDim2.new(0, 0, 0, 0),
         backgroundColor = self._config.COLORS.Error,
-        zIndex = self._config.ZINDEX.ModalContent
+        zIndex = 902
     })
     
     local headerLabel = self._uiFactory:CreateLabel(header, {
@@ -1904,7 +1948,7 @@ function InventoryUI:OpenMassDelete()
         font = self._config.FONTS.Display,
         textColor = self._config.COLORS.White,
         textSize = 20,
-        zIndex = self._config.ZINDEX.ModalContent
+        zIndex = 903
     })
     
     -- Close button
@@ -1915,7 +1959,7 @@ function InventoryUI:OpenMassDelete()
         backgroundColor = Color3.new(1, 1, 1),
         backgroundTransparency = 0.9,
         textColor = self._config.COLORS.White,
-        zIndex = self._config.ZINDEX.ModalContent,
+        zIndex = 903,
         callback = function()
             self:CloseMassDelete()
         end
@@ -1936,7 +1980,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     content.Size = UDim2.new(1, -20, 1, -140)
     content.Position = UDim2.new(0, 10, 0, 70)
     content.BackgroundTransparency = 1
-    content.ZIndex = self._config.ZINDEX.ModalContent
+    content.ZIndex = 902
     content.Parent = window
     
     -- Instructions
@@ -1946,7 +1990,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         position = UDim2.new(0, 0, 0, 0),
         textColor = self._config.COLORS.Error,
         textWrapped = true,
-        zIndex = self._config.ZINDEX.ModalContent
+        zIndex = 903
     })
     
     -- Quick select buttons
@@ -1954,7 +1998,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     quickSelectFrame.Size = UDim2.new(1, 0, 0, 40)
     quickSelectFrame.Position = UDim2.new(0, 0, 0, 50)
     quickSelectFrame.BackgroundTransparency = 1
-    quickSelectFrame.ZIndex = self._config.ZINDEX.ModalContent
+    quickSelectFrame.ZIndex = 902
     quickSelectFrame.Parent = content
     
     local selectAllCommon = self._uiFactory:CreateButton(quickSelectFrame, {
@@ -2014,7 +2058,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     bottomBar.Size = UDim2.new(1, 0, 0, 60)
     bottomBar.Position = UDim2.new(0, 0, 1, -60)
     bottomBar.BackgroundColor3 = self._config.COLORS.Dark
-    bottomBar.ZIndex = self._config.ZINDEX.ModalContent
+    bottomBar.ZIndex = 902
     bottomBar.Parent = window
     
     self._utilities.CreateCorner(bottomBar, 20)
@@ -2025,7 +2069,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         size = UDim2.new(0, 200, 1, 0),
         position = UDim2.new(0, 20, 0, 0),
         textXAlignment = Enum.TextXAlignment.Left,
-        zIndex = self._config.ZINDEX.ModalContent
+        zIndex = 903
     })
     self.DeleteSelectedLabel = selectedLabel
     
@@ -2035,7 +2079,7 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         size = UDim2.new(0, 150, 0, 40),
         position = UDim2.new(1, -170, 0.5, -20),
         backgroundColor = self._config.COLORS.Error,
-        zIndex = self._config.ZINDEX.ModalContent,
+        zIndex = 903,
         callback = function()
             self:ConfirmMassDelete()
         end
