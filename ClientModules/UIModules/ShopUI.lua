@@ -1134,14 +1134,14 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
             shadowFrame.Parent = card
         end
         
-        -- Create the actual shadow
+        -- Create the actual shadow (more subtle)
         local shadowContainer = Instance.new("Frame")
         shadowContainer.Name = "DropShadow"
-        shadowContainer.Size = UDim2.new(1, 20, 1, 20)
-        shadowContainer.Position = UDim2.new(0.5, 0, 0.5, 10)
+        shadowContainer.Size = UDim2.new(1, 8, 1, 8)  -- Reduced from 20 to 8
+        shadowContainer.Position = UDim2.new(0.5, 0, 0.5, 4)  -- Reduced offset from 10 to 4
         shadowContainer.AnchorPoint = Vector2.new(0.5, 0.5)
         shadowContainer.BackgroundColor3 = Color3.new(0, 0, 0)
-        shadowContainer.BackgroundTransparency = 0.85
+        shadowContainer.BackgroundTransparency = 0.9  -- More transparent (was 0.85)
         shadowContainer.ZIndex = -1
         shadowContainer.Parent = shadowFrame
         
@@ -1151,7 +1151,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         -- Animate shadow appearance
         shadowContainer.BackgroundTransparency = 1
         self._utilities.Tween(shadowContainer, {
-            BackgroundTransparency = 0.7
+            BackgroundTransparency = 0.8  -- More subtle final transparency
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         
         -- Store reference without using attribute
@@ -1185,9 +1185,11 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         shineGradient.Parent = shine
         
         -- Animate shine across card
-        self._utilities.Tween(shine, {
+        local shineTween = self._utilities.Tween(shine, {
             Position = UDim2.new(1.2, 0, -0.5, 0)
-        }, TweenInfo.new(0.6, Enum.EasingStyle.Linear)):Connect(function()
+        }, TweenInfo.new(0.6, Enum.EasingStyle.Linear))
+        
+        shineTween.Completed:Connect(function()
             if shine and shine.Parent then
                 shine:Destroy()
             end
@@ -1222,9 +1224,11 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
                 local dropShadow = shadowFrame:FindFirstChild("DropShadow")
                 if dropShadow then
                     -- Animate shadow disappearance
-                    self._utilities.Tween(dropShadow, {
+                    local shadowTween = self._utilities.Tween(dropShadow, {
                         BackgroundTransparency = 1
-                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad)):Connect(function()
+                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+                    
+                    shadowTween.Completed:Connect(function()
                         if dropShadow and dropShadow.Parent then
                             dropShadow:Destroy()
                         end

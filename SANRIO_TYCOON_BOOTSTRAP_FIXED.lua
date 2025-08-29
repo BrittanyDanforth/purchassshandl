@@ -139,7 +139,7 @@ local function createRemotes(folders)
 		"GetPlayerData", "GetShopData", "SaveSettings",
 
 		-- Pet System
-		"OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets", "MassDeletePets",
+		"OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets", "MassDeletePets", "DeletePet",
 
 		-- Trading
 		"StartTrade", "AddTradeItem", "RemoveTradeItem", "SetTradeCurrency",
@@ -187,6 +187,7 @@ local function createRemotes(folders)
 		"ForfeitBattle",
 		"PurchaseGamepass",
 		"PurchaseCurrency",
+		"PurchaseItem",
 		"SendClanInvite",
 		"AcceptClanInvite",
 		"KickMember"
@@ -415,6 +416,30 @@ local function connectRemoteHandlers(modules, folders)
 		return {success = false, error = "System not available"}
 	end
 
+	RemoteFunctions.PurchaseItem.OnServerInvoke = function(player, itemType, itemId)
+		if itemType == "egg" then
+			-- For eggs, just validate that player has enough currency
+			-- The actual opening happens through OpenCase
+			if modules.CaseSystem then
+				local eggData = modules.CaseSystem:GetEggData(itemId)
+				if eggData and modules.DataStoreModule then
+					local playerData = modules.DataStoreModule:GetPlayerData(player)
+					if playerData and playerData.currencies[eggData.currencyType] >= eggData.price then
+						return {success = true, canPurchase = true}
+					end
+					return {success = false, error = "Insufficient funds"}
+				end
+			end
+		elseif itemType == "gamepass" then
+			-- Gamepass purchases are handled through Roblox MarketplaceService
+			return {success = true, useMarketplace = true}
+		elseif itemType == "currency" then
+			-- Currency purchases are dev products, also handled through MarketplaceService
+			return {success = true, useMarketplace = true}
+		end
+		return {success = false, error = "Invalid item type"}
+	end
+
 	-- Pet Management
 	RemoteFunctions.EquipPet.OnServerInvoke = function(player, petId)
 		if modules.PetSystem then
@@ -466,11 +491,39 @@ local function connectRemoteHandlers(modules, folders)
 			-- Fire update event
 			RemoteEvents.PetDeleted:FireClient(player, petIds)
 
-			return {
-				success = true, 
+						return {
+				success = true,
 				deletedCount = deletedCount,
 				errors = errors
 			}
+		end
+		return {success = false, error = "System not available"}
+	end
+
+	RemoteFunctions.DeletePet.OnServerInvoke = function(player, petId)
+		if modules.PetSystem and modules.DataStoreModule then
+			local playerData = modules.DataStoreModule:GetPlayerData(player)
+			if not playerData then
+				return {success = false, error = "Player data not found"}
+			end
+
+			local pet = playerData.pets[petId]
+			if not pet then
+				return {success = false, error = "Pet not found"}
+			end
+
+			if pet.equipped then
+				return {success = false, error = "Cannot delete equipped pet"}
+			end
+
+			-- Delete the pet
+			playerData.pets[petId] = nil
+			modules.DataStoreModule:MarkPlayerDirty(player.UserId)
+
+			-- Fire update event
+			RemoteEvents.PetDeleted:FireClient(player, {petId})
+
+			return {success = true}
 		end
 		return {success = false, error = "System not available"}
 	end
