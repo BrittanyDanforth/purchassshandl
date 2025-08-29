@@ -327,6 +327,11 @@ end
 -- ========================================
 
 function InventoryUI:Open()
+    -- Create UI if not already created
+    if not self.Frame then
+        self:CreateUI()
+    end
+    
     if self.Frame then
         -- Smooth fade in animation
         self.Frame.Visible = true

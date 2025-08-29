@@ -1098,7 +1098,7 @@ function SettingsUI:ShowKeybindWarning(key: Enum.KeyCode, keyFunction: string)
     title.Text = "Critical Key Warning"
     title.TextScaled = true
     title.TextColor3 = self._config.COLORS.White
-    title.Font = self._config.FONTS.Bold
+    title.Font = self._config.FONTS.Secondary
     title.Parent = titleFrame
     
     -- Message
