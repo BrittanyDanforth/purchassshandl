@@ -412,6 +412,9 @@ function RemoteManager:ExecuteRequest(request)
 	self._traffic.byFunction[request.functionName].sent = 
 		self._traffic.byFunction[request.functionName].sent + 1
 
+	-- LATENCY TRACKING: Record start time
+	local startTime = tick()
+
 	-- Create timeout
 	local completed = false
 	local result = nil
@@ -441,10 +444,44 @@ function RemoteManager:ExecuteRequest(request)
 	completed = true
 
 	if success then
+		-- LATENCY TRACKING: Calculate and log latency
+		local latency = tick() - startTime
+		
 		-- Update received stats
 		self._traffic.received = self._traffic.received + 1
 		self._traffic.byFunction[request.functionName].received = 
 			self._traffic.byFunction[request.functionName].received + 1
+		
+		-- Store latency data
+		if not self._traffic.byFunction[request.functionName].latency then
+			self._traffic.byFunction[request.functionName].latency = {
+				total = 0,
+				count = 0,
+				min = math.huge,
+				max = 0,
+				average = 0,
+				history = {}
+			}
+		end
+		
+		local latencyData = self._traffic.byFunction[request.functionName].latency
+		latencyData.total = latencyData.total + latency
+		latencyData.count = latencyData.count + 1
+		latencyData.min = math.min(latencyData.min, latency)
+		latencyData.max = math.max(latencyData.max, latency)
+		latencyData.average = latencyData.total / latencyData.count
+		
+		-- Keep last 10 latency measurements for history
+		table.insert(latencyData.history, latency)
+		if #latencyData.history > 10 then
+			table.remove(latencyData.history, 1)
+		end
+		
+		-- Log if debug mode or if latency is high
+		if self._debugMode or latency > 1.0 then
+			print(string.format("[RemoteManager] '%s' completed in %.2fms (avg: %.2fms)", 
+				request.functionName, latency * 1000, latencyData.average * 1000))
+		end
 
 		return response
 	else
@@ -703,6 +740,66 @@ function RemoteManager:DisconnectAll()
 		end
 	end
 	self._connections = {}
+end
+
+-- ========================================
+-- LATENCY TRACKING
+-- ========================================
+
+function RemoteManager:GetLatencyStats(functionName: string?)
+	if functionName then
+		local stats = self._traffic.byFunction[functionName]
+		if stats and stats.latency then
+			return {
+				functionName = functionName,
+				average = stats.latency.average * 1000, -- Convert to ms
+				min = stats.latency.min * 1000,
+				max = stats.latency.max * 1000,
+				count = stats.latency.count,
+				recent = stats.latency.history[#stats.latency.history] and stats.latency.history[#stats.latency.history] * 1000
+			}
+		end
+		return nil
+	else
+		-- Return all function latencies
+		local allStats = {}
+		for funcName, stats in pairs(self._traffic.byFunction) do
+			if stats.latency and stats.latency.count > 0 then
+				table.insert(allStats, {
+					functionName = funcName,
+					average = stats.latency.average * 1000,
+					min = stats.latency.min * 1000,
+					max = stats.latency.max * 1000,
+					count = stats.latency.count
+				})
+			end
+		end
+		-- Sort by average latency (highest first)
+		table.sort(allStats, function(a, b)
+			return a.average > b.average
+		end)
+		return allStats
+	end
+end
+
+function RemoteManager:PrintLatencyReport()
+	print("\n=== NETWORK LATENCY REPORT ===")
+	local stats = self:GetLatencyStats()
+	if #stats == 0 then
+		print("No remote calls tracked yet")
+		return
+	end
+	
+	for _, stat in ipairs(stats) do
+		print(string.format("%-30s | Avg: %6.1fms | Min: %6.1fms | Max: %6.1fms | Calls: %d",
+			stat.functionName,
+			stat.average,
+			stat.min,
+			stat.max,
+			stat.count
+		))
+	end
+	print("==============================\n")
 end
 
 -- ========================================

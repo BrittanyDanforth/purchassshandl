@@ -20,6 +20,21 @@ local CONFIG = {
 }
 
 -- ========================================
+-- UTILITIES
+-- ========================================
+local function isArray(t)
+    if type(t) ~= "table" then return false end
+    local count = 0
+    for k, v in pairs(t) do
+        count = count + 1
+        if type(k) ~= "number" or k ~= count or k < 1 then
+            return false
+        end
+    end
+    return true
+end
+
+-- ========================================
 -- DELTA CALCULATOR
 -- ========================================
 local function DeepDiff(old, new, path)
@@ -45,7 +60,35 @@ local function DeepDiff(old, new, path)
         end
     end
     
-    -- Handle table cases
+    -- CRITICAL FIX: Handle arrays differently to prevent corruption
+    -- Arrays must be sent as complete units, not as individual key changes
+    if isArray(old) or isArray(new) then
+        -- Deep compare arrays - if they're different, send the whole new array
+        local arrayChanged = false
+        
+        -- Quick length check first
+        if #old ~= #new then
+            arrayChanged = true
+        else
+            -- Compare each element
+            for i = 1, #new do
+                if old[i] ~= new[i] then
+                    -- For nested tables, we'd need deep comparison
+                    -- For now, assume any difference means the array changed
+                    arrayChanged = true
+                    break
+                end
+            end
+        end
+        
+        if arrayChanged then
+            return new, true  -- Send the complete new array
+        else
+            return nil, false  -- No changes
+        end
+    end
+    
+    -- Handle table cases (non-arrays)
     -- Check for additions and modifications
     for key, newValue in pairs(new) do
         local oldValue = old[key]
@@ -157,9 +200,18 @@ function DeltaNetworking:SendUpdate(player, newState)
     
     -- Start batch timer if not already running
     if not self.UpdateTimers[player] then
-        self.UpdateTimers[player] = task.wait(CONFIG.BATCH_INTERVAL)
-        self:FlushUpdates(player)
-        self.UpdateTimers[player] = nil
+        -- Set flag IMMEDIATELY to prevent race conditions
+        self.UpdateTimers[player] = true
+        
+        -- Schedule the flush without yielding
+        task.delay(CONFIG.BATCH_INTERVAL, function()
+            -- Check if player is still valid before flushing
+            if self.PlayerStates[player] then
+                self:FlushUpdates(player)
+            end
+            -- Clear the timer flag AFTER flush is complete
+            self.UpdateTimers[player] = nil
+        end)
     end
 end
 
