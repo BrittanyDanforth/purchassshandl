@@ -472,8 +472,35 @@ function MainUI:CreateCurrencyDisplay()
     currencyFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.CurrencyDisplay or 35
     currencyFrame.Parent = self.MainPanel
     
-    self._utilities.CreateCorner(currencyFrame, 8)
-    -- No shadow to prevent overlap issues
+    self._utilities.CreateCorner(currencyFrame, 12)
+    
+    -- Add subtle shadow for depth
+    local shadowFrame = Instance.new("Frame")
+    shadowFrame.Name = "Shadow"
+    shadowFrame.Size = UDim2.new(1, 6, 1, 6)
+    shadowFrame.Position = UDim2.new(0.5, 0, 0.5, 3)
+    shadowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    shadowFrame.BackgroundTransparency = 0.9
+    shadowFrame.ZIndex = currencyFrame.ZIndex - 1
+    shadowFrame.Parent = currencyFrame.Parent
+    self._utilities.CreateCorner(shadowFrame, 14)
+    
+    -- Add subtle gradient
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(0.95, 0.95, 0.95))
+    })
+    gradient.Rotation = 90
+    gradient.Parent = currencyFrame
+    
+    -- Add border stroke
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = self._config.COLORS.Primary
+    stroke.Transparency = 0.9
+    stroke.Thickness = 1
+    stroke.Parent = currencyFrame
     
     -- Layout for currency items
     local layout = Instance.new("UIListLayout")
@@ -502,8 +529,24 @@ function MainUI:CreateCurrencyItem(parent: Frame, currencyData: {name: string, i
     local container = Instance.new("Frame")
     container.Name = currencyData.name .. "Container"
     container.Size = UDim2.new(0, 120, 1, 0)
-    container.BackgroundTransparency = 1
+    container.BackgroundTransparency = 0.95
+    container.BackgroundColor3 = self._config.COLORS.Primary
     container.Parent = parent
+    
+    self._utilities.CreateCorner(container, 8)
+    
+    -- Add hover effect
+    container.MouseEnter:Connect(function()
+        self._utilities.Tween(container, {
+            BackgroundTransparency = 0.9
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+    end)
+    
+    container.MouseLeave:Connect(function()
+        self._utilities.Tween(container, {
+            BackgroundTransparency = 0.95
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+    end)
     
     -- Icon
     local icon = Instance.new("ImageLabel")

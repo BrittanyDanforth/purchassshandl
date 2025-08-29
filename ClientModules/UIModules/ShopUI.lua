@@ -722,7 +722,26 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     card.Parent = parent
     
     self._utilities.CreateCorner(card, 12)
-    -- No shadow per user feedback
+    
+    -- Create effects container for shadow
+    local effectsContainer = Instance.new("Frame")
+    effectsContainer.Name = "EffectsContainer"
+    effectsContainer.Size = UDim2.new(1, 0, 1, 0)
+    effectsContainer.BackgroundTransparency = 1
+    effectsContainer.ZIndex = 0
+    effectsContainer.Parent = card
+    
+    -- Create shadow inside effects container
+    local shadow = Instance.new("Frame")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 8, 1, 8)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+    shadow.BackgroundTransparency = 0.85
+    shadow.ZIndex = 0
+    shadow.Parent = effectsContainer
+    self._utilities.CreateCorner(shadow, 14)
     
     -- Egg image
     local eggImage = Instance.new("ImageLabel")
@@ -732,6 +751,7 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     eggImage.BackgroundTransparency = 1
     eggImage.Image = eggData.icon or ""
     eggImage.ScaleType = Enum.ScaleType.Fit
+    eggImage.ZIndex = 2
     eggImage.Parent = card
     
     -- Egg name

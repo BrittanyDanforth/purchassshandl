@@ -726,8 +726,18 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
             optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10)
             optionsFrame.Position = UDim2.new(0, 0, 1, 5)
             optionsFrame.BackgroundColor3 = self._config.COLORS.White
-            optionsFrame.ZIndex = self._config.ZINDEX.Dropdown
+            optionsFrame.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300
             optionsFrame.Parent = dropdown
+            
+            -- Ensure all ancestors have proper ZIndex
+            local current = dropdown
+            while current and current.Parent do
+                if current:IsA("GuiObject") then
+                    current.ZIndex = math.max(current.ZIndex or 1, (self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300) - 1)
+                end
+                current = current.Parent
+                if current:IsA("ScreenGui") then break end
+            end
             
             self._utilities.CreateCorner(optionsFrame, 8)
             self._utilities.CreateStroke(optionsFrame, self._config.COLORS.Primary, 2)
@@ -1091,7 +1101,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     -- Create card container
     local card = Instance.new("Frame")
     card.Name = "PetCard_" .. tostring(petInstance.uniqueId or petInstance.petId or "unknown")
-    card.BackgroundColor3 = self._config.COLORS.Surface
+    card.BackgroundColor3 = self._config.COLORS.White or Color3.new(1, 1, 1)
     card.BorderSizePixel = 0
     card.Parent = parent
     
@@ -1401,7 +1411,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         
         -- Animate background color
         self._utilities.Tween(card, {
-            BackgroundColor3 = self._config.COLORS.Surface,
+            BackgroundColor3 = self._config.COLORS.White or Color3.new(1, 1, 1),
             Rotation = 0
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
