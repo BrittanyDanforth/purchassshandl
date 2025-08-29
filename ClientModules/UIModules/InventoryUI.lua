@@ -1119,6 +1119,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     imageContainer.Size = UDim2.new(1, -10, 1, -40)
     imageContainer.Position = UDim2.new(0, 5, 0, 5)
     imageContainer.BackgroundTransparency = 1
+    imageContainer.ZIndex = 2  -- Above effects container
     imageContainer.Parent = card
     
     -- Pet image
@@ -1300,7 +1301,15 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     local glowFrame = nil
     local shadowFrame = nil
     
-    -- Create shadow that will grow on hover (as child of card)
+    -- Create background container for effects
+    local bgContainer = Instance.new("Frame")
+    bgContainer.Name = "EffectsContainer"
+    bgContainer.Size = UDim2.new(1, 0, 1, 0)
+    bgContainer.BackgroundTransparency = 1
+    bgContainer.ZIndex = 0  -- Lowest in the card
+    bgContainer.Parent = card
+    
+    -- Create shadow that will grow on hover (as child of effects container)
     shadowFrame = Instance.new("Frame")
     shadowFrame.Name = "Shadow"
     shadowFrame.Size = UDim2.new(1, 6, 1, 6)
@@ -1308,8 +1317,8 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     shadowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     shadowFrame.BackgroundColor3 = Color3.new(0, 0, 0)
     shadowFrame.BackgroundTransparency = 0.8
-    shadowFrame.ZIndex = -1  -- Behind everything in the card
-    shadowFrame.Parent = card  -- Parent to card, not card.Parent!
+    shadowFrame.ZIndex = 0
+    shadowFrame.Parent = bgContainer
     self._utilities.CreateCorner(shadowFrame, 10)
     
     -- Move card above shadow
@@ -1325,15 +1334,26 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
             glowFrame:Destroy()
         end
         
+        -- Find or create a background container for effects
+        local bgContainer = card:FindFirstChild("EffectsContainer")
+        if not bgContainer then
+            bgContainer = Instance.new("Frame")
+            bgContainer.Name = "EffectsContainer"
+            bgContainer.Size = UDim2.new(1, 0, 1, 0)
+            bgContainer.BackgroundTransparency = 1
+            bgContainer.ZIndex = 0  -- Lowest in the card
+            bgContainer.Parent = card
+        end
+        
         glowFrame = Instance.new("Frame")
         glowFrame.Name = "GlowEffect"
-        glowFrame.Size = UDim2.new(1, 12, 1, 12)
+        glowFrame.Size = UDim2.new(1, 16, 1, 16)
         glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
         glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
         glowFrame.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
         glowFrame.BackgroundTransparency = 0.7
-        glowFrame.ZIndex = -2  -- Behind shadow
-        glowFrame.Parent = card  -- Parent to card, not card.Parent!
+        glowFrame.ZIndex = 1
+        glowFrame.Parent = bgContainer
         self._utilities.CreateCorner(glowFrame, 12)
         
         -- Animate background color
@@ -1580,6 +1600,12 @@ function InventoryUI:RefreshInventory()
             end
             child:Destroy()
         elseif child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
+            child:Destroy()
+        elseif child.Name == "Shadow" then
+            -- Clean up any orphaned effects from previous bugs
+            child:Destroy()
+        elseif child.Name:match("^GlowEffect") then
+            -- Clean up any orphaned glow effects
             child:Destroy()
         end
     end
