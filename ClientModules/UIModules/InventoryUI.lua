@@ -108,28 +108,8 @@ function InventoryUI.new(dependencies)
     self._config = dependencies.Config or Config
     self._utilities = dependencies.Utilities or Utilities
     
-    -- Load PetDatabase from SharedModules
-    self._petDatabase = {}
-    local sharedModules = game.ReplicatedStorage:FindFirstChild("SharedModules") or 
-                         game.ReplicatedStorage:FindFirstChild("SanrioTycoon") and 
-                         game.ReplicatedStorage.SanrioTycoon:FindFirstChild("SharedModules")
-    
-    if sharedModules then
-        local petDatabaseModule = sharedModules:FindFirstChild("PetDatabase")
-        if petDatabaseModule then
-            local success, result = pcall(require, petDatabaseModule)
-            if success then
-                self._petDatabase = result
-                print("[InventoryUI] PetDatabase loaded successfully")
-            else
-                warn("[InventoryUI] Failed to load PetDatabase:", result)
-            end
-        else
-            warn("[InventoryUI] PetDatabase module not found in SharedModules")
-        end
-    else
-        warn("[InventoryUI] SharedModules not found")
-    end
+    -- Pet name mapping - we'll populate this from server data
+    self._petNameCache = {}
     
     -- UI References
     self.Frame = nil
@@ -271,10 +251,10 @@ end
 function InventoryUI:Open()
     if self.Frame then
         self.Frame.Visible = true
-        -- Show Pets tab by default to ensure PetGrid exists
-        if not self.CurrentTab or self.CurrentTab ~= "Pets" then
-            self:ShowTab("Pets")
-        end
+        -- Always ensure we're on Pets tab first to create PetGrid
+        self:ShowTab("Pets")
+        -- Small delay to ensure UI is ready
+        task.wait()
         self:RefreshInventory()
         return
     end
@@ -1142,17 +1122,12 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
             if type(petData) == "table" then
                 petData.uniqueId = uniqueId
                 
-                -- Get pet template data
-                local templateData = nil
-                if self._petDatabase and self._petDatabase.GetPet then
-                    templateData = self._petDatabase:GetPet(petData.petId)
-                elseif self._petDatabase and self._petDatabase[petData.petId] then
-                    templateData = self._petDatabase[petData.petId]
-                end
-                
-                if not templateData then
-                    templateData = {name = "Unknown", displayName = "Unknown", rarity = 1}
-                end
+                -- Use pet's own data as template (server already sends complete data)
+                local templateData = {
+                    name = petData.name or "Unknown",
+                    displayName = petData.displayName or petData.name or "Unknown",
+                    rarity = petData.rarity or 1
+                }
                 
                 -- Apply filters
                 local filterFunc = FILTER_DEFINITIONS[self.CurrentFilter]
@@ -1469,34 +1444,26 @@ function InventoryUI:LoadPetsForDeletion(parent: ScrollingFrame)
     
     -- Sort by rarity (lowest first for easier mass deletion)
     table.sort(pets, function(a, b)
-        local aData = nil
-        local bData = nil
-        
-        if self._petDatabase and self._petDatabase.GetPet then
-            aData = self._petDatabase:GetPet(a.petId)
-            bData = self._petDatabase:GetPet(b.petId)
-        elseif self._petDatabase then
-            aData = self._petDatabase[a.petId]
-            bData = self._petDatabase[b.petId]
-        end
-        
-        aData = aData or {}
-        bData = bData or {}
+        -- Use pet's own data
+        local aData = {
+            name = a.name or "Unknown",
+            rarity = a.rarity or 1
+        }
+        local bData = {
+            name = b.name or "Unknown",
+            rarity = b.rarity or 1
+        }
         return (aData.rarity or 1) < (bData.rarity or 1)
     end)
     
     -- Create selection cards
     for _, pet in ipairs(pets) do
-        local petData = nil
-        if self._petDatabase and self._petDatabase.GetPet then
-            petData = self._petDatabase:GetPet(pet.petId)
-        elseif self._petDatabase and self._petDatabase[pet.petId] then
-            petData = self._petDatabase[pet.petId]
-        end
-        
-        if not petData then
-            petData = {name = "Unknown", displayName = "Unknown", rarity = 1}
-        end
+        -- Use pet's own data
+        local petData = {
+            name = pet.name or "Unknown",
+            displayName = pet.displayName or pet.name or "Unknown",
+            rarity = pet.rarity or 1
+        }
         
         local card = self:CreateDeleteSelectionCard(parent, pet, petData)
     end
@@ -1579,13 +1546,11 @@ function InventoryUI:SelectPetsByRarity(rarity: number)
             
             if playerData.pets and playerData.pets[petId] then
                 local pet = playerData.pets[petId]
-                local petData = nil
-                if self._petDatabase and self._petDatabase.GetPet then
-                    petData = self._petDatabase:GetPet(pet.petId)
-                elseif self._petDatabase and self._petDatabase[pet.petId] then
-                    petData = self._petDatabase[pet.petId]
-                end
-                petData = petData or {}
+                -- Use pet's own data
+                local petData = {
+                    name = pet.name or "Unknown",
+                    rarity = pet.rarity or 1
+                }
                 
                 if petData.rarity == rarity and not pet.equipped and not pet.locked then
                     self.SelectedForDeletion[petId] = true
@@ -1723,11 +1688,17 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
     
     -- Send delete request
     if self._remoteManager then
-        local success, result = self._remoteManager:InvokeServer("MassDeletePets", petIds)
+        local result = self._remoteManager:InvokeServer("MassDeletePets", petIds)
         
-        if success then
-            self._notificationSystem:SendNotification("Success", 
-                string.format("Successfully deleted %d pets!", #petIds), "success")
+        if result and result.success then
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Success",
+                    message = string.format("Successfully deleted %d pets!", #petIds),
+                    type = "success",
+                    duration = 3
+                })
+            end
             
             -- Play sound
             if self._soundSystem then
@@ -1740,8 +1711,14 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
             -- Refresh inventory
             self:RefreshInventory()
         else
-            self._notificationSystem:SendNotification("Error", 
-                result or "Failed to delete pets", "error")
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Error",
+                    message = result or "Failed to delete pets",
+                    type = "error",
+                    duration = 3
+                })
+            end
         end
     end
 end
