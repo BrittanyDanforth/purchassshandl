@@ -313,12 +313,18 @@ TradingUIModule.new = function(deps)
     if originalCreateTextBox then
         local fixedUIFactory = setmetatable({}, {__index = deps.UIFactory})
         
-        fixedUIFactory.CreateTextBox = function(self, config)
-            -- Fix PlaceholderText if it's a table
-            if config and type(config.placeholderText) == "table" then
-                config.placeholderText = tostring(config.placeholderText[1] or "Enter text...")
+        fixedUIFactory.CreateTextBox = function(self, parent, placeholderOrConfig, options)
+            -- Handle both old (config as second param) and new (separate params) signatures
+            if type(placeholderOrConfig) == "table" and not placeholderOrConfig.Parent then
+                -- Old style: config is second parameter
+                local config = placeholderOrConfig
+                local placeholder = config.placeholder or config.placeholderText or "Enter text..."
+                options = config
+                return originalCreateTextBox(self, parent, placeholder, options)
+            else
+                -- New style: separate parameters
+                return originalCreateTextBox(self, parent, placeholderOrConfig, options)
             end
-            return originalCreateTextBox(self, config)
         end
         
         instance._uiFactory = fixedUIFactory
@@ -354,14 +360,19 @@ QuestUIModule.new = function(deps)
         end
     end
     
-    -- Fix Open to register with window manager
+    -- Fix Open to close other UIs first
     local originalOpen = instance.Open
     instance.Open = function(self)
+        -- Close all other UIs first (except CurrencyDisplay)
+        for modName, modInstance in pairs(uiModules) do
+            if modName ~= "QuestUI" and modName ~= "CurrencyDisplay" and modInstance.Close then
+                modInstance:Close()
+            end
+        end
+        
         if originalOpen then
             originalOpen(self)
         end
-        
-        -- WindowManager registration removed - not needed
     end
     
     return instance
@@ -441,18 +452,40 @@ for _, moduleName in ipairs(uiModuleNames) do
     end
 end
 
--- Apply standard UI sizing to all modules
+-- Apply standard UI sizing to all modules - MATCH SHOP UI EXACTLY
 for name, instance in pairs(uiModules) do
-    -- Skip CurrencyDisplay as it has special sizing
-    if name ~= "CurrencyDisplay" then
-        -- Override Open method to apply standard sizing after UI creation
+    -- Skip CurrencyDisplay and ShopUI as they have correct sizing
+    if name ~= "CurrencyDisplay" and name ~= "ShopUI" then
+        -- Override CreateUI method to fix sizing at creation time
+        local originalCreateUI = instance.CreateUI
+        if originalCreateUI then
+            instance.CreateUI = function(self)
+                -- Call original CreateUI
+                originalCreateUI(self)
+                
+                -- Apply Shop UI's exact sizing after creation
+                if self.Frame then
+                    self.Frame.Size = UDim2.new(1, -20, 1, -90)
+                    self.Frame.Position = UDim2.new(0, 10, 0, 80)
+                    
+                    -- Ensure frame is not clipping or going beyond bounds
+                    self.Frame.ClipsDescendants = true
+                    self.Frame.ZIndex = 2
+                end
+            end
+        end
+        
+        -- Also override Open method in case Frame is created there
         local originalOpen = instance.Open
         if originalOpen then
             instance.Open = function(self, ...)
                 originalOpen(self, ...)
                 if self.Frame then
-                    self.Frame.Size = STANDARD_UI_SIZE
-                    self.Frame.Position = STANDARD_UI_POSITION
+                    -- Apply Shop UI's exact sizing
+                    self.Frame.Size = UDim2.new(1, -20, 1, -90)
+                    self.Frame.Position = UDim2.new(0, 10, 0, 80)
+                    self.Frame.ClipsDescendants = true
+                    self.Frame.ZIndex = 2
                 end
             end
         end

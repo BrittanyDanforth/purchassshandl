@@ -602,14 +602,17 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
     
     -- Variant indicator
     if result.variant then
-        local variantLabel = self._uiFactory:CreateLabel(resultFrame, {
-            text = result.variant:upper() .. " VARIANT!",
-            size = UDim2.new(1, 0, 0, 25),
-            position = UDim2.new(0, 0, 0, 410),
-            textColor = self._config.COLORS.Warning,
-            font = self._config.FONTS.Secondary,
-            zIndex = 104
-        })
+        local variantText = tostring(result.variant or ""):upper()
+        if variantText ~= "" then
+            local variantLabel = self._uiFactory:CreateLabel(resultFrame, {
+                text = variantText .. " VARIANT!",
+                size = UDim2.new(1, 0, 0, 25),
+                position = UDim2.new(0, 0, 0, 410),
+                textColor = self._config.COLORS.Warning,
+                font = self._config.FONTS.Secondary,
+                zIndex = 104
+            })
+        end
         
         -- Extra particles for variants
         if self._particleSystem and self._options.particleEffects then
