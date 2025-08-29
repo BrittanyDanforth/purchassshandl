@@ -44,7 +44,7 @@ type CurrencyOptions = {
 -- ========================================
 
 local DEFAULT_SIZE = UDim2.new(0, 400, 0, 60)
-local DEFAULT_POSITION = UDim2.new(0, 10, 0, 10)
+local DEFAULT_POSITION = UDim2.new(0, 10, 0, 70) -- Moved down to avoid overlap
 local CURRENCY_ITEM_WIDTH = 120
 local ICON_SIZE = 30
 local ANIMATION_DURATION = 0.3
@@ -101,8 +101,20 @@ function CurrencyDisplay:Initialize(parent: Instance?, options: CurrencyOptions?
     options = options or {}
     self._options = self:MergeOptions(self._options, options)
     
+    -- Create a separate ScreenGui for currency display with highest DisplayOrder
+    local playerGui = Services.Players.LocalPlayer:WaitForChild("PlayerGui")
+    local currencyGui = playerGui:FindFirstChild("CurrencyDisplayGui")
+    if not currencyGui then
+        currencyGui = Instance.new("ScreenGui")
+        currencyGui.Name = "CurrencyDisplayGui"
+        currencyGui.ResetOnSpawn = false
+        currencyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        currencyGui.DisplayOrder = 999 -- Always on top of other UI
+        currencyGui.Parent = playerGui
+    end
+    
     -- Create main frame
-    self:CreateFrame(parent or options.parent, options)
+    self:CreateFrame(currencyGui, options)
     
     -- Create currency items
     local currencies = options.currencies or DEFAULT_CURRENCIES
@@ -133,7 +145,7 @@ function CurrencyDisplay:CreateFrame(parent: Instance, options: CurrencyOptions)
     self.Frame.Position = options.position or DEFAULT_POSITION
     self.Frame.BackgroundColor3 = self._config.COLORS.White
     self.Frame.BorderSizePixel = 0
-    self.Frame.ZIndex = self._config.ZINDEX.Default + 10
+    self.Frame.ZIndex = 999 -- Always on top of other UI
     self.Frame.Parent = parent
     
     self._utilities.CreateCorner(self.Frame, 8)

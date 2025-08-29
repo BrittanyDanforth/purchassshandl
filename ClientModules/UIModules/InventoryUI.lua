@@ -218,6 +218,10 @@ end
 function InventoryUI:Open()
     if self.Frame then
         self.Frame.Visible = true
+        -- Show Pets tab by default to ensure PetGrid exists
+        if not self.CurrentTab or self.CurrentTab ~= "Pets" then
+            self:ShowTab("Pets")
+        end
         self:RefreshInventory()
         return
     end
@@ -402,7 +406,7 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         self.StorageBars = {}
     end
     
-    self.StorageBars[frame] = function(current: number)
+    local updateFunc = function(current: number)
         local max = self._dataCache and self._dataCache:Get("maxPetStorage") or 500
         local percentage = math.clamp(current / max, 0, 1)
         
@@ -420,13 +424,9 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         end
     end
     
-    -- Store reference to the fill bar in a table instead of attribute
-    if not self.StorageBars then
-        self.StorageBars = {}
-    end
     self.StorageBars[frame] = {
         barFill = barFill,
-        updateFunc = updateValue
+        updateFunc = updateFunc
     }
     
     -- Initial update
@@ -1017,11 +1017,14 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     -- 1. Try data cache directly
     if self._dataCache then
         pets = self._dataCache:Get("pets")
+        print("[InventoryUI] Got pets from cache:", pets)
         if not pets then
             -- Try under playerData
             local playerData = self._dataCache:Get("playerData")
+            print("[InventoryUI] Got playerData from cache:", playerData)
             if playerData then
                 pets = playerData.pets
+                print("[InventoryUI] Got pets from playerData:", pets)
             end
         end
     end
