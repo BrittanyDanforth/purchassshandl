@@ -9,6 +9,7 @@ local Types = require(script.Parent.Parent.Core.ClientTypes)
 local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
 
 local CaseOpeningUI = {}
 CaseOpeningUI.__index = CaseOpeningUI
@@ -68,6 +69,9 @@ local RARITY_NAMES = {
 
 function CaseOpeningUI.new(dependencies)
     local self = setmetatable({}, CaseOpeningUI)
+    
+    -- Initialize Janitor for memory management
+    self._janitor = Janitor.new()
     
     -- Dependencies
     self._eventBus = dependencies.EventBus
@@ -1303,6 +1307,12 @@ end
 
 function CaseOpeningUI:Destroy()
     self:Cleanup()
+    
+    -- Clean up all connections and objects via Janitor
+    if self._janitor then
+        self._janitor:Cleanup()
+        self._janitor = nil
+    end
     
     -- Clear references
     self._currentResults = nil

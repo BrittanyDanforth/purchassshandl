@@ -158,6 +158,7 @@ function AnimationSystem.new(dependencies)
     self._animations = {} -- Active animations by ID
     self._animationChains = {} -- Animation chains by ID
     self._springAnimations = {} -- Spring animations by ID
+    self._customAnimations = {} -- Custom animations by ID (for centralized update)
     self._animationsByObject = {} -- Map of object to animation IDs
     self._animationQueue = {} -- Queue of pending animations
     
@@ -530,48 +531,36 @@ end
 
 function AnimationSystem:AnimateCustom(object: Instance, property: string, startValue: any, endValue: any, duration: number, easingFunction: (number) -> number, onComplete: (() -> ())?): string
     local animationId = self:GenerateId()
-    local startTime = tick()
-    local connection
     
     -- Ensure we can work with numbers
     startValue = tonumber(startValue) or 0
     endValue = tonumber(endValue) or 0
     
-    connection = Services.RunService.Heartbeat:Connect(function()
-        if not self._enabled then
-            connection:Disconnect()
-            return
-        end
-        
-        local elapsed = (tick() - startTime) * self._timeScale
-        local progress = math.min(elapsed / duration, 1)
-        local easedProgress = easingFunction(progress)
-        
-        -- Interpolate value
-        local currentValue = startValue + (endValue - startValue) * easedProgress
-        
-        -- Apply to object
-        local success = pcall(function()
-            object[property] = currentValue
-        end)
-        
-        if not success or progress >= 1 then
-            connection:Disconnect()
-            
-            if onComplete then
-                task.spawn(onComplete)
-            end
-            
-            -- Fire event
-            if self._eventBus then
-                self._eventBus:Fire("CustomAnimationCompleted", {
-                    id = animationId,
-                    object = object,
-                    property = property,
-                })
-            end
-        end
-    end)
+    -- Store animation data for centralized update
+    local customAnim = {
+        id = animationId,
+        object = object,
+        property = property,
+        startValue = startValue,
+        endValue = endValue,
+        duration = duration,
+        easingFunction = easingFunction,
+        onComplete = onComplete,
+        startTime = tick(),
+        state = "playing"
+    }
+    
+    self._customAnimations[animationId] = customAnim
+    
+    -- Track by object
+    if not self._animationsByObject[object] then
+        self._animationsByObject[object] = {}
+    end
+    table.insert(self._animationsByObject[object], animationId)
+    
+    -- Update metrics
+    self._performanceMetrics.totalAnimations = self._performanceMetrics.totalAnimations + 1
+    self._performanceMetrics.activeAnimations = self._performanceMetrics.activeAnimations + 1
     
     return animationId
 end
@@ -888,14 +877,76 @@ function AnimationSystem:StartUpdateLoop()
         end
         self._performanceMetrics.averageFrameTime = sum / #self._performanceMetrics.frameTimeHistory
         
-        -- Check for performance issues (only warn for very severe drops)
-        if frameTime > 1/10 then -- Less than 10 FPS (very tolerant)
+        -- Check for performance issues (disabled to prevent spam)
+        -- Only enable for debugging severe issues
+        if false and frameTime > 1/10 then -- Less than 10 FPS (very tolerant)
             self:OnPerformanceIssue(frameTime)
         end
         
         -- Process animation queue if needed
         self:ProcessAnimationQueue()
+        
+        -- Update all custom animations in the centralized loop
+        self:UpdateCustomAnimations(currentTime)
     end)
+end
+
+function AnimationSystem:UpdateCustomAnimations(currentTime: number)
+    local completedAnimations = {}
+    
+    for animId, anim in pairs(self._customAnimations) do
+        if anim.state == "playing" and self._enabled then
+            local elapsed = (currentTime - anim.startTime) * self._timeScale
+            local progress = math.min(elapsed / anim.duration, 1)
+            local easedProgress = anim.easingFunction(progress)
+            
+            -- Interpolate value
+            local currentValue = anim.startValue + (anim.endValue - anim.startValue) * easedProgress
+            
+            -- Apply to object
+            local success = pcall(function()
+                anim.object[anim.property] = currentValue
+            end)
+            
+            if not success or progress >= 1 then
+                table.insert(completedAnimations, animId)
+                
+                if anim.onComplete then
+                    task.spawn(anim.onComplete)
+                end
+                
+                -- Fire event
+                if self._eventBus then
+                    self._eventBus:Fire("CustomAnimationCompleted", {
+                        id = animId,
+                        object = anim.object,
+                        property = anim.property,
+                    })
+                end
+            end
+        end
+    end
+    
+    -- Clean up completed animations
+    for _, animId in ipairs(completedAnimations) do
+        local anim = self._customAnimations[animId]
+        if anim then
+            self._customAnimations[animId] = nil
+            self._performanceMetrics.activeAnimations = self._performanceMetrics.activeAnimations - 1
+            self._performanceMetrics.completedAnimations = self._performanceMetrics.completedAnimations + 1
+            
+            -- Remove from object tracking
+            if self._animationsByObject[anim.object] then
+                local index = table.find(self._animationsByObject[anim.object], animId)
+                if index then
+                    table.remove(self._animationsByObject[anim.object], index)
+                end
+                if #self._animationsByObject[anim.object] == 0 then
+                    self._animationsByObject[anim.object] = nil
+                end
+            end
+        end
+    end
 end
 
 function AnimationSystem:ProcessAnimationQueue()
@@ -918,8 +969,8 @@ end
 
 function AnimationSystem:OnPerformanceIssue(frameTime: number)
     -- Only log extreme performance issues to reduce console spam
-    if self._debugMode and frameTime > 0.5 then -- 500ms = 2 FPS
-        warn("[AnimationSystem] Severe performance issue detected. Frame time:", frameTime)
+    if self._debugMode and frameTime > 1.0 then -- 1000ms = 1 FPS (only warn for EXTREME issues)
+        warn("[AnimationSystem] Extreme performance issue detected. Frame time:", frameTime)
     end
     
     -- Reduce max concurrent animations temporarily
