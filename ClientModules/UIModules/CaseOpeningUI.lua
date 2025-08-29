@@ -329,13 +329,9 @@ function CaseOpeningUI:ShowCaseAnimation(result: CaseResult, index: number, tota
         zIndex = 103
     })
     
-    if self._skipAnimation then
-        -- Skip directly to result
-        self:ShowResult(content, result)
-    else
-        -- Show spinning animation
-        self:CreateSpinnerAnimation(content, result)
-    end
+    -- Skip animation for now and show result directly
+    -- TODO: Add spinning animation later
+    self:ShowResult(content, result)
     
     self._animationInProgress = false
 end
@@ -425,7 +421,7 @@ function CaseOpeningUI:CreateSpinnerAnimation(container: Frame, result: CaseResu
 end
 
 function CaseOpeningUI:CreateCaseItem(petId: string, isWinner: boolean): Frame
-    -- Try to get pet data from various sources
+    -- Get pet data with multiple fallbacks
     local petData
     
     -- First check if petId is actually a pet data table (from server)
@@ -433,25 +429,45 @@ function CaseOpeningUI:CreateCaseItem(petId: string, isWinner: boolean): Frame
         petData = petId
         petId = petData.id or petData.name
     else
-        -- Try to get from data cache
-        petData = self._dataCache and self._dataCache:Get("petDatabase." .. petId)
+        -- Try multiple sources for pet data
+        -- 1. Try data cache
+        if self._dataCache then
+            petData = self._dataCache:Get("petDatabase." .. petId)
+        end
         
-        -- Try shared modules
+        -- 2. Try ReplicatedStorage paths
         if not petData then
-            local sharedModules = game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules")
-            if sharedModules then
-                local petDatabase = sharedModules:FindFirstChild("PetDatabase")
-                if petDatabase then
-                    local PetDatabase = require(petDatabase)
-                    petData = PetDatabase:GetPet and PetDatabase:GetPet(petId) or PetDatabase[petId]
+            local locations = {
+                game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules"),
+                game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):FindFirstChild("Shared"),
+                game:GetService("ReplicatedStorage"):FindFirstChild("ServerModules")
+            }
+            
+            for _, location in ipairs(locations) do
+                if location then
+                    local petDatabase = location:FindFirstChild("PetDatabase")
+                    if petDatabase then
+                        local success, PetDatabase = pcall(require, petDatabase)
+                        if success then
+                            if type(PetDatabase) == "table" then
+                                if PetDatabase.GetPet then
+                                    petData = PetDatabase:GetPet(petId)
+                                else
+                                    petData = PetDatabase[petId]
+                                end
+                                if petData then break end
+                            end
+                        end
+                    end
                 end
             end
         end
         
-        -- Fallback
+        -- 3. Ultimate fallback
         if not petData then
             petData = {
                 displayName = petId or "Unknown",
+                name = petId or "Unknown",
                 rarity = 1,
                 imageId = "rbxassetid://0"
             }
@@ -519,22 +535,12 @@ end
 -- ========================================
 
 function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
-    -- Clear spinner with fade
-    local spinner = container:FindFirstChild("SpinnerFrame")
-    if spinner then
-        self._utilities.Tween(spinner, {BackgroundTransparency = 1}, self._config.TWEEN_INFO.Normal)
-        for _, child in ipairs(spinner:GetDescendants()) do
-            if child:IsA("GuiObject") then
-                self._utilities.Tween(child, {
-                    BackgroundTransparency = 1,
-                    ImageTransparency = 1,
-                    TextTransparency = 1
-                }, self._config.TWEEN_INFO.Normal)
-            end
+    -- Clear any existing content
+    for _, child in ipairs(container:GetChildren()) do
+        if child.Name ~= "Title" then
+            child:Destroy()
         end
     end
-    
-    task.wait(0.3)
     
     -- Create result frame
     local resultFrame = Instance.new("Frame")
@@ -552,23 +558,39 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
         petData = result.pet
     elseif result.petData then
         petData = result.petData
-    elseif result.petId then
-        -- Try to get from shared modules
-        local sharedModules = game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules")
-        if sharedModules then
-            local petDatabase = sharedModules:FindFirstChild("PetDatabase")
-            if petDatabase then
-                local PetDatabase = require(petDatabase)
-                petData = PetDatabase:GetPet and PetDatabase:GetPet(result.petId) or PetDatabase[result.petId]
+    elseif result.petId or result.petName then
+        local petId = result.petId or result.petName
+        -- Try multiple sources
+        local locations = {
+            game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules"),
+            game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):FindFirstChild("Shared"),
+            game:GetService("ReplicatedStorage"):FindFirstChild("ServerModules")
+        }
+        
+        for _, location in ipairs(locations) do
+            if location then
+                local petDatabase = location:FindFirstChild("PetDatabase")
+                if petDatabase then
+                    local success, PetDatabase = pcall(require, petDatabase)
+                    if success and type(PetDatabase) == "table" then
+                        if PetDatabase.GetPet then
+                            petData = PetDatabase:GetPet(petId)
+                        else
+                            petData = PetDatabase[petId]
+                        end
+                        if petData then break end
+                    end
+                end
             end
         end
     end
     
-    -- Fallback
+    -- Fallback with better defaults
     petData = petData or {
-        displayName = result.petId or "Unknown Pet", 
-        rarity = 1,
-        imageId = "rbxassetid://0"
+        displayName = result.petName or result.petId or "Unknown Pet",
+        name = result.petName or result.petId or "Unknown Pet",
+        rarity = result.rarity or 1,
+        imageId = "rbxassetid://11410884298" -- Default pet image
     }
     
     -- Handle variants
@@ -805,6 +827,8 @@ function CaseOpeningUI:GenerateCaseItems(result: CaseResult): {string}
     
     -- Get all possible pets from database
     local allPets = {}
+    
+    -- Try to get pet list from various sources
     if self._dataCache then
         local petDatabase = self._dataCache:Get("petDatabase") or {}
         for petId, _ in pairs(petDatabase) do
@@ -812,16 +836,43 @@ function CaseOpeningUI:GenerateCaseItems(result: CaseResult): {string}
         end
     end
     
-    -- If no pets found, use placeholder
+    -- If still no pets, try to get from modules
     if #allPets == 0 then
-        allPets = {"pet_1", "pet_2", "pet_3", "pet_4", "pet_5"}
+        local locations = {
+            game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules"),
+            game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):FindFirstChild("Shared")
+        }
+        
+        for _, location in ipairs(locations) do
+            if location then
+                local petDatabase = location:FindFirstChild("PetDatabase")
+                if petDatabase then
+                    local success, PetDatabase = pcall(require, petDatabase)
+                    if success and type(PetDatabase) == "table" then
+                        for petId, _ in pairs(PetDatabase) do
+                            if type(petId) == "string" then
+                                table.insert(allPets, petId)
+                            end
+                        end
+                        if #allPets > 0 then break end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- If still no pets found, use placeholder pets
+    if #allPets == 0 then
+        allPets = {"Common_Pet_1", "Common_Pet_2", "Rare_Pet_1", "Epic_Pet_1", "Legendary_Pet_1"}
     end
     
     -- Generate random items
+    local winnerPetId = result.petId or result.petName or allPets[1]
+    
     for i = 1, itemCount do
         if i == math.floor(itemCount / 2) then
             -- Winner position
-            table.insert(items, result.petId)
+            table.insert(items, winnerPetId)
         else
             -- Random pet
             table.insert(items, allPets[math.random(1, #allPets)])

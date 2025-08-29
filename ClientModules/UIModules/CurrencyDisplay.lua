@@ -433,11 +433,18 @@ function CurrencyDisplay:SetupDataBindings()
             self:UpdateCurrency(currencyName, value or 0)
         end)
         
-        -- Get initial value
+        -- Get initial value - try multiple sources
         local initialValue = self._dataCache:Get("currencies." .. currencyName)
-        if initialValue then
-            self:UpdateCurrency(currencyName, initialValue, true)
+        if not initialValue then
+            -- Try getting from playerData
+            local playerData = self._dataCache:Get("playerData")
+            if playerData and playerData.currencies then
+                initialValue = playerData.currencies[currencyName]
+            end
         end
+        
+        -- Set initial value (default to 0 if not found)
+        self:UpdateCurrency(currencyName, initialValue or 0, true)
     end
 end
 
@@ -459,6 +466,24 @@ function CurrencyDisplay:SetupEventListeners()
     self._eventBus:On("CurrenciesUpdated", function(currencies)
         for currencyName, value in pairs(currencies) do
             self:UpdateCurrency(currencyName, value)
+        end
+    end)
+    
+    -- Listen for player data loaded
+    self._eventBus:On("PlayerDataLoaded", function(playerData)
+        if playerData and playerData.currencies then
+            for currencyName, value in pairs(playerData.currencies) do
+                self:UpdateCurrency(currencyName, value)
+            end
+        end
+    end)
+    
+    -- Listen for remote currency updates from server
+    self._eventBus:On("RemoteCurrencyUpdated", function(currencies)
+        if type(currencies) == "table" then
+            for currencyName, value in pairs(currencies) do
+                self:UpdateCurrency(currencyName, value)
+            end
         end
     end)
 end

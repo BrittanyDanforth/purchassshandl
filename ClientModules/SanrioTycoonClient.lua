@@ -422,7 +422,7 @@ local uiModules = {}
 local uiModuleNames = {
     "CurrencyDisplay",
     "ShopUI",
-    "CaseOpeningUI",
+    "CaseOpeningUI", -- Back to original
     "InventoryUI",
     "PetDetailsUI",
     "TradingUI",
