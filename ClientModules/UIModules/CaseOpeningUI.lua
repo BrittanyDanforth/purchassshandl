@@ -230,7 +230,7 @@ function CaseOpeningUI:CreateOverlay()
     self._overlay = Instance.new("Frame")
     self._overlay.Name = "CaseOpeningOverlay"
     self._overlay.Size = UDim2.new(1, 0, 1, 0)
-    self._overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    self._overlay.BackgroundColor3 = Color3.fromRGB(10, 10, 15) -- Very dark background
     self._overlay.BackgroundTransparency = 1
     self._overlay.ZIndex = 100
     self._overlay.Parent = screenGui
@@ -247,18 +247,32 @@ function CaseOpeningUI:CreateContainer()
     self._container.Name = "CaseContainer"
     self._container.Size = UDim2.new(0, CONTAINER_SIZE.X, 0, CONTAINER_SIZE.Y)
     self._container.Position = UDim2.new(0.5, -CONTAINER_SIZE.X/2, 0.5, -CONTAINER_SIZE.Y/2)
-    self._container.BackgroundColor3 = self._config.COLORS.Background
+    self._container.BackgroundColor3 = Color3.fromRGB(25, 25, 35) -- Dark premium color
     self._container.BorderSizePixel = 0
     self._container.ZIndex = 101
     self._container.Parent = self._overlay
     
     self._utilities.CreateCorner(self._container, 20)
     
-    -- Gradient background
-    local gradient = self._utilities.CreateGradient(self._container, {
-        self._config.COLORS.Primary,
-        self._utilities.DarkenColor(self._config.COLORS.Primary, 0.2)
-    }, 90)
+    -- Modern dark gradient background (NO MORE PINK!)
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = 45
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 30)),     -- Dark blue
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40, 30, 60)),   -- Dark purple
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))      -- Dark blue
+    })
+    gradient.Parent = self._container
+    
+    -- Add animated gradient effect
+    task.spawn(function()
+        while self._container.Parent do
+            TweenService:Create(gradient, TweenInfo.new(5, Enum.EasingStyle.Linear), {
+                Rotation = gradient.Rotation + 360
+            }):Play()
+            task.wait(5)
+        end
+    end)
     
     -- Create skip button (initially hidden)
     self:CreateSkipButton()

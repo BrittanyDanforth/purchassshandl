@@ -930,20 +930,29 @@ function InventoryUI:UpdatePetCard(card: Frame, petInstance: PetInstance, petDat
         border.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
     end
     
-    -- Update equipped indicator
+    -- Update equipped indicator with smooth animation
     local equippedIndicator = card:FindFirstChild("EquippedIndicator")
     if petInstance.equipped and not equippedIndicator then
-        -- Add equipped indicator
-        equippedIndicator = Instance.new("ImageLabel")
-        equippedIndicator.Name = "EquippedIndicator"
-        equippedIndicator.Size = UDim2.new(0, 24, 0, 24)
-        equippedIndicator.Position = UDim2.new(1, -26, 0, 2)
-        equippedIndicator.BackgroundTransparency = 1
-        equippedIndicator.Image = "rbxassetid://7072717697"
-        equippedIndicator.ImageColor3 = self._config.COLORS.Success
-        equippedIndicator.Parent = card
+        -- Add equipped indicator with animation
+        if self._equipAnimations then
+            self._equipAnimations:UpdateEquippedIndicator(card, true, false)
+        else
+            -- Fallback to instant
+            equippedIndicator = Instance.new("ImageLabel")
+            equippedIndicator.Name = "EquippedIndicator"
+            equippedIndicator.Size = UDim2.new(0, 24, 0, 24)
+            equippedIndicator.Position = UDim2.new(1, -26, 0, 2)
+            equippedIndicator.BackgroundTransparency = 1
+            equippedIndicator.Image = "rbxassetid://7072717697"
+            equippedIndicator.ImageColor3 = self._config.COLORS.Success
+            equippedIndicator.Parent = card
+        end
     elseif not petInstance.equipped and equippedIndicator then
-        equippedIndicator:Destroy()
+        if self._equipAnimations then
+            self._equipAnimations:UpdateEquippedIndicator(card, false, false)
+        else
+            equippedIndicator:Destroy()
+        end
     end
     
     -- Update lock indicator

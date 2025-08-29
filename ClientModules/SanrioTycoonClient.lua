@@ -46,9 +46,9 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 -- ========================================
 -- CONSTANTS
 -- ========================================
--- Use Shop's size for all UIs (almost full MainPanel size)
-local STANDARD_UI_SIZE = UDim2.new(1, -20, 1, -90)
-local STANDARD_UI_POSITION = UDim2.new(0, 10, 0, 80)
+-- Premium UI positioning - raised and better centered
+local STANDARD_UI_SIZE = UDim2.new(1, -40, 1, -60)
+local STANDARD_UI_POSITION = UDim2.new(0, 20, 0, 40)
 
 -- ========================================
 -- MODULE PATHS
@@ -226,6 +226,19 @@ local effectsLibrary = EffectsLibrary.new({
 })
 
 _G.SpecialEffects = effectsLibrary
+
+-- Load UI Polish System for AAA quality
+local UIPolishSystem = require(SystemModules:WaitForChild("UIPolishSystem"))
+local uiPolishSystem = UIPolishSystem.new({
+    EventBus = eventBus,
+    StateManager = stateManager,
+    SoundSystem = soundSystem,
+    AnimationSystem = animationSystem,
+    UIFactory = uiFactory,
+    Config = ClientConfig,
+    Utilities = ClientUtilities
+})
+print("[SanrioTycoonClient] ✅ UIPolishSystem loaded - AAA Polish Active!")
 
 -- ========================================
 -- FRAMEWORK
@@ -550,8 +563,16 @@ task.spawn(function()
     
     eventBus:Fire("ClientReady")
     
+    -- Apply UI Polish after everything is loaded
+    task.wait(0.5)
+    if uiPolishSystem then
+        uiPolishSystem:PolishAllUI()
+        print("[SanrioTycoonClient] 🎨 UI Polish Applied - AAA Quality Active!")
+    end
+    
     print("[SanrioTycoonClient] ========================================")
     print("[SanrioTycoonClient] ✅ COMPLETE FIXED CLIENT v9.0 READY!")
+    print("[SanrioTycoonClient] ✅ AAA UI POLISH SYSTEM ACTIVE!")
     print("[SanrioTycoonClient] ========================================")
 end)
 
