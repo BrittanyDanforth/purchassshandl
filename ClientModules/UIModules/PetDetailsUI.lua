@@ -252,10 +252,15 @@ end
 -- ========================================
 
 function PetDetailsUI:CreateOverlay()
-    local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    -- Create a separate ScreenGui with higher DisplayOrder to ensure it's always on top
+    local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("PetDetailsUILayer")
     if not screenGui then
-        warn("[PetDetailsUI] No ScreenGui found")
-        return
+        screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "PetDetailsUILayer"
+        screenGui.DisplayOrder = 10  -- Higher than main UI
+        screenGui.ResetOnSpawn = false
+        screenGui.IgnoreGuiInset = true
+        screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
     end
     
     -- Create overlay
@@ -454,7 +459,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
     -- FIXED POSITIONING - Action buttons frame at position 0,0 inside its container
     local actionsFrame = Instance.new("Frame")
     actionsFrame.Name = "ActionButtonsFrame"
-    actionsFrame.Size = UDim2.new(1, -20, 0, 100)
+    actionsFrame.Size = UDim2.new(1, -20, 0, (BUTTON_HEIGHT + BUTTON_SPACING) * 3)  -- Space for 3 buttons
     actionsFrame.BackgroundTransparency = 1
     actionsFrame.ZIndex = 205
     actionsFrame.LayoutOrder = 2
