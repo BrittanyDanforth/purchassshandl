@@ -170,8 +170,9 @@ local RemoteEvents = {
     ChatMessage = CreateRemote(RemoteEventsFolder, "ChatMessage", "RemoteEvent"),
 }
 
--- RemoteFunctions
-local RemoteFunctions = {
+-- RemoteFunctions (Disabled - using BOOTSTRAP instead)
+local RemoteFunctions = {}
+--[[
     -- Data
     GetPlayerData = CreateRemote(RemoteFunctionsFolder, "GetPlayerData", "RemoteFunction"),
     
@@ -235,7 +236,7 @@ local RemoteFunctions = {
     SendClanInvite = CreateRemote(RemoteFunctionsFolder, "SendClanInvite", "RemoteFunction"),
     AcceptClanInvite = CreateRemote(RemoteFunctionsFolder, "AcceptClanInvite", "RemoteFunction"),
     KickMember = CreateRemote(RemoteFunctionsFolder, "KickMember", "RemoteFunction"),
-}
+]]--
 
 -- ========================================
 -- INITIALIZE SYSTEMS

@@ -191,18 +191,36 @@ function RemoteManager:Initialize()
 		end
 	end
 	
-	-- Retry missing functions after a delay
+	-- Retry missing functions after a delay with multiple attempts
 	if #missingFunctions > 0 then
-		task.wait(1)
-		for _, functionName in ipairs(missingFunctions) do
-			local remote = remoteFunctionsFolder:FindFirstChild(functionName)
-			if remote and remote:IsA("RemoteFunction") then
-				self._remoteFunctions[functionName] = remote
-				self._traffic.byFunction[functionName] = {sent = 0, received = 0}
-			else
-				warn("[RemoteManager] RemoteFunction still not found after retry:", functionName)
+		task.spawn(function()
+			local attempts = 0
+			local maxAttempts = 5
+			
+			while #missingFunctions > 0 and attempts < maxAttempts do
+				attempts = attempts + 1
+				task.wait(1)
+				
+				local stillMissing = {}
+				for _, functionName in ipairs(missingFunctions) do
+					local remote = remoteFunctionsFolder:FindFirstChild(functionName)
+					if remote and remote:IsA("RemoteFunction") then
+						self._remoteFunctions[functionName] = remote
+						self._traffic.byFunction[functionName] = {sent = 0, received = 0}
+						print("[RemoteManager] Found RemoteFunction on attempt", attempts, ":", functionName)
+					else
+						table.insert(stillMissing, functionName)
+					end
+				end
+				
+				missingFunctions = stillMissing
 			end
-		end
+			
+			-- Warn about any still missing
+			for _, functionName in ipairs(missingFunctions) do
+				warn("[RemoteManager] RemoteFunction still not found after", maxAttempts, "attempts:", functionName)
+			end
+		end)
 	end
 
 	-- Start queue processor

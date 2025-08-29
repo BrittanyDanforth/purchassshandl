@@ -653,20 +653,34 @@ function InventoryUI:CreateControls()
     
     -- Sort dropdown
     local sortOptions = {"Rarity", "Level", "Power", "Recent", "Name"}
-    self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
+    self.SortDropdown = self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 220, 0.5, -17.5),
         function(option)
             self.CurrentSort = option
+            -- Close any open dropdowns before refresh
+            if self.SortDropdown and self.SortDropdown.CloseDropdown then
+                self.SortDropdown.CloseDropdown()
+            end
+            if self.FilterDropdown and self.FilterDropdown.CloseDropdown then
+                self.FilterDropdown.CloseDropdown()
+            end
             self:RefreshInventory()
         end
     )
     
     -- Filter dropdown
     local filterOptions = {"All", "Equipped", "Locked", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Shiny", "Golden", "Rainbow"}
-    self:CreateDropdown(controlsBar, "Filter", filterOptions,
+    self.FilterDropdown = self:CreateDropdown(controlsBar, "Filter", filterOptions,
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 380, 0.5, -17.5),
         function(option)
             self.CurrentFilter = option
+            -- Close any open dropdowns before refresh
+            if self.SortDropdown and self.SortDropdown.CloseDropdown then
+                self.SortDropdown.CloseDropdown()
+            end
+            if self.FilterDropdown and self.FilterDropdown.CloseDropdown then
+                self.FilterDropdown.CloseDropdown()
+            end
             self:RefreshInventory()
         end
     )
