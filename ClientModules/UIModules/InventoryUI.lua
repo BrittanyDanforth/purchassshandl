@@ -161,8 +161,8 @@ function InventoryUI.new(dependencies)
     
     -- State
     self.IsRefreshing = false
-    self.CurrentFilter = "All"
-    self.CurrentSort = "Level"
+    self.CurrentFilter = FILTER_TYPE.ALL
+    self.CurrentSort = SORT_TYPE.LEVEL
     self.SearchText = ""
     self.VisiblePets = {}
     self.PetWatcher = nil
@@ -355,6 +355,56 @@ function InventoryUI:SetupEventListeners()
 end
 
 -- ========================================
+-- DATA FETCHING
+-- ========================================
+
+function InventoryUI:FetchPlayerData()
+    if not self._remoteManager then
+        warn("[InventoryUI] No RemoteManager available to fetch data")
+        return
+    end
+    
+    print("[InventoryUI] Fetching fresh player data...")
+    
+    local success, result = pcall(function()
+        return self._remoteManager:InvokeServer("GetPlayerData")
+    end)
+    
+    if success and result then
+        print("[InventoryUI] Successfully fetched player data")
+        
+        -- Update various caches
+        if self._dataCache then
+            if self._dataCache.Set then
+                self._dataCache:Set("playerData", result)
+            elseif self._dataCache.Update then
+                self._dataCache:Update(function(current)
+                    return {playerData = result}
+                end)
+            end
+        end
+        
+        -- Update state manager
+        if self._stateManager and self._stateManager.SetState then
+            self._stateManager:SetState({playerData = result})
+        end
+        
+        -- Fire event
+        if self._eventBus then
+            self._eventBus:Fire("PlayerDataLoaded", result)
+            if result.pets then
+                self._eventBus:Fire("PetsUpdated", result.pets)
+            end
+        end
+        
+        return result
+    else
+        warn("[InventoryUI] Failed to fetch player data:", result)
+        return nil
+    end
+end
+
+-- ========================================
 -- OPEN/CLOSE
 -- ========================================
 
@@ -384,9 +434,15 @@ function InventoryUI:Open()
         
         -- Always ensure we're on Pets tab first to create PetGrid
         self:ShowTab("Pets")
-        -- Small delay to ensure UI is ready
-        task.wait()
-        self:RefreshInventory()
+        
+        -- Fetch fresh pet data before displaying
+        task.spawn(function()
+            self:FetchPlayerData()
+            -- Small delay to ensure data is propagated
+            task.wait(0.1)
+            self:RefreshInventory()
+        end)
+        
         return
     end
     
@@ -2180,11 +2236,60 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
         end
     end
     
+    -- Last resort: Check if we have the full data structure
+    if not pets and self._dataCache then
+        local fullData = self._dataCache:Get()
+        if fullData and type(fullData) == "table" then
+            -- Check various possible paths
+            if fullData.pets then
+                pets = fullData.pets
+            elseif fullData.playerData and fullData.playerData.pets then
+                pets = fullData.playerData.pets
+            end
+        end
+    end
+    
     -- Debug logging
-    print("[InventoryUI] Getting pets - found:", pets and "yes" or "no", "count:", pets and table.maxn(pets) or 0)
+    if not pets then
+        warn("[InventoryUI] No pet data found! Checking data sources:")
+        warn("  - DataCache exists:", self._dataCache ~= nil)
+        if self._dataCache then
+            local playerData = self._dataCache:Get("playerData")
+            warn("  - PlayerData exists:", playerData ~= nil)
+            if playerData then
+                warn("  - PlayerData.pets exists:", playerData.pets ~= nil)
+                warn("  - PlayerData structure:", playerData)
+            end
+        end
+        warn("  - StateManager exists:", self._stateManager ~= nil)
+    else
+        print("[InventoryUI] Found pets! Count:", table.maxn(pets))
+    end
     
     if not pets then
-        return {}
+        -- Create mock data for testing if no pets exist
+        if self._config and self._config.DEBUG_MODE then
+            print("[InventoryUI] DEBUG: Creating mock pet data")
+            pets = {
+                ["debug_pet_1"] = {
+                    uniqueId = "debug_pet_1",
+                    petId = "001_hello_kitty",
+                    name = "Hello Kitty",
+                    displayName = "Hello Kitty",
+                    level = 1,
+                    experience = 0,
+                    power = 100,
+                    speed = 50,
+                    luck = 25,
+                    equipped = false,
+                    locked = false,
+                    rarity = 3,
+                    obtained = os.time()
+                }
+            }
+        else
+            return {}
+        end
     end
     
     local petsArray = {}
