@@ -425,13 +425,38 @@ function CaseOpeningUI:CreateSpinnerAnimation(container: Frame, result: CaseResu
 end
 
 function CaseOpeningUI:CreateCaseItem(petId: string, isWinner: boolean): Frame
-    local petData = self._dataCache and self._dataCache:Get("petDatabase." .. petId) or
-                    LocalData and LocalData.PetDatabase and LocalData.PetDatabase[petId] or
-                    {
-                        displayName = "Unknown",
-                        rarity = 1,
-                        imageId = "rbxassetid://0"
-                    }
+    -- Try to get pet data from various sources
+    local petData
+    
+    -- First check if petId is actually a pet data table (from server)
+    if type(petId) == "table" and petId.name then
+        petData = petId
+        petId = petData.id or petData.name
+    else
+        -- Try to get from data cache
+        petData = self._dataCache and self._dataCache:Get("petDatabase." .. petId)
+        
+        -- Try shared modules
+        if not petData then
+            local sharedModules = game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules")
+            if sharedModules then
+                local petDatabase = sharedModules:FindFirstChild("PetDatabase")
+                if petDatabase then
+                    local PetDatabase = require(petDatabase)
+                    petData = PetDatabase:GetPet and PetDatabase:GetPet(petId) or PetDatabase[petId]
+                end
+            end
+        end
+        
+        -- Fallback
+        if not petData then
+            petData = {
+                displayName = petId or "Unknown",
+                rarity = 1,
+                imageId = "rbxassetid://0"
+            }
+        end
+    end
     
     local item = Instance.new("Frame")
     item.Name = petId
@@ -520,11 +545,31 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
     resultFrame.ZIndex = 103
     resultFrame.Parent = container
     
-    -- Get pet data
-    local petData = result.petData or 
-                   (self._dataCache and self._dataCache:Get("petDatabase." .. result.petId)) or
-                   (LocalData and LocalData.PetDatabase and LocalData.PetDatabase[result.petId]) or
-                   {displayName = "Unknown Pet", rarity = 1}
+    -- Get pet data - handle both old and new formats
+    local petData
+    if result.pet then
+        -- New format from server
+        petData = result.pet
+    elseif result.petData then
+        petData = result.petData
+    elseif result.petId then
+        -- Try to get from shared modules
+        local sharedModules = game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules")
+        if sharedModules then
+            local petDatabase = sharedModules:FindFirstChild("PetDatabase")
+            if petDatabase then
+                local PetDatabase = require(petDatabase)
+                petData = PetDatabase:GetPet and PetDatabase:GetPet(result.petId) or PetDatabase[result.petId]
+            end
+        end
+    end
+    
+    -- Fallback
+    petData = petData or {
+        displayName = result.petId or "Unknown Pet", 
+        rarity = 1,
+        imageId = "rbxassetid://0"
+    }
     
     -- Handle variants
     local finalPetData = petData

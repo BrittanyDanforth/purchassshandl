@@ -543,6 +543,31 @@ function RemoteManager:SetupDefaultHandlers()
 		if self._debugMode then
 			print("[RemoteManager] Data loaded")
 		end
+		
+		-- Update data cache
+		if self._dataCache then
+			self._dataCache:Set("playerData", playerData)
+			
+			-- Update currencies specifically
+			if playerData.currencies then
+				self._dataCache:Set("currencies", playerData.currencies)
+			end
+			
+			-- Update pets
+			if playerData.pets then
+				self._dataCache:Set("pets", playerData.pets)
+			end
+		end
+		
+		-- Fire state change for UI updates
+		if self._stateManager then
+			self._stateManager:SetState("playerData", playerData)
+		end
+		
+		-- Fire event for other systems
+		if self._eventBus then
+			self._eventBus:Fire("PlayerDataLoaded", playerData)
+		end
 	end)
 
 	self:On("DataUpdated", function(data)

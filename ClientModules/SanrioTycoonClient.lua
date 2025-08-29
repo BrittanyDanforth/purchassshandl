@@ -501,9 +501,16 @@ remoteManager:On("DataLoaded", function(playerData)
 end)
 
 -- Handle case opening
-remoteManager:On("CaseOpened", function(results, eggData)
+remoteManager:On("CaseOpened", function(data)
     print("[SanrioTycoonClient] Case opened, showing animation...")
     if uiModules.CaseOpeningUI then
+        -- Handle both old and new response formats
+        local results = data.results or data
+        local eggData = data.eggData
+        
+        -- Log for debugging
+        print("[SanrioTycoonClient] Case results:", results)
+        
         uiModules.CaseOpeningUI:Open(results, eggData)
     end
 end)
