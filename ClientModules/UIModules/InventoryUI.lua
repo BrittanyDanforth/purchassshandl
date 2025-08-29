@@ -350,8 +350,9 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         textColor = self._config.COLORS.TextSecondary
     })
     
-    -- Add update function
-    frame.UpdateValue = function(current: number)
+    -- Create bar object with UpdateValue method
+    local bar = frame
+    bar.UpdateValue = function(current: number)
         local max = self._dataCache and self._dataCache:Get("maxPetStorage") or 500
         local percentage = math.clamp(current / max, 0, 1)
         
@@ -369,7 +370,7 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         end
     end
     
-    return frame
+    return bar
 end
 
 function InventoryUI:CreateControls()
