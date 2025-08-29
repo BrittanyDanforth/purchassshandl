@@ -140,6 +140,17 @@ function InventoryUI.new(dependencies)
     self.LastRefreshTime = 0
     self.RefreshCooldown = 0.5
     
+    -- Virtual Scrolling
+    self.VirtualScrollEnabled = true
+    self.VisibleCardPool = {}  -- Pool of reusable card frames
+    self.ActiveCards = {}  -- Currently visible cards mapped to data
+    self.CardHeight = 150  -- Height of each card
+    self.CardPadding = 10  -- Padding between cards
+    self.ColumnsPerRow = 5  -- Number of columns
+    self.VisibleRows = 4  -- Number of visible rows
+    self.ScrollConnection = nil
+    self.LastScrollPosition = 0
+    
     -- Set up event listeners
     self:SetupEventListeners()
     
@@ -1635,6 +1646,264 @@ function InventoryUI:ApplyVariantEffect(card: Frame, variant: string)
 end
 
 -- ========================================
+-- VIRTUAL SCROLLING
+-- ========================================
+
+function InventoryUI:GetPooledCard()
+    -- Try to get a card from the pool
+    if #self.VisibleCardPool > 0 then
+        local card = table.remove(self.VisibleCardPool)
+        card.Visible = true
+        return card
+    end
+    
+    -- No cards in pool, create a new one (without data)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(0, self.CardHeight, 0, self.CardHeight)
+    card.BackgroundColor3 = self._config.COLORS.White or Color3.new(1, 1, 1)
+    card.BorderSizePixel = 0
+    
+    self._utilities.CreateCorner(card, 8)
+    
+    -- Basic structure that will be reused
+    local border = Instance.new("Frame")
+    border.Name = "RarityBorder"
+    border.Size = UDim2.new(1, 0, 0, 4)
+    border.Position = UDim2.new(0, 0, 1, -4)
+    border.BorderSizePixel = 0
+    border.Parent = card
+    
+    local imageContainer = Instance.new("Frame")
+    imageContainer.Name = "ImageContainer"
+    imageContainer.Size = UDim2.new(1, -10, 1, -40)
+    imageContainer.Position = UDim2.new(0, 5, 0, 5)
+    imageContainer.BackgroundTransparency = 1
+    imageContainer.Parent = card
+    
+    local petImage = Instance.new("ImageLabel")
+    petImage.Name = "PetImage"
+    petImage.Size = UDim2.new(1, 0, 1, 0)
+    petImage.BackgroundTransparency = 1
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.Parent = imageContainer
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, -10, 0, 30)
+    nameLabel.Position = UDim2.new(0, 5, 1, -35)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font = self._config.FONTS.Primary
+    nameLabel.TextScaled = true
+    nameLabel.TextColor3 = self._config.COLORS.Text
+    nameLabel.Parent = card
+    
+    local levelLabel = Instance.new("TextLabel")
+    levelLabel.Name = "LevelLabel"
+    levelLabel.Size = UDim2.new(0, 40, 0, 20)
+    levelLabel.Position = UDim2.new(0, 5, 0, 5)
+    levelLabel.BackgroundColor3 = Color3.new(0, 0, 0)
+    levelLabel.BackgroundTransparency = 0.3
+    levelLabel.Font = self._config.FONTS.Primary
+    levelLabel.TextScaled = true
+    levelLabel.TextColor3 = Color3.new(1, 1, 1)
+    levelLabel.Parent = card
+    self._utilities.CreateCorner(levelLabel, 4)
+    
+    local button = Instance.new("TextButton")
+    button.Name = "ClickButton"
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.ZIndex = 10
+    button.Parent = card
+    
+    return card
+end
+
+function InventoryUI:ReturnCardToPool(card: Frame)
+    -- Clear the card data
+    card.Visible = false
+    card.Parent = nil
+    
+    -- Reset attributes
+    card:SetAttribute("PetName", nil)
+    card:SetAttribute("PetNickname", nil)
+    card:SetAttribute("Rarity", nil)
+    card:SetAttribute("Equipped", nil)
+    card:SetAttribute("Locked", nil)
+    
+    -- Add to pool for reuse
+    table.insert(self.VisibleCardPool, card)
+end
+
+function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, petData: table)
+    -- Update the card with new pet data
+    card.Name = "PetCard_" .. tostring(petInstance.uniqueId or petInstance.petId or "unknown")
+    
+    -- Update attributes
+    card:SetAttribute("PetName", petData.name or petData.displayName or "Unknown")
+    card:SetAttribute("PetNickname", petInstance.nickname or "")
+    card:SetAttribute("Rarity", petData.rarity or 1)
+    card:SetAttribute("Equipped", petInstance.equipped or false)
+    card:SetAttribute("Locked", petInstance.locked or false)
+    
+    -- Update visuals
+    local border = card:FindFirstChild("RarityBorder")
+    if border then
+        border.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
+    end
+    
+    local petImage = card:FindFirstChild("ImageContainer"):FindFirstChild("PetImage")
+    if petImage then
+        petImage.Image = petData.imageId or ""
+    end
+    
+    local nameLabel = card:FindFirstChild("NameLabel")
+    if nameLabel then
+        nameLabel.Text = petInstance.nickname or petData.displayName or petData.name or "Unknown"
+    end
+    
+    local levelLabel = card:FindFirstChild("LevelLabel")
+    if levelLabel then
+        levelLabel.Text = "Lv." .. tostring(petInstance.level or 1)
+    end
+    
+    -- Update click handler
+    local button = card:FindFirstChild("ClickButton")
+    if button then
+        -- Disconnect old connection if it exists
+        if card:GetAttribute("ClickConnection") then
+            local oldConnection = card:GetAttribute("ClickConnection")
+            if oldConnection then
+                oldConnection:Disconnect()
+            end
+        end
+        
+        -- Create new connection
+        local connection = self._janitor:Add(button.MouseButton1Click:Connect(function()
+            if self._eventBus then
+                self._eventBus:Fire("ShowPetDetails", {
+                    petInstance = petInstance,
+                    petData = petData
+                })
+            end
+        end))
+        
+        card:SetAttribute("ClickConnection", connection)
+    end
+    
+    -- Add equipped/locked indicators
+    self:UpdateCardIndicators(card, petInstance)
+end
+
+function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
+    -- Remove old indicators
+    local oldEquipped = card:FindFirstChild("EquippedIndicator")
+    if oldEquipped then oldEquipped:Destroy() end
+    
+    local oldLocked = card:FindFirstChild("LockedIndicator")
+    if oldLocked then oldLocked:Destroy() end
+    
+    -- Add equipped indicator
+    if petInstance.equipped then
+        local equipped = Instance.new("ImageLabel")
+        equipped.Name = "EquippedIndicator"
+        equipped.Size = UDim2.new(0, 30, 0, 30)
+        equipped.Position = UDim2.new(1, -35, 0, 5)
+        equipped.BackgroundTransparency = 1
+        equipped.Image = "rbxassetid://7734053426" -- Checkmark icon
+        equipped.ImageColor3 = self._config.COLORS.Success
+        equipped.Parent = card
+    end
+    
+    -- Add locked indicator
+    if petInstance.locked then
+        local locked = Instance.new("ImageLabel")
+        locked.Name = "LockedIndicator"
+        locked.Size = UDim2.new(0, 25, 0, 25)
+        locked.Position = UDim2.new(1, -30, 1, -30)
+        locked.BackgroundTransparency = 1
+        locked.Image = "rbxassetid://7734021047" -- Lock icon
+        locked.ImageColor3 = self._config.COLORS.Warning
+        locked.Parent = card
+    end
+end
+
+function InventoryUI:SetupVirtualScrolling()
+    if not self.PetGrid then return end
+    
+    -- Disconnect old scroll connection
+    if self.ScrollConnection then
+        self.ScrollConnection:Disconnect()
+        self.ScrollConnection = nil
+    end
+    
+    -- Calculate visible area
+    local visibleCards = self.ColumnsPerRow * self.VisibleRows
+    
+    -- Pre-create card pool
+    for i = 1, visibleCards + self.ColumnsPerRow do  -- Extra row for smooth scrolling
+        local card = self:GetPooledCard()
+        table.insert(self.VisibleCardPool, card)
+    end
+    
+    -- Set up scroll listener
+    self.ScrollConnection = self._janitor:Add(self.PetGrid:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        self:OnVirtualScroll()
+    end))
+end
+
+function InventoryUI:OnVirtualScroll()
+    if not self.VirtualScrollEnabled or not self.PetGrid then return end
+    
+    local scrollY = self.PetGrid.CanvasPosition.Y
+    local rowHeight = self.CardHeight + self.CardPadding
+    
+    -- Calculate which row is at the top of the visible area
+    local topRow = math.floor(scrollY / rowHeight)
+    local bottomRow = topRow + self.VisibleRows + 1  -- Extra row for buffer
+    
+    -- Calculate which pets should be visible
+    local startIndex = topRow * self.ColumnsPerRow + 1
+    local endIndex = bottomRow * self.ColumnsPerRow
+    
+    -- Use the stored visible pets
+    local pets = self.VisiblePets or {}
+    
+    -- Remove cards that are no longer visible
+    for index, card in pairs(self.ActiveCards) do
+        if index < startIndex or index > endIndex then
+            self:ReturnCardToPool(card)
+            self.ActiveCards[index] = nil
+        end
+    end
+    
+    -- Add cards for newly visible pets
+    for i = startIndex, math.min(endIndex, #pets) do
+        if not self.ActiveCards[i] then
+            local petInfo = pets[i]
+            if petInfo then
+                local card = self:GetPooledCard()
+                if card then
+                    -- Calculate position
+                    local row = math.floor((i - 1) / self.ColumnsPerRow)
+                    local col = (i - 1) % self.ColumnsPerRow
+                    
+                    card.Position = UDim2.new(0, col * (self.CardHeight + self.CardPadding), 
+                                            0, row * (self.CardHeight + self.CardPadding))
+                    card.Parent = self.PetGrid
+                    
+                    -- Update with pet data
+                    self:UpdateCardWithData(card, petInfo.pet, petInfo.data)
+                    
+                    self.ActiveCards[i] = card
+                end
+            end
+        end
+    end
+end
+
+-- ========================================
 -- INVENTORY REFRESH
 -- ========================================
 
@@ -1699,28 +1968,43 @@ function InventoryUI:RefreshInventory()
     -- Get grid layout
     local gridLayout = self.PetGrid:FindFirstChildOfClass("UIGridLayout")
     
-    -- Clear all children from PetGrid except UIGridLayout
-    for _, child in ipairs(self.PetGrid:GetChildren()) do
-        if child:IsA("Frame") and child.Name:match("^PetCard_") then
-            -- Remove from cache if it exists
-            local cacheIndex = table.find(self.PetCardCache, child)
-            if cacheIndex then
-                table.remove(self.PetCardCache, cacheIndex)
-            end
-            child:Destroy()
-        elseif child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
-            child:Destroy()
-        elseif child.Name == "Shadow" then
-            -- Clean up any orphaned effects from previous bugs
-            child:Destroy()
-        elseif child.Name:match("^GlowEffect") then
-            -- Clean up any orphaned glow effects
-            child:Destroy()
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode - return all active cards to pool
+        for index, card in pairs(self.ActiveCards) do
+            self:ReturnCardToPool(card)
         end
+        self.ActiveCards = {}
+        
+        -- Clear any loading/empty state labels
+        for _, child in ipairs(self.PetGrid:GetChildren()) do
+            if child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
+                child:Destroy()
+            end
+        end
+    else
+        -- Traditional mode - destroy all cards
+        for _, child in ipairs(self.PetGrid:GetChildren()) do
+            if child:IsA("Frame") and child.Name:match("^PetCard_") then
+                -- Remove from cache if it exists
+                local cacheIndex = table.find(self.PetCardCache, child)
+                if cacheIndex then
+                    table.remove(self.PetCardCache, cacheIndex)
+                end
+                child:Destroy()
+            elseif child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
+                child:Destroy()
+            elseif child.Name == "Shadow" then
+                -- Clean up any orphaned effects from previous bugs
+                child:Destroy()
+            elseif child.Name:match("^GlowEffect") then
+                -- Clean up any orphaned glow effects
+                child:Destroy()
+            end
+        end
+        
+        -- Clear the card cache since we destroyed all cards
+        self.PetCardCache = {}
     end
-    
-    -- Clear the card cache since we destroyed all cards
-    self.PetCardCache = {}
     
     -- Show loading state
     local loadingLabel = Instance.new("TextLabel")
@@ -1888,13 +2172,31 @@ function InventoryUI:ShowEmptyState()
 end
 
 function InventoryUI:DisplayPets(pets: table)
-    -- Create all pet cards fresh (we cleared the grid in RefreshInventory)
-    for i, petInfo in ipairs(pets) do
-        local card = self:CreatePetCard(self.PetGrid, petInfo.pet, petInfo.data)
-        if card then
-            card.LayoutOrder = i
-            -- Add to cache for potential future use
-            table.insert(self.PetCardCache, card)
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode
+        self.VisiblePets = pets  -- Store for virtual scrolling
+        
+        -- Calculate total canvas size
+        local totalRows = math.ceil(#pets / self.ColumnsPerRow)
+        local canvasHeight = totalRows * (self.CardHeight + self.CardPadding)
+        self.PetGrid.CanvasSize = UDim2.new(0, 0, 0, canvasHeight)
+        
+        -- Set up virtual scrolling if not already set up
+        if not self.ScrollConnection then
+            self:SetupVirtualScrolling()
+        end
+        
+        -- Initial render
+        self:OnVirtualScroll()
+    else
+        -- Traditional mode (create all cards)
+        for i, petInfo in ipairs(pets) do
+            local card = self:CreatePetCard(self.PetGrid, petInfo.pet, petInfo.data)
+            if card then
+                card.LayoutOrder = i
+                -- Add to cache for potential future use
+                table.insert(self.PetCardCache, card)
+            end
         end
     end
 end
@@ -2758,6 +3060,24 @@ function InventoryUI:Destroy()
         self._janitor:Cleanup()
         self._janitor = nil
     end
+    
+    -- Clean up virtual scrolling
+    if self.ScrollConnection then
+        self.ScrollConnection:Disconnect()
+        self.ScrollConnection = nil
+    end
+    
+    -- Return all active cards to pool
+    for _, card in pairs(self.ActiveCards) do
+        card:Destroy()  -- Destroy instead of pooling since we're shutting down
+    end
+    self.ActiveCards = {}
+    
+    -- Destroy pooled cards
+    for _, card in ipairs(self.VisibleCardPool) do
+        card:Destroy()
+    end
+    self.VisibleCardPool = {}
     
     -- Clean up watchers
     if self.PetWatcher then

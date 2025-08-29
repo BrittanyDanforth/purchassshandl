@@ -463,6 +463,48 @@ function ClientConfig:Initialize()
 	return self
 end
 
--- Create and return singleton instance
+-- ========================================
+-- IMMUTABILITY
+-- ========================================
+
+local function makeReadOnly(tbl, tableName)
+	tableName = tableName or "Config"
+	
+	-- Create a proxy table that prevents modifications
+	local proxy = {}
+	local mt = {
+		__index = function(t, k)
+			local value = tbl[k]
+			if type(value) == "table" then
+				-- Recursively make nested tables read-only
+				return makeReadOnly(value, tableName .. "." .. tostring(k))
+			end
+			return value
+		end,
+		__newindex = function(t, k, v)
+			error(string.format(
+				"[ClientConfig] Attempt to modify read-only configuration! Cannot set %s.%s = %s",
+				tableName, tostring(k), tostring(v)
+			), 2)
+		end,
+		__metatable = "Protected: ClientConfig is read-only",
+		-- Make pairs/ipairs work correctly
+		__pairs = function(t)
+			return pairs(tbl)
+		end,
+		__ipairs = function(t)
+			return ipairs(tbl)
+		end,
+		-- Prevent table operations
+		__len = function(t)
+			return #tbl
+		end
+	}
+	
+	setmetatable(proxy, mt)
+	return proxy
+end
+
+-- Create and return singleton instance (read-only)
 local instance = ClientConfig:Initialize()
-return instance
+return makeReadOnly(instance, "ClientConfig")
