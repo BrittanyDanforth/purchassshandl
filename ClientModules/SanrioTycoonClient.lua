@@ -187,14 +187,24 @@ local uiFactory = UIFactory.new({
     Utilities = ClientUtilities
 })
 
--- Fix dropdown
+-- Fix dropdown - updated to match new signature
 local originalCreateDropdown = uiFactory.CreateDropdown
 if originalCreateDropdown then
-    uiFactory.CreateDropdown = function(self, config)
-        local dropdown = originalCreateDropdown(self, config)
+    uiFactory.CreateDropdown = function(self, parent, items, defaultItem, options)
+        -- Handle both old (config) and new (separate params) calling conventions
+        if type(parent) == "table" and not parent.Parent then
+            -- Old style: single config parameter
+            local config = parent
+            parent = config.parent
+            items = config.items
+            defaultItem = config.defaultItem or config.defaultValue
+            options = config
+        end
+        
+        local dropdown = originalCreateDropdown(self, parent, items, defaultItem, options)
         if dropdown and not dropdown.GetValue then
             dropdown.GetValue = function()
-                return dropdown.Value or (config and config.defaultValue) or ""
+                return dropdown.Value or defaultItem or ""
             end
         end
         return dropdown
@@ -351,13 +361,7 @@ QuestUIModule.new = function(deps)
             originalOpen(self)
         end
         
-        -- Register with window manager
-        if self._windowManager and self.Frame then
-            self._windowManager:RegisterWindow("QuestUI", {
-                Frame = self.Frame,
-                Module = self
-            })
-        end
+        -- WindowManager registration removed - not needed
     end
     
     return instance
@@ -440,23 +444,35 @@ end
 -- Apply standard UI sizing to all modules
 for name, instance in pairs(uiModules) do
     -- Skip CurrencyDisplay as it has special sizing
-    if name ~= "CurrencyDisplay" and instance.Frame then
-        -- Override CreateUI to apply standard sizing
-        local originalCreateUI = instance.CreateUI
-        if originalCreateUI then
-            instance.CreateUI = function(self, ...)
-                originalCreateUI(self, ...)
+    if name ~= "CurrencyDisplay" then
+        -- Override Open method to apply standard sizing after UI creation
+        local originalOpen = instance.Open
+        if originalOpen then
+            instance.Open = function(self, ...)
+                originalOpen(self, ...)
                 if self.Frame then
                     self.Frame.Size = STANDARD_UI_SIZE
                     self.Frame.Position = STANDARD_UI_POSITION
                 end
             end
         end
+    end
+end
+
+-- Fix Settings UI getting stuck
+local settingsUI = uiModules.SettingsUI
+if settingsUI then
+    local originalSettingsOpen = settingsUI.Open
+    settingsUI.Open = function(self, ...)
+        -- Close all other UIs first
+        for modName, modInstance in pairs(uiModules) do
+            if modName ~= "SettingsUI" and modName ~= "CurrencyDisplay" and modInstance.Close then
+                modInstance:Close()
+            end
+        end
         
-        -- Apply to existing frame if already created
-        if instance.Frame then
-            instance.Frame.Size = STANDARD_UI_SIZE
-            instance.Frame.Position = STANDARD_UI_POSITION
+        if originalSettingsOpen then
+            originalSettingsOpen(self, ...)
         end
     end
 end
