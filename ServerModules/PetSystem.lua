@@ -102,20 +102,26 @@ function PetSystem:AddPetToInventory(player, petInstance)
     local RemoteEvents = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents")
     local PetUpdated = RemoteEvents:FindFirstChild("PetUpdated")
     if PetUpdated then
+        print("[PetSystem] Firing PetUpdated event to client for pet:", petInstance.uniqueId)
         PetUpdated:FireClient(player, {
             action = "added",
             petId = petInstance.uniqueId,
             pet = petInstance
         })
+    else
+        warn("[PetSystem] PetUpdated RemoteEvent not found!")
     end
     
     -- Also fire inventory updated event
     local InventoryUpdated = RemoteEvents:FindFirstChild("InventoryUpdated")
     if InventoryUpdated then
+        print("[PetSystem] Firing InventoryUpdated event with", playerData.petCount, "pets")
         InventoryUpdated:FireClient(player, {
             pets = playerData.pets,
             petCount = playerData.petCount
         })
+    else
+        warn("[PetSystem] InventoryUpdated RemoteEvent not found!")
     end
     
     return true, petInstance

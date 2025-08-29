@@ -181,27 +181,43 @@ function InventoryUI:SetupEventListeners()
         
         self._remoteManager:On("PetUpdated", function(data)
             print("[InventoryUI] Received pet update from server:", data)
+            print("[InventoryUI] Pet update action:", data and data.action)
+            print("[InventoryUI] Pet data:", data and data.pet)
+            
             if data and data.action == "added" and data.pet then
                 -- Update data cache with new pet
                 if self._dataCache then
                     local pets = self._dataCache:Get("pets") or {}
-                    pets[data.petId] = data.pet
-                    self._dataCache:Set("pets", pets)
+                    local petId = data.petId or (data.pet and data.pet.uniqueId)
                     
-                    local petCount = self._dataCache:Get("petCount") or 0
-                    self._dataCache:Set("petCount", petCount + 1)
-                    
-                    -- Also update playerData
-                    local playerData = self._dataCache:Get("playerData") or {}
-                    playerData.pets = pets
-                    playerData.petCount = petCount
-                    self._dataCache:Set("playerData", playerData)
-                    
-                    print("[InventoryUI] Updated pet cache. Total pets:", petCount)
+                    if petId then
+                        pets[petId] = data.pet
+                        self._dataCache:Set("pets", pets)
+                        
+                        local petCount = self._dataCache:Get("petCount") or 0
+                        petCount = petCount + 1
+                        self._dataCache:Set("petCount", petCount)
+                        
+                        -- Also update playerData
+                        local playerData = self._dataCache:Get("playerData") or {}
+                        playerData.pets = pets
+                        playerData.petCount = petCount
+                        self._dataCache:Set("playerData", playerData)
+                        
+                        print("[InventoryUI] Updated pet cache. Total pets:", petCount)
+                        print("[InventoryUI] Pet IDs in cache:", petId)
+                    else
+                        warn("[InventoryUI] No petId found in update data")
+                    end
+                else
+                    warn("[InventoryUI] No dataCache available")
                 end
                 -- Refresh UI
                 if self.Frame and self.Frame.Visible then
+                    print("[InventoryUI] Refreshing inventory display")
                     self:RefreshInventory()
+                else
+                    print("[InventoryUI] Frame not visible, skipping refresh")
                 end
             end
         end)
@@ -463,8 +479,7 @@ function InventoryUI:CreateControls()
     controlsBar.Parent = self.Frame
     
     -- Search box
-    local searchBox = self._uiFactory:CreateTextBox(controlsBar, {
-        placeholder = "Search pets...",
+    local searchBox = self._uiFactory:CreateTextBox(controlsBar, "Search pets...", {
         size = UDim2.new(0, 200, 0, 35),
         position = UDim2.new(0, 10, 0.5, -17.5),
         callback = function(text)

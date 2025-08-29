@@ -1045,8 +1045,7 @@ function QuestUI:CreateAchievementFilterBar(parent: Frame): Frame
     searchFrame.BackgroundTransparency = 1
     searchFrame.Parent = filterBar
     
-    local searchBox = self._uiFactory:CreateTextBox(searchFrame, {
-        placeholderText = "Search...",
+    local searchBox = self._uiFactory:CreateTextBox(searchFrame, "Search...", {
         size = UDim2.new(1, 0, 0, 30),
         position = UDim2.new(0, 0, 0.5, -15),
         callback = function(text)

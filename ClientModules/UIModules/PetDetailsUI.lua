@@ -1209,8 +1209,7 @@ function PetDetailsUI:OpenRenameDialog()
     })
     
     -- Input
-    local input = self._uiFactory:CreateTextBox(self._renameDialog, {
-        placeholder = "Enter new name...",
+    local input = self._uiFactory:CreateTextBox(self._renameDialog, "Enter new name...", {
         size = UDim2.new(1, -40, 0, 40),
         position = UDim2.new(0, 20, 0, 60),
         clearTextOnFocus = false
