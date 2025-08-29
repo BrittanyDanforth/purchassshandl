@@ -872,6 +872,16 @@ function InventoryUI:ShowTab(tabName: string)
         local petsTab = self.TabFrames["Pets"]
         if petsTab then
             self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+            
+            -- Ensure the PetGrid is properly initialized
+            if self.PetGrid then
+                -- Refresh inventory after switching to pets tab
+                task.defer(function()
+                    self:RefreshInventory()
+                end)
+            else
+                warn("[InventoryUI] PetGridScrollFrame not found in Pets tab")
+            end
         end
     end
 end
@@ -1306,9 +1316,13 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     button.Size = UDim2.new(1, 0, 1, 0)
     button.BackgroundTransparency = 1
     button.Text = ""
+    button.ZIndex = 10  -- Ensure button is always on top
     button.Parent = card
     
     button.MouseButton1Click:Connect(function()
+        if self._config.DEBUG.ENABLED then
+            print("[InventoryUI] Pet card clicked:", petInstance.uniqueId)
+        end
         self:ShowPetDetails(petInstance, petData)
     end)
     
@@ -1343,6 +1357,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     button.MouseEnter:Connect(function()
         -- Bring to front
         card.ZIndex = originalZIndex + 10
+        button.ZIndex = 20  -- Keep button on top when hovering
         -- Shadow stays at ZIndex -1 relative to card
         
         -- Create glow effect (destroy old one first if it exists)
@@ -1413,6 +1428,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     button.MouseLeave:Connect(function()
         -- Reset Z-index
         card.ZIndex = originalZIndex + 2
+        button.ZIndex = 10  -- Reset button ZIndex
         -- Shadow stays at ZIndex -1 relative to card
         
         -- Animate background color

@@ -1253,7 +1253,7 @@ function ShopUI:ShowEggPurchaseDialog(eggData: EggData)
     -- Create modal
     local modalId = self._windowManager:CreateWindow({
         title = "Open " .. (eggData.displayName or eggData.name) .. "?",
-        size = Vector2.new(400, 300),
+        size = Vector2.new(500, 400),
         modal = true,
         canClose = true,
         canMinimize = false,
@@ -1275,15 +1275,17 @@ function ShopUI:ShowEggPurchaseDialog(eggData: EggData)
     -- Multi-open options
     local amountLabel = self._uiFactory:CreateLabel(content, {
         text = "Amount to open:",
-        size = UDim2.new(1, -20, 0, 20),
-        position = UDim2.new(0, 10, 0, 120),
-        textColor = self._config.COLORS.Text
+        size = UDim2.new(1, -20, 0, 25),
+        position = UDim2.new(0, 10, 0, 130),
+        textColor = self._config.COLORS.Text,
+        textSize = 18,
+        font = self._config.FONTS.Secondary
     })
     
     -- Amount buttons
     local buttonContainer = Instance.new("Frame")
-    buttonContainer.Size = UDim2.new(1, -20, 0, 40)
-    buttonContainer.Position = UDim2.new(0, 10, 0, 145)
+    buttonContainer.Size = UDim2.new(1, -20, 0, 50)
+    buttonContainer.Position = UDim2.new(0, 10, 0, 165)
     buttonContainer.BackgroundTransparency = 1
     buttonContainer.Parent = content
     
@@ -1299,10 +1301,12 @@ function ShopUI:ShowEggPurchaseDialog(eggData: EggData)
     
     for _, amount in ipairs(amounts) do
         local btn = self._uiFactory:CreateButton(buttonContainer, {
-            text = tostring(amount),
-            size = UDim2.new(0, 60, 1, 0),
+            text = amount .. "x",
+            size = UDim2.new(0, 80, 1, 0),
             backgroundColor = amount == 1 and self._config.COLORS.Primary or self._config.COLORS.Surface,
             textColor = amount == 1 and self._config.COLORS.White or self._config.COLORS.Text,
+            textSize = 18,
+            font = self._config.FONTS.Bold,
             callback = function()
                 selectedAmount = amount
                 -- Update button states
@@ -1323,9 +1327,10 @@ function ShopUI:ShowEggPurchaseDialog(eggData: EggData)
     -- Total cost
     local totalCostLabel = self._uiFactory:CreateLabel(content, {
         text = "Total: " .. self._utilities.FormatNumber(eggData.price),
-        size = UDim2.new(1, -20, 0, 25),
-        position = UDim2.new(0, 10, 0, 195),
-        font = self._config.FONTS.Secondary,
+        size = UDim2.new(1, -20, 0, 30),
+        position = UDim2.new(0, 10, 0, 235),
+        font = self._config.FONTS.Bold,
+        textSize = 20,
         textColor = self._config.COLORS.Text
     })
     
@@ -1341,9 +1346,11 @@ function ShopUI:ShowEggPurchaseDialog(eggData: EggData)
     -- Confirm button
     local confirmButton = self._uiFactory:CreateButton(content, {
         text = "Confirm Purchase",
-        size = UDim2.new(1, -20, 0, 40),
-        position = UDim2.new(0, 10, 1, -50),
+        size = UDim2.new(1, -20, 0, 50),
+        position = UDim2.new(0, 10, 1, -70),
         backgroundColor = self._config.COLORS.Success,
+        textSize = 18,
+        font = self._config.FONTS.Bold,
         callback = function()
             self._windowManager:CloseWindow(modalId)
             self:PurchaseEgg(eggData, selectedAmount)

@@ -255,15 +255,24 @@ function CaseOpeningUI:CreateContainer()
     
     self._utilities.CreateCorner(self._container, 20)
     
-    -- Modern dark gradient background (NO MORE PINK!)
+    -- Premium dark gradient background with gold accents
     local gradient = Instance.new("UIGradient")
-    gradient.Rotation = 45
+    gradient.Rotation = 90
     gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 30)),     -- Dark blue
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(40, 30, 60)),   -- Dark purple
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 30))      -- Dark blue
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 15, 25)),      -- Very dark navy
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(25, 20, 40)),    -- Dark purple
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 25, 50)),    -- Mid purple
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(25, 20, 40)),    -- Dark purple
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 25))       -- Very dark navy
     })
     gradient.Parent = self._container
+    
+    -- Add gold border stroke for premium feel
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 215, 0)  -- Gold
+    stroke.Thickness = 3
+    stroke.Transparency = 0.7
+    stroke.Parent = self._container
     
     -- Add animated gradient effect
     task.spawn(function()
@@ -717,14 +726,41 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
     petDisplay.ZIndex = 104
     petDisplay.Parent = resultFrame
     
-    -- Pet image
+    -- Pet image with entrance animation
     local petImage = Instance.new("ImageLabel")
-    petImage.Size = UDim2.new(1, 0, 1, 0)
+    petImage.Size = UDim2.new(0.8, 0, 0.8, 0)  -- Start smaller
+    petImage.Position = UDim2.new(0.5, 0, 0.5, 0)
+    petImage.AnchorPoint = Vector2.new(0.5, 0.5)
     petImage.BackgroundTransparency = 1
     petImage.Image = finalPetData.imageId or ""
     petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.ImageTransparency = 1  -- Start invisible
     petImage.ZIndex = 105
     petImage.Parent = petDisplay
+    
+    -- Entrance animation
+    task.spawn(function()
+        task.wait(0.2)  -- Small delay
+        
+        -- Fade in and scale up
+        self._utilities.Tween(petImage, {
+            Size = UDim2.new(1, 0, 1, 0),
+            ImageTransparency = 0
+        }, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        -- Add bounce effect for epic pets
+        if finalPetData.rarity >= 4 then
+            task.wait(0.6)
+            self._utilities.Tween(petImage, {
+                Size = UDim2.new(1.1, 0, 1.1, 0)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            task.wait(0.2)
+            self._utilities.Tween(petImage, {
+                Size = UDim2.new(1, 0, 1, 0)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        end
+    end)
     
     -- Add shine effect for rare pets
     if finalPetData.rarity >= 4 then
@@ -753,11 +789,57 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
     glow.ZIndex = 103
     glow.Parent = petDisplay
     
-    -- Animate glow
+    -- Animate glow with pulsing effect
     self._utilities.Tween(glow, {
         Size = UDim2.new(0, GLOW_EFFECT_SIZE + 50, 0, GLOW_EFFECT_SIZE + 50),
         ImageTransparency = 0.3
     }, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true))
+    
+    -- Add rotating light rays for epic pets
+    if finalPetData.rarity >= 4 then
+        local rayContainer = Instance.new("Frame")
+        rayContainer.Size = UDim2.new(0, PET_DISPLAY_SIZE * 2, 0, PET_DISPLAY_SIZE * 2)
+        rayContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+        rayContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+        rayContainer.BackgroundTransparency = 1
+        rayContainer.ZIndex = 102
+        rayContainer.Parent = petDisplay
+        
+        -- Create light rays
+        for i = 1, 6 do
+            local ray = Instance.new("Frame")
+            ray.Size = UDim2.new(0, 4, 0, PET_DISPLAY_SIZE * 2)
+            ray.Position = UDim2.new(0.5, 0, 0.5, 0)
+            ray.AnchorPoint = Vector2.new(0.5, 0.5)
+            ray.BackgroundColor3 = rarityColor
+            ray.BorderSizePixel = 0
+            ray.Rotation = (i - 1) * 60
+            ray.ZIndex = 102
+            ray.Parent = rayContainer
+            
+            -- Add gradient to rays
+            local rayGradient = Instance.new("UIGradient")
+            rayGradient.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.4, 0.8),
+                NumberSequenceKeypoint.new(0.5, 0),
+                NumberSequenceKeypoint.new(0.6, 0.8),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+            rayGradient.Rotation = 90
+            rayGradient.Parent = ray
+        end
+        
+        -- Animate rotation
+        task.spawn(function()
+            while rayContainer.Parent do
+                TweenService:Create(rayContainer, TweenInfo.new(8, Enum.EasingStyle.Linear), {
+                    Rotation = rayContainer.Rotation + 360
+                }):Play()
+                task.wait(8)
+            end
+        end)
+    end
     
     -- Variant indicator
     if result.variant then

@@ -112,6 +112,7 @@ function PetDetailsUI.new(dependencies)
     self._currentPetData = nil
     self._equipButton = nil
     self._lockButton = nil
+    self._deleteButton = nil
     self._renameDialog = nil
     self._tabFrames = {}
     self._activeTab = "Stats"
@@ -511,6 +512,21 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
     
     -- Store original color
     self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
+    
+    -- Delete button
+    self._deleteButton = self._uiFactory:CreateButton(parent, {
+        text = "Delete Pet",
+        size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
+        position = UDim2.new(0, 0, 0, (BUTTON_HEIGHT + BUTTON_SPACING) * 2), -- Below lock button
+        backgroundColor = self._config.COLORS.Error,
+        zIndex = 206,
+        callback = function()
+            self:OnDeleteClicked()
+        end
+    })
+    
+    -- Store original color
+    self._deleteButton:SetAttribute("OriginalColor", self._deleteButton.BackgroundColor3)
 end
 
 function PetDetailsUI:CreateRightSide(parent: Frame)
@@ -1207,6 +1223,182 @@ function PetDetailsUI:UpdateLockButton()
                                        self._config.COLORS.Warning
     self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
     self._lockButton.Active = true
+end
+
+function PetDetailsUI:OnDeleteClicked()
+    if self._isUpdating then return end
+    
+    -- Can't delete equipped pets
+    if self._currentPetInstance.equipped then
+        if self._notificationSystem then
+            self._notificationSystem:Show({
+                title = "Error",
+                text = "Cannot delete equipped pets!",
+                duration = 3,
+                type = "error"
+            })
+        end
+        return
+    end
+    
+    -- Can't delete locked pets
+    if self._currentPetInstance.locked then
+        if self._notificationSystem then
+            self._notificationSystem:Show({
+                title = "Error", 
+                text = "Cannot delete locked pets!",
+                duration = 3,
+                type = "error"
+            })
+        end
+        return
+    end
+    
+    -- Show confirmation dialog
+    self:ShowDeleteConfirmation()
+end
+
+function PetDetailsUI:ShowDeleteConfirmation()
+    -- Create confirmation overlay
+    local confirmOverlay = Instance.new("Frame")
+    confirmOverlay.Size = UDim2.new(1, 0, 1, 0)
+    confirmOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    confirmOverlay.BackgroundTransparency = 0.5
+    confirmOverlay.ZIndex = 400
+    confirmOverlay.Parent = self._overlay
+    
+    -- Confirmation window
+    local confirmWindow = Instance.new("Frame")
+    confirmWindow.Size = UDim2.new(0, 350, 0, 200)
+    confirmWindow.Position = UDim2.new(0.5, -175, 0.5, -100)
+    confirmWindow.BackgroundColor3 = self._config.COLORS.Background
+    confirmWindow.ZIndex = 401
+    confirmWindow.Parent = confirmOverlay
+    
+    self._utilities.CreateCorner(confirmWindow, 12)
+    
+    -- Title
+    local title = self._uiFactory:CreateLabel(confirmWindow, {
+        text = "Delete Pet?",
+        size = UDim2.new(1, -40, 0, 40),
+        position = UDim2.new(0, 20, 0, 20),
+        textSize = 20,
+        font = self._config.FONTS.Bold,
+        zIndex = 402
+    })
+    
+    -- Message
+    local petName = self._currentPetInstance.nickname or 
+                   self._currentPetData.displayName or 
+                   self._currentPetData.name
+    
+    local message = self._uiFactory:CreateLabel(confirmWindow, {
+        text = "Are you sure you want to delete " .. petName .. "?\nThis action cannot be undone!",
+        size = UDim2.new(1, -40, 0, 60),
+        position = UDim2.new(0, 20, 0, 60),
+        textSize = 16,
+        textYAlignment = Enum.TextYAlignment.Top,
+        textWrapped = true,
+        zIndex = 402
+    })
+    
+    -- Buttons
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Size = UDim2.new(1, -40, 0, 40)
+    buttonContainer.Position = UDim2.new(0, 20, 1, -60)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.ZIndex = 402
+    buttonContainer.Parent = confirmWindow
+    
+    -- Cancel button
+    local cancelButton = self._uiFactory:CreateButton(buttonContainer, {
+        text = "Cancel",
+        size = UDim2.new(0.5, -5, 1, 0),
+        position = UDim2.new(0, 0, 0, 0),
+        backgroundColor = self._config.COLORS.Surface,
+        zIndex = 403,
+        callback = function()
+            confirmOverlay:Destroy()
+            if self._soundSystem then
+                self._soundSystem:PlayUISound("Click")
+            end
+        end
+    })
+    
+    -- Delete button
+    local deleteButton = self._uiFactory:CreateButton(buttonContainer, {
+        text = "Delete",
+        size = UDim2.new(0.5, -5, 1, 0),
+        position = UDim2.new(0.5, 5, 0, 0),
+        backgroundColor = self._config.COLORS.Error,
+        zIndex = 403,
+        callback = function()
+            confirmOverlay:Destroy()
+            self:ExecuteDelete()
+        end
+    })
+end
+
+function PetDetailsUI:ExecuteDelete()
+    if not self._currentPetInstance then return end
+    
+    self._isUpdating = true
+    
+    -- Show loading state
+    if self._deleteButton then
+        self._deleteButton.Text = "Deleting..."
+        self._deleteButton.Active = false
+    end
+    
+    -- Send delete request
+    if self._remoteManager then
+        local success, result = self._remoteManager:InvokeServer("DeletePet", 
+                                                               self._currentPetInstance.uniqueId)
+        
+        if success and result.success then
+            -- Show success notification
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Success",
+                    text = "Pet deleted successfully!",
+                    duration = 3,
+                    type = "success"
+                })
+            end
+            
+            -- Play sound
+            if self._soundSystem then
+                self._soundSystem:PlayUISound("Delete")
+            end
+            
+            -- Close the details window
+            self:Close()
+            
+            -- Fire event to update inventory
+            if self._eventBus then
+                self._eventBus:Fire("PetDeleted", self._currentPetInstance.uniqueId)
+            end
+        else
+            -- Show error
+            local errorMsg = result and result.error or "Failed to delete pet"
+            if self._notificationSystem then
+                self._notificationSystem:Show({
+                    title = "Error",
+                    text = errorMsg,
+                    duration = 3,
+                    type = "error"
+                })
+            end
+            
+            -- Reset button
+            if self._deleteButton then
+                self._deleteButton.Text = "Delete Pet"
+                self._deleteButton.Active = true
+            end
+        end
+    end
+    
+    self._isUpdating = false
 end
 
 -- ========================================
