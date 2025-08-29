@@ -1320,21 +1320,26 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         card.ZIndex = originalZIndex + 10
         -- Shadow stays at ZIndex -1 relative to card
         
-        -- Create glow effect (destroy old one first if it exists)
+        -- Create glow effect using UIStroke (destroy old one first if it exists)
         if glowFrame and glowFrame.Parent then
             glowFrame:Destroy()
         end
         
-        glowFrame = Instance.new("Frame")
+        glowFrame = Instance.new("UIStroke")
         glowFrame.Name = "GlowEffect"
-        glowFrame.Size = UDim2.new(1, 12, 1, 12)
-        glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-        glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        glowFrame.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
-        glowFrame.BackgroundTransparency = 0.7
-        glowFrame.ZIndex = -2  -- Behind shadow
-        glowFrame.Parent = card  -- Parent to card, not card.Parent!
-        self._utilities.CreateCorner(glowFrame, 12)
+        glowFrame.Thickness = 3
+        glowFrame.Color = self._utilities.GetRarityColor(petData.rarity or 1)
+        glowFrame.Transparency = 0.7
+        glowFrame.Parent = card
+        
+        -- Create glow gradient for better effect
+        local glowGradient = Instance.new("UIGradient")
+        glowGradient.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.3),
+            NumberSequenceKeypoint.new(0.5, 0.5),
+            NumberSequenceKeypoint.new(1, 0.8)
+        })
+        glowGradient.Parent = glowFrame
         
         -- Animate background color
         self._utilities.Tween(card, {
@@ -1359,8 +1364,8 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         
         -- Animate glow
         self._utilities.Tween(glowFrame, {
-            BackgroundTransparency = 0.5,
-            Size = UDim2.new(1, 16, 1, 16)
+            Transparency = 0.3,
+            Thickness = 5
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
         -- Slight rotation for 3D effect
@@ -1404,8 +1409,8 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         -- Fade out and destroy glow
         if glowFrame and glowFrame.Parent then
             self._utilities.Tween(glowFrame, {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 12, 1, 12)
+                Transparency = 1,
+                Thickness = 0
             }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
             
             -- Schedule destruction after animation
