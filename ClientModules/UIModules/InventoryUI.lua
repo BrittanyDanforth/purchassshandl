@@ -420,12 +420,18 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
         end
     end
     
-    -- Store reference to the fill bar for direct updates
-    frame:SetAttribute("StorageBarFill", barFill)
+    -- Store reference to the fill bar in a table instead of attribute
+    if not self.StorageBars then
+        self.StorageBars = {}
+    end
+    self.StorageBars[frame] = {
+        barFill = barFill,
+        updateFunc = updateValue
+    }
     
     -- Initial update
     if self.StorageBars[frame] then
-        self.StorageBars[frame](0)
+        self.StorageBars[frame].updateFunc(0)
     end
     
     return frame
@@ -1095,7 +1101,7 @@ function InventoryUI:UpdateStats(pets: table)
     end
     
     if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
-        self.StorageBars[self.StatsLabels.Storage](#pets)
+        self.StorageBars[self.StatsLabels.Storage].updateFunc(#pets)
     end
 end
 

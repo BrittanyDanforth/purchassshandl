@@ -924,9 +924,11 @@ function AnimationSystem:OnPerformanceIssue(frameTime: number)
     -- Reduce max concurrent animations temporarily
     if frameTime > 0.1 then -- More than 100ms
         self._maxConcurrentAnimations = math.max(10, self._maxConcurrentAnimations - 10)
-        -- Restore after 5 seconds
-        task.wait(5)
-        self._maxConcurrentAnimations = MAX_CONCURRENT_ANIMATIONS
+        -- Restore after 2 seconds (don't use task.wait in performance-critical code)
+        task.spawn(function()
+            task.wait(2)
+            self._maxConcurrentAnimations = MAX_CONCURRENT_ANIMATIONS
+        end)
     end
     
     -- Fire event for other systems to react

@@ -205,6 +205,24 @@ function DataStoreModule:SavePlayerData(player)
         return false
     end
     
+    -- Check if we recently saved for this player
+    if not self.LastSaveTime then
+        self.LastSaveTime = {}
+    end
+    
+    local lastSave = self.LastSaveTime[userId] or 0
+    local timeSinceLastSave = tick() - lastSave
+    
+    -- Throttle saves to once every 10 seconds minimum
+    if timeSinceLastSave < 10 then
+        if self._debugMode then
+            print("[DataStore] Skipping save for", player.Name, "- too soon since last save")
+        end
+        return true -- Return true to indicate no error
+    end
+    
+    self.LastSaveTime[userId] = tick()
+    
     -- Update last seen
     data.lastSeen = os.time()
     
@@ -231,6 +249,11 @@ function DataStoreModule:SavePlayerData(player)
     if success then
         -- Clear dirty flag
         self.DirtyPlayers[userId] = nil
+        
+        -- Clean up save time tracking when player leaves
+        if not game.Players:GetPlayerByUserId(userId) then
+            self.LastSaveTime[userId] = nil
+        end
         
         -- Create backup every 5th save
         if math.random(1, 5) == 1 then

@@ -668,7 +668,7 @@ local function safeCall(func, ...)
         warn("[SanrioTycoonClient] Error caught:", result)
         
         -- Log to console if debug mode
-        if config.DEBUG.ENABLED then
+        if config and config.DEBUG and config.DEBUG.ENABLED then
             print(debug.traceback())
         end
         
@@ -696,10 +696,15 @@ if mainUI then
 end
 
 -- Setup debug overlay
-local DebugOverlay = require(script.Parent.Systems.DebugOverlay)
-local debugOverlay = DebugOverlay.new({
-    config = config
-})
+local debugOverlaySuccess, DebugOverlay = pcall(require, script.Parent.ClientModules.Systems.DebugOverlay)
+local debugOverlay = nil
+if debugOverlaySuccess then
+    debugOverlay = DebugOverlay.new({
+        config = config
+    })
+else
+    warn("[SanrioTycoonClient] Could not load DebugOverlay module")
+end
 
 -- Track navigation events
 eventBus:On("NavigationClicked", function(data)
