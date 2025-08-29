@@ -713,8 +713,10 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
     local isOpen = false
     local optionsFrame = nil
     
-    -- Store reference for cleanup
-    dropdown.CloseDropdown = function()
+    -- Create a table to store dropdown methods
+    local dropdownMethods = {}
+    
+    dropdownMethods.CloseDropdown = function()
         if optionsFrame then
             optionsFrame:Destroy()
             optionsFrame = nil
@@ -722,10 +724,13 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         isOpen = false
     end
     
+    -- Store the close function on the dropdown frame itself
+    dropdown.CloseDropdown = dropdownMethods.CloseDropdown
+    
     button.MouseButton1Click:Connect(function()
         if isOpen then
             -- Close dropdown
-            dropdown.CloseDropdown()
+            dropdownMethods.CloseDropdown()
         else
             -- Open dropdown
             optionsFrame = Instance.new("Frame")
@@ -792,7 +797,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     task.wait() -- Wait a frame to avoid closing immediately
                     if optionsFrame and optionsFrame.Parent then
-                        dropdown.CloseDropdown()
+                        dropdownMethods.CloseDropdown()
                     end
                     if clickConnection then
                         clickConnection:Disconnect()

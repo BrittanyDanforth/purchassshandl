@@ -684,31 +684,31 @@ print("[SanrioTycoonClient]   ✅ InventoryUI UpdateValue fixed")
 
 -- Add global error handler for UI operations
 local function safeCall(func, ...)
-    local success, result = pcall(func, ...)
-    if not success then
-        warn("[SanrioTycoonClient] Error caught:", result)
-        
-        -- Log to console if debug mode
-        if config and config.DEBUG and config.DEBUG.ENABLED then
-            print(debug.traceback())
-        end
-        
-        -- Show user-friendly error notification
-        if notificationSystem then
-            local errorNotification = {
-                title = "UI Error",
-                message = "Something went wrong. Please try again.",
-                duration = 3,
-                type = "error"
-            }
-            pcall(function()
-                notificationSystem:Show(errorNotification)
-            end)
-        end
-        
-        return nil
-    end
-    return result
+	local success, result = pcall(func, ...)
+	if not success then
+		warn("[SanrioTycoonClient] Error caught:", result)
+
+		-- Log to console if debug mode
+		if ClientConfig and ClientConfig.DEBUG and ClientConfig.DEBUG.ENABLED then
+			print(debug.traceback())
+		end
+
+		-- Show user-friendly error notification
+		if notificationSystem then
+			local errorNotification = {
+				title = "UI Error",
+				message = "Something went wrong. Please try again.",
+				duration = 3,
+				type = "error"
+			}
+			pcall(function()
+				notificationSystem:Show(errorNotification)
+			end)
+		end
+
+		return nil
+	end
+	return result
 end
 
 -- Wrap critical functions with error handling
