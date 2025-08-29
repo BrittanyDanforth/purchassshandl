@@ -504,14 +504,152 @@ function InventoryUI:CreateControls()
     controlsBar.BackgroundColor3 = self._config.COLORS.Surface
     controlsBar.Parent = self.Frame
     
-    -- Search box
-    local searchBox = self._uiFactory:CreateTextBox(controlsBar, "Search pets...", {
-        size = UDim2.new(0, 200, 0, 35),
-        position = UDim2.new(0, 10, 0.5, -17.5),
-        callback = function(text)
-            self:OnSearchChanged(text)
+    -- Enhanced search box with icon and clear button
+    local searchContainer = Instance.new("Frame")
+    searchContainer.Name = "SearchContainer"
+    searchContainer.Size = UDim2.new(0, 200, 0, 35)
+    searchContainer.Position = UDim2.new(0, 10, 0.5, -17.5)
+    searchContainer.BackgroundColor3 = self._config.COLORS.White
+    searchContainer.Parent = controlsBar
+    
+    self._utilities.CreateCorner(searchContainer, 8)
+    
+    -- Search icon
+    local searchIcon = Instance.new("ImageLabel")
+    searchIcon.Name = "SearchIcon"
+    searchIcon.Size = UDim2.new(0, 20, 0, 20)
+    searchIcon.Position = UDim2.new(0, 8, 0.5, -10)
+    searchIcon.BackgroundTransparency = 1
+    searchIcon.Image = "rbxassetid://7072707859" -- Magnifying glass icon
+    searchIcon.ImageColor3 = self._config.COLORS.TextSecondary
+    searchIcon.Parent = searchContainer
+    
+    -- Search box with animated placeholder
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.Size = UDim2.new(1, -65, 1, 0)
+    searchBox.Position = UDim2.new(0, 35, 0, 0)
+    searchBox.BackgroundTransparency = 1
+    searchBox.Font = self._config.FONTS.Primary
+    searchBox.Text = ""
+    searchBox.TextColor3 = self._config.COLORS.Dark
+    searchBox.TextSize = 14
+    searchBox.TextXAlignment = Enum.TextXAlignment.Left
+    searchBox.ClearTextOnFocus = false
+    searchBox.Parent = searchContainer
+    
+    -- Animated placeholder
+    local placeholderText = Instance.new("TextLabel")
+    placeholderText.Name = "Placeholder"
+    placeholderText.Size = UDim2.new(1, 0, 1, 0)
+    placeholderText.BackgroundTransparency = 1
+    placeholderText.Font = self._config.FONTS.Primary
+    placeholderText.Text = "Search pets..."
+    placeholderText.TextColor3 = self._config.COLORS.TextSecondary
+    placeholderText.TextSize = 14
+    placeholderText.TextXAlignment = Enum.TextXAlignment.Left
+    placeholderText.Parent = searchBox
+    
+    -- Clear button (initially hidden)
+    local clearButton = Instance.new("TextButton")
+    clearButton.Name = "ClearButton"
+    clearButton.Size = UDim2.new(0, 25, 0, 25)
+    clearButton.Position = UDim2.new(1, -30, 0.5, -12.5)
+    clearButton.BackgroundColor3 = self._config.COLORS.Surface
+    clearButton.Text = "×"
+    clearButton.TextColor3 = self._config.COLORS.Dark
+    clearButton.TextSize = 20
+    clearButton.Font = Enum.Font.SourceSans
+    clearButton.Visible = false
+    clearButton.Parent = searchContainer
+    
+    self._utilities.CreateCorner(clearButton, 12)
+    
+    -- Search functionality
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local text = searchBox.Text
+        
+        -- Hide/show placeholder
+        placeholderText.Visible = text == ""
+        
+        -- Show/hide clear button
+        clearButton.Visible = text ~= ""
+        
+        -- Animate search icon
+        if text ~= "" then
+            self._utilities.Tween(searchIcon, {
+                ImageColor3 = self._config.COLORS.Primary
+            }, TweenInfo.new(0.2))
+        else
+            self._utilities.Tween(searchIcon, {
+                ImageColor3 = self._config.COLORS.TextSecondary
+            }, TweenInfo.new(0.2))
         end
-    })
+        
+        -- Perform search
+        self:OnSearchChanged(text)
+    end)
+    
+    -- Focus animations
+    searchBox.Focused:Connect(function()
+        self._utilities.Tween(searchContainer, {
+            BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.White, 0.05)
+        }, TweenInfo.new(0.2))
+        
+        -- Add glow effect
+        local stroke = Instance.new("UIStroke")
+        stroke.Name = "FocusStroke"
+        stroke.Color = self._config.COLORS.Primary
+        stroke.Thickness = 2
+        stroke.Transparency = 0.5
+        stroke.Parent = searchContainer
+        
+        self._utilities.Tween(stroke, {
+            Transparency = 0
+        }, TweenInfo.new(0.2))
+    end)
+    
+    searchBox.FocusLost:Connect(function()
+        self._utilities.Tween(searchContainer, {
+            BackgroundColor3 = self._config.COLORS.White
+        }, TweenInfo.new(0.2))
+        
+        local stroke = searchContainer:FindFirstChild("FocusStroke")
+        if stroke then
+            self._utilities.Tween(stroke, {
+                Transparency = 1
+            }, TweenInfo.new(0.2))
+            task.wait(0.2)
+            stroke:Destroy()
+        end
+    end)
+    
+    -- Clear button functionality
+    clearButton.MouseButton1Click:Connect(function()
+        searchBox.Text = ""
+        searchBox:CaptureFocus()
+        
+        -- Animation
+        clearButton:TweenSize(
+            UDim2.new(0, 20, 0, 20),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Back,
+            0.1,
+            true,
+            function()
+                clearButton:TweenSize(
+                    UDim2.new(0, 25, 0, 25),
+                    Enum.EasingDirection.Out,
+                    Enum.EasingStyle.Back,
+                    0.1,
+                    true
+                )
+            end
+        )
+    end)
+    
+    -- Store reference
+    self.SearchBox = searchBox
     
     -- Sort dropdown
     local sortOptions = {"Rarity", "Level", "Power", "Recent", "Name"}
@@ -677,18 +815,8 @@ function InventoryUI:CreateTabs()
             backgroundColor = i == 1 and self._config.COLORS.Primary or self._config.COLORS.Surface,
             textColor = i == 1 and self._config.COLORS.White or self._config.COLORS.Dark,
             callback = function()
-                -- Update button states
-                for j, btn in ipairs(tabButtonsFrame:GetChildren()) do
-                    if btn:IsA("TextButton") then
-                        btn.BackgroundColor3 = j == i and self._config.COLORS.Primary or self._config.COLORS.Surface
-                        btn.TextColor3 = j == i and self._config.COLORS.White or self._config.COLORS.Dark
-                    end
-                end
-                
-                -- Show tab content
-                for name, frame in pairs(tabFrames) do
-                    frame.Visible = name == tab.name
-                end
+                -- Smooth tab switching animation
+                self:SwitchTab(tab.name, tabButtonsFrame, tabFrames, i)
             end
         })
         
@@ -729,6 +857,96 @@ function InventoryUI:ShowTab(tabName: string)
         if petsTab then
             self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
         end
+    end
+end
+
+function InventoryUI:SwitchTab(targetTab: string, tabButtonsFrame: Frame, tabFrames: table, buttonIndex: number)
+    -- Prevent switching to same tab
+    if self.CurrentTab == targetTab then return end
+    
+    -- Animate button states
+    for j, btn in ipairs(tabButtonsFrame:GetChildren()) do
+        if btn:IsA("TextButton") then
+            local isActive = j == buttonIndex
+            
+            -- Smooth color transition for buttons
+            self._utilities.Tween(btn, {
+                BackgroundColor3 = isActive and self._config.COLORS.Primary or self._config.COLORS.Surface,
+                TextColor3 = isActive and self._config.COLORS.White or self._config.COLORS.Dark
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            -- Scale effect for active button
+            if isActive then
+                btn:TweenSize(
+                    UDim2.new(0, 125, 1, 2),
+                    Enum.EasingDirection.Out,
+                    Enum.EasingStyle.Back,
+                    0.2,
+                    true
+                )
+            else
+                btn:TweenSize(
+                    UDim2.new(0, 120, 1, 0),
+                    Enum.EasingDirection.Out,
+                    Enum.EasingStyle.Quad,
+                    0.2,
+                    true
+                )
+            end
+        end
+    end
+    
+    -- Smooth tab content transition
+    local currentFrame = tabFrames[self.CurrentTab]
+    local targetFrame = tabFrames[targetTab]
+    
+    if currentFrame and targetFrame then
+        -- Fade out current tab
+        self._utilities.Tween(currentFrame, {
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+        
+        -- Slide out animation
+        local originalPos = currentFrame.Position
+        self._utilities.Tween(currentFrame, {
+            Position = UDim2.new(-0.5, 0, currentFrame.Position.Y.Scale, currentFrame.Position.Y.Offset)
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+        
+        task.wait(0.2)
+        currentFrame.Visible = false
+        currentFrame.Position = originalPos
+        currentFrame.BackgroundTransparency = 0
+        
+        -- Prepare new tab
+        targetFrame.Visible = true
+        targetFrame.BackgroundTransparency = 1
+        targetFrame.Position = UDim2.new(1.5, 0, targetFrame.Position.Y.Scale, targetFrame.Position.Y.Offset)
+        
+        -- Slide in animation
+        self._utilities.Tween(targetFrame, {
+            Position = UDim2.new(0, 0, targetFrame.Position.Y.Scale, targetFrame.Position.Y.Offset),
+            BackgroundTransparency = 0
+        }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        -- Play sound
+        if self._soundSystem then
+            self._soundSystem:PlayUISound("TabSwitch")
+        end
+    end
+    
+    self.CurrentTab = targetTab
+    self.TabFrames = tabFrames
+    
+    -- Update PetGrid reference for Pets tab
+    if targetTab == "Pets" then
+        local petsTab = self.TabFrames["Pets"]
+        if petsTab then
+            self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+        end
+        
+        task.defer(function()
+            self:RefreshInventory()
+        end)
     end
 end
 
@@ -1978,6 +2196,93 @@ function InventoryUI:ConfirmMassDelete()
     })
 end
 
+function InventoryUI:AnimateCardDeletion(card: Frame, callback: () -> ())
+    -- Create particle burst effect
+    local particleContainer = Instance.new("Frame")
+    particleContainer.Size = UDim2.new(1, 0, 1, 0)
+    particleContainer.Position = UDim2.new(0, 0, 0, 0)
+    particleContainer.BackgroundTransparency = 1
+    particleContainer.ZIndex = card.ZIndex + 10
+    particleContainer.Parent = card.Parent
+    
+    -- Get card center position
+    local centerX = card.AbsolutePosition.X + card.AbsoluteSize.X / 2
+    local centerY = card.AbsolutePosition.Y + card.AbsoluteSize.Y / 2
+    
+    -- Create particles
+    for i = 1, 15 do
+        task.spawn(function()
+            local particle = Instance.new("Frame")
+            particle.Size = UDim2.new(0, math.random(4, 8), 0, math.random(4, 8))
+            particle.Position = UDim2.new(0, centerX - particleContainer.AbsolutePosition.X, 
+                                         0, centerY - particleContainer.AbsolutePosition.Y)
+            particle.AnchorPoint = Vector2.new(0.5, 0.5)
+            particle.BackgroundColor3 = self._config.COLORS.Error
+            particle.BorderSizePixel = 0
+            particle.Parent = particleContainer
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = particle
+            
+            -- Random direction and speed
+            local angle = math.random() * math.pi * 2
+            local speed = math.random(50, 100)
+            local targetX = particle.Position.X.Offset + math.cos(angle) * speed
+            local targetY = particle.Position.Y.Offset + math.sin(angle) * speed
+            
+            -- Animate particle
+            self._utilities.Tween(particle, {
+                Position = UDim2.new(0, targetX, 0, targetY),
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1,
+                Rotation = math.random(180, 360)
+            }, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        end)
+    end
+    
+    -- Cleanup particles after animation
+    game:GetService("Debris"):AddItem(particleContainer, 1)
+    
+    -- Animate card shrinking and fading
+    self._utilities.Tween(card, {
+        Size = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Rotation = math.random(-15, 15)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In))
+    
+    -- Fade out all children
+    for _, child in ipairs(card:GetDescendants()) do
+        if child:IsA("GuiObject") then
+            if child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                self._utilities.Tween(child, {
+                    ImageTransparency = 1
+                }, TweenInfo.new(0.3))
+            elseif child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                self._utilities.Tween(child, {
+                    TextTransparency = 1
+                }, TweenInfo.new(0.3))
+            end
+            if child.BackgroundTransparency < 1 then
+                self._utilities.Tween(child, {
+                    BackgroundTransparency = 1
+                }, TweenInfo.new(0.3))
+            end
+        end
+    end
+    
+    -- Sound effect
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Delete")
+    end
+    
+    -- Wait for animation then callback
+    task.wait(0.4)
+    if callback then
+        callback()
+    end
+end
+
 function InventoryUI:ExecuteMassDelete(petIds: {string})
     -- Show loading state
     if self.DeleteOverlay then
@@ -1998,6 +2303,34 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
         local result = self._remoteManager:InvokeServer("MassDeletePets", petIds)
         
         if result and result.success then
+            -- Animate deletion of cards
+            local cardsToDelete = {}
+            
+            -- Find all cards to delete
+            if self.PetGrid then
+                for _, card in ipairs(self.PetGrid:GetChildren()) do
+                    if card:IsA("Frame") and card.Name:match("PetCard_") then
+                        local petId = card.Name:gsub("PetCard_", "")
+                        if table.find(petIds, petId) then
+                            table.insert(cardsToDelete, card)
+                        end
+                    end
+                end
+            end
+            
+            -- Animate each card deletion with staggered timing
+            for i, card in ipairs(cardsToDelete) do
+                task.spawn(function()
+                    task.wait((i - 1) * 0.05) -- Stagger animations
+                    self:AnimateCardDeletion(card, function()
+                        card:Destroy()
+                    end)
+                end)
+            end
+            
+            -- Wait for animations to complete
+            task.wait(0.5 + #cardsToDelete * 0.05)
+            
             if self._notificationSystem then
                 self._notificationSystem:Show({
                     title = "Success",
@@ -2015,7 +2348,7 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
             -- Close mass delete window
             self:CloseMassDelete()
             
-            -- Refresh inventory
+            -- Refresh inventory with remaining pets
             self:RefreshInventory()
         else
             if self._notificationSystem then
