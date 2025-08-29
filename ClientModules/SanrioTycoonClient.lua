@@ -202,9 +202,14 @@ if originalCreateDropdown then
         end
         
         local dropdown = originalCreateDropdown(self, parent, items, defaultItem, options)
-        if dropdown and not dropdown.GetValue then
+        -- The dropdown should already have GetValue, but add it if missing
+        if dropdown and type(dropdown.GetValue) ~= "function" then
+            local selectedValue = defaultItem or (items and items[1]) or ""
             dropdown.GetValue = function()
-                return dropdown.Value or defaultItem or ""
+                return selectedValue
+            end
+            dropdown.SetValue = function(value)
+                selectedValue = value
             end
         end
         return dropdown
