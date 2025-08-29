@@ -157,15 +157,8 @@ function CaseOpeningUI:Close()
     self._animationInProgress = false
     self._skipAnimation = true
     
-    -- Fade out and destroy
-    if self._overlay then
-        self._utilities.Tween(self._overlay, {
-            BackgroundTransparency = 1
-        }, TweenInfo.new(OVERLAY_FADE_TIME))
-        
-        task.wait(OVERLAY_FADE_TIME)
-        self:Cleanup()
-    end
+    -- Immediate cleanup - no animation for now
+    self:Cleanup()
     
     -- Fire event
     if self._eventBus then
@@ -174,10 +167,18 @@ function CaseOpeningUI:Close()
 end
 
 function CaseOpeningUI:Cleanup()
-    -- Destroy any existing overlay
-    local existingOverlay = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("CaseOpeningOverlay")
-    if existingOverlay then
-        existingOverlay:Destroy()
+    -- Destroy overlay properly
+    if self._overlay then
+        self._overlay:Destroy()
+    else
+        -- Also check in ScreenGui if not tracked
+        local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+        if screenGui then
+            local existingOverlay = screenGui:FindFirstChild("CaseOpeningOverlay")
+            if existingOverlay then
+                existingOverlay:Destroy()
+            end
+        end
     end
     
     self._overlay = nil
@@ -329,9 +330,13 @@ function CaseOpeningUI:ShowCaseAnimation(result: CaseResult, index: number, tota
         zIndex = 103
     })
     
-    -- Skip animation for now and show result directly
-    -- TODO: Add spinning animation later
-    self:ShowResult(content, result)
+    if self._skipAnimation then
+        -- Skip directly to result
+        self:ShowResult(content, result)
+    else
+        -- Show spinning animation
+        self:CreateSpinnerAnimation(content, result)
+    end
     
     self._animationInProgress = false
 end
