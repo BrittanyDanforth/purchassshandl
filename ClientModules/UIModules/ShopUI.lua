@@ -547,8 +547,8 @@ function ShopUI:CreateEggShop(parent: Frame)
 end
 
 function ShopUI:PopulateEggShop(container: Frame)
-    -- Create scrolling frame
-    self._eggScrollFrame = self._uiFactory:CreateScrollingFrame(container, {
+    -- Create scrolling frame with momentum
+    self._eggScrollFrame = self:CreateEnhancedScrollingFrame(container, {
         size = UDim2.new(1, -10, 1, -10),
         position = UDim2.new(0, 5, 0, 5)
     })
@@ -565,19 +565,151 @@ function ShopUI:PopulateEggShop(container: Frame)
     -- Add padding
     self._utilities.CreatePadding(self._eggScrollFrame, 10)
     
-    -- Create egg cards
+    -- Lazy load egg cards with fade-in
+    local visibleCards = {}
+    local cardQueue = {}
+    
     for i, eggData in ipairs(self._eggData) do
-        local card = self:CreateEggCard(self._eggScrollFrame, eggData)
-        if card then
-            card.LayoutOrder = i
+        table.insert(cardQueue, {data = eggData, order = i})
+    end
+    
+    -- Load cards in batches for performance
+    local function loadNextBatch()
+        local batchSize = 6
+        local loaded = 0
+        
+        while loaded < batchSize and #cardQueue > 0 do
+            local item = table.remove(cardQueue, 1)
+            local card = self:CreateEggCard(self._eggScrollFrame, item.data)
+            
+            if card then
+                card.LayoutOrder = item.order
+                card.BackgroundTransparency = 1
+                
+                -- Fade in animation
+                self._utilities.Tween(card, {
+                    BackgroundTransparency = 0
+                }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+                
+                table.insert(visibleCards, card)
+            end
+            
+            loaded = loaded + 1
+        end
+        
+        -- Update canvas size
+        task.defer(function()
+            self._eggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+        end)
+        
+        -- Load next batch if more items
+        if #cardQueue > 0 then
+            task.wait(0.1)
+            loadNextBatch()
         end
     end
     
-    -- Update canvas size
-    spawn(function()
-        wait() -- Wait for layout
-        self._eggScrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+    -- Start loading
+    loadNextBatch()
+end
+
+function ShopUI:CreateEnhancedScrollingFrame(parent: Frame, config: table)
+    local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, config)
+    
+    -- Enable elastic behavior
+    scrollFrame.ElasticBehavior = Enum.ElasticBehavior.Always
+    scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.ScrollBarImageTransparency = 0.5
+    
+    -- Add momentum scrolling
+    local lastScrollPosition = scrollFrame.CanvasPosition
+    local velocity = Vector2.new(0, 0)
+    local scrollConnection = nil
+    local isScrolling = false
+    local damping = 0.94
+    
+    scrollConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+        if not isScrolling and velocity.Magnitude > 0.1 then
+            -- Apply momentum
+            local newPosition = scrollFrame.CanvasPosition + velocity
+            
+            -- Clamp to bounds
+            local maxY = math.max(0, scrollFrame.AbsoluteCanvasSize.Y - scrollFrame.AbsoluteSize.Y)
+            newPosition = Vector2.new(
+                0,
+                math.clamp(newPosition.Y, 0, maxY)
+            )
+            
+            scrollFrame.CanvasPosition = newPosition
+            
+            -- Apply damping
+            velocity = velocity * damping
+            
+            -- Stop if velocity is too small
+            if velocity.Magnitude < 0.1 then
+                velocity = Vector2.new(0, 0)
+            end
+        end
+        
+        lastScrollPosition = scrollFrame.CanvasPosition
     end)
+    
+    -- Track scrolling
+    scrollFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        if isScrolling then
+            local delta = scrollFrame.CanvasPosition - lastScrollPosition
+            velocity = delta * 0.5 -- Adjust sensitivity
+        end
+    end)
+    
+    -- Detect scroll start/end
+    scrollFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            isScrolling = true
+            velocity = Vector2.new(0, 0)
+        end
+    end)
+    
+    scrollFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            isScrolling = false
+        end
+    end)
+    
+    -- Mouse wheel support
+    scrollFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            velocity = Vector2.new(0, -input.Position.Z * 50)
+        end
+    end)
+    
+    -- Scrollbar fade on hover
+    local scrollBarBg = scrollFrame:FindFirstChild("ScrollBarBackground")
+    if scrollBarBg then
+        scrollFrame.MouseEnter:Connect(function()
+            self._utilities.Tween(scrollFrame, {
+                ScrollBarImageTransparency = 0.2
+            }, TweenInfo.new(0.2))
+        end)
+        
+        scrollFrame.MouseLeave:Connect(function()
+            self._utilities.Tween(scrollFrame, {
+                ScrollBarImageTransparency = 0.5
+            }, TweenInfo.new(0.2))
+        end)
+    end
+    
+    -- Store connection for cleanup
+    scrollFrame.AncestryChanged:Connect(function()
+        if not scrollFrame.Parent and scrollConnection then
+            scrollConnection:Disconnect()
+        end
+    end)
+    
+    return scrollFrame
 end
 
 function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
@@ -927,6 +1059,77 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
     
     self._purchaseInProgress = true
     
+    -- Create purchase animation overlay
+    local overlay = Instance.new("Frame")
+    overlay.Name = "PurchaseOverlay"
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 1
+    overlay.ZIndex = 1000
+    overlay.Parent = self.Frame
+    
+    -- Fade in overlay
+    self._utilities.Tween(overlay, {
+        BackgroundTransparency = 0.5
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+    
+    -- Find the egg card
+    local eggCard = nil
+    if self._eggScrollFrame then
+        eggCard = self._eggScrollFrame:FindFirstChild("EggCard_" .. eggData.id)
+    end
+    
+    -- Animate egg flying to center
+    if eggCard then
+        local flyingEgg = Instance.new("ImageLabel")
+        flyingEgg.Size = UDim2.new(0, 100, 0, 100)
+        flyingEgg.Image = eggData.icon or ""
+        flyingEgg.BackgroundTransparency = 1
+        flyingEgg.ScaleType = Enum.ScaleType.Fit
+        flyingEgg.ZIndex = 1001
+        flyingEgg.Parent = overlay
+        
+        -- Start at egg card position
+        local startPos = eggCard.AbsolutePosition + eggCard.AbsoluteSize / 2
+        flyingEgg.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
+        flyingEgg.AnchorPoint = Vector2.new(0.5, 0.5)
+        
+        -- Fly to center with spin
+        self._utilities.Tween(flyingEgg, {
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 150, 0, 150),
+            Rotation = 360
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        -- Add glow effect
+        local glow = Instance.new("ImageLabel")
+        glow.Size = UDim2.new(1.5, 0, 1.5, 0)
+        glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.BackgroundTransparency = 1
+        glow.Image = "rbxassetid://5028857084" -- Glow image
+        glow.ImageColor3 = self._config.COLORS.Success
+        glow.ImageTransparency = 0.5
+        glow.ZIndex = 1000
+        glow.Parent = flyingEgg
+        
+        -- Pulse glow
+        task.spawn(function()
+            while glow.Parent do
+                self._utilities.Tween(glow, {
+                    Size = UDim2.new(2, 0, 2, 0),
+                    ImageTransparency = 0.8
+                }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+                task.wait(0.5)
+                self._utilities.Tween(glow, {
+                    Size = UDim2.new(1.5, 0, 1.5, 0),
+                    ImageTransparency = 0.5
+                }, TweenInfo.new(0.5, Enum.EasingStyle.Sine))
+                task.wait(0.5)
+            end
+        end)
+    end
+    
     -- Request egg opening from server
     local success, result = pcall(function()
         if self._remoteManager then
@@ -935,6 +1138,16 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
             return RemoteFunctions.OpenCase:InvokeServer(eggData.id, amount)
         end
     end)
+    
+    -- Clean up overlay
+    task.wait(0.5)
+    if overlay then
+        self._utilities.Tween(overlay, {
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.3))
+        task.wait(0.3)
+        overlay:Destroy()
+    end
     
     self._purchaseInProgress = false
     
@@ -948,6 +1161,12 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
     end
     
     if result and result.success then
+        -- Create success particles at purchase location
+        self:CreatePurchaseSuccessEffects(eggCard)
+        
+        -- Animate currency deduction
+        self:AnimateCurrencyDeduction(eggData.currency, eggData.price * amount)
+        
         -- Fire event to open case opening UI
         if self._eventBus then
             self._eventBus:Fire("OpenCaseAnimation", {
@@ -956,7 +1175,7 @@ function ShopUI:PurchaseEgg(eggData: EggData, amount: number)
             })
         end
         
-        -- Update local currency immediately
+        -- Update local currency immediately with animation
         if result.newCurrencies then
             for currency, value in pairs(result.newCurrencies) do
                 if self._dataCache then
@@ -1231,6 +1450,140 @@ end
 function ShopUI:LoadShopData()
     -- This would load all shop data at once
     -- For now, each tab loads its own data
+end
+
+function ShopUI:CreatePurchaseSuccessEffects(sourceElement: GuiObject?)
+    if not sourceElement then return end
+    
+    local playerGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not playerGui then return end
+    
+    -- Create particle container
+    local particleContainer = Instance.new("Frame")
+    particleContainer.Size = UDim2.new(1, 0, 1, 0)
+    particleContainer.BackgroundTransparency = 1
+    particleContainer.ZIndex = 2000
+    particleContainer.Parent = playerGui
+    
+    -- Get source position
+    local centerPos = sourceElement.AbsolutePosition + sourceElement.AbsoluteSize / 2
+    
+    -- Create success particles
+    for i = 1, 20 do
+        task.spawn(function()
+            local particle = Instance.new("Frame")
+            particle.Size = UDim2.new(0, math.random(6, 12), 0, math.random(6, 12))
+            particle.Position = UDim2.new(0, centerPos.X, 0, centerPos.Y)
+            particle.AnchorPoint = Vector2.new(0.5, 0.5)
+            particle.BackgroundColor3 = self._config.COLORS.Success
+            particle.BorderSizePixel = 0
+            particle.ZIndex = 2001
+            particle.Parent = particleContainer
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = particle
+            
+            -- Random burst direction
+            local angle = math.random() * math.pi * 2
+            local distance = math.random(50, 150)
+            local targetX = centerPos.X + math.cos(angle) * distance
+            local targetY = centerPos.Y + math.sin(angle) * distance - math.random(20, 50)
+            
+            -- Animate particle
+            self._utilities.Tween(particle, {
+                Position = UDim2.new(0, targetX, 0, targetY),
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1,
+                Rotation = math.random(180, 540)
+            }, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        end)
+    end
+    
+    -- Create sparkle effects
+    for i = 1, 10 do
+        task.spawn(function()
+            task.wait(math.random() * 0.3)
+            
+            local sparkle = Instance.new("ImageLabel")
+            sparkle.Size = UDim2.new(0, 30, 0, 30)
+            sparkle.Position = UDim2.new(0, centerPos.X + math.random(-30, 30), 0, centerPos.Y + math.random(-30, 30))
+            sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+            sparkle.BackgroundTransparency = 1
+            sparkle.Image = "rbxassetid://7072719831" -- Star image
+            sparkle.ImageColor3 = self._config.COLORS.Success
+            sparkle.ZIndex = 2002
+            sparkle.Parent = particleContainer
+            
+            -- Sparkle animation
+            sparkle.Size = UDim2.new(0, 0, 0, 0)
+            self._utilities.Tween(sparkle, {
+                Size = UDim2.new(0, 30, 0, 30),
+                Rotation = 180,
+                ImageTransparency = 0
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            task.wait(0.3)
+            
+            self._utilities.Tween(sparkle, {
+                Size = UDim2.new(0, 0, 0, 0),
+                Rotation = 360,
+                ImageTransparency = 1
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        end)
+    end
+    
+    -- Clean up
+    game:GetService("Debris"):AddItem(particleContainer, 2)
+end
+
+function ShopUI:AnimateCurrencyDeduction(currency: string, amount: number)
+    local playerGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not playerGui then return end
+    
+    -- Find currency display
+    local currencyDisplay = playerGui:FindFirstChild("CurrencyDisplay")
+    if not currencyDisplay then
+        local mainUI = playerGui:FindFirstChild("MainUI")
+        if mainUI then
+            currencyDisplay = mainUI:FindFirstChild("CurrencyFrame")
+        end
+    end
+    
+    if not currencyDisplay then return end
+    
+    -- Create floating deduction text
+    local deductText = Instance.new("TextLabel")
+    deductText.Size = UDim2.new(0, 200, 0, 50)
+    deductText.Position = UDim2.new(1, -220, 0, 30)
+    deductText.BackgroundTransparency = 1
+    deductText.Text = "-" .. self._utilities.FormatNumber(amount)
+    deductText.Font = self._config.FONTS.Numbers
+    deductText.TextColor3 = self._config.COLORS.Error
+    deductText.TextScaled = true
+    deductText.TextStrokeColor3 = Color3.new(0, 0, 0)
+    deductText.TextStrokeTransparency = 0
+    deductText.ZIndex = 1000
+    deductText.Parent = playerGui
+    
+    -- Animate floating up and fading
+    self._utilities.Tween(deductText, {
+        Position = UDim2.new(1, -220, 0, -20),
+        TextTransparency = 1,
+        TextStrokeTransparency = 1
+    }, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Flash currency display
+    if currencyDisplay then
+        local originalColor = currencyDisplay.BackgroundColor3
+        currencyDisplay.BackgroundColor3 = self._config.COLORS.Error
+        
+        self._utilities.Tween(currencyDisplay, {
+            BackgroundColor3 = originalColor
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+    end
+    
+    game:GetService("Debris"):AddItem(deductText, 1.5)
 end
 
 function ShopUI:RefreshShopData()

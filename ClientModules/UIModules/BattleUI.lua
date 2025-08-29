@@ -1035,26 +1035,127 @@ function BattleUI:StartBattle(battleState: BattleState)
     self.CurrentBattle = battleState
     self.IsInBattle = true
     
-    -- Create battle arena
-    self:CreateBattleArena()
+    -- Create epic battle entrance
+    self:CreateEpicBattleEntrance(function()
+        -- Create battle arena after entrance
+        self:CreateBattleArena()
+        
+        -- Play battle music
+        if self._soundSystem then
+            self._soundSystem:PlayMusic("Battle")
+        end
+    end)
+end
+
+function BattleUI:CreateEpicBattleEntrance(callback: () -> ())
+    local playerGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
     
-    -- Play battle music
+    -- Create screen darkening overlay
+    local darkOverlay = Instance.new("Frame")
+    darkOverlay.Name = "BattleDarkOverlay"
+    darkOverlay.Size = UDim2.new(1, 0, 1, 0)
+    darkOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    darkOverlay.BackgroundTransparency = 1
+    darkOverlay.ZIndex = 450
+    darkOverlay.Parent = playerGui
+    
+    -- Fade to dark
+    self._utilities.Tween(darkOverlay, {
+        BackgroundTransparency = 0.5
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Create VS splash
+    local vsContainer = Instance.new("Frame")
+    vsContainer.Size = UDim2.new(0, 600, 0, 200)
+    vsContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+    vsContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    vsContainer.BackgroundTransparency = 1
+    vsContainer.ZIndex = 451
+    vsContainer.Parent = darkOverlay
+    
+    -- VS Text with dramatic entrance
+    local vsText = Instance.new("TextLabel")
+    vsText.Size = UDim2.new(1, 0, 1, 0)
+    vsText.BackgroundTransparency = 1
+    vsText.Text = "BATTLE!"
+    vsText.Font = Enum.Font.Fantasy
+    vsText.TextScaled = true
+    vsText.TextColor3 = self._config.COLORS.Error
+    vsText.TextStrokeColor3 = Color3.new(0, 0, 0)
+    vsText.TextStrokeTransparency = 0
+    vsText.TextTransparency = 1
+    vsText.ZIndex = 452
+    vsText.Parent = vsContainer
+    
+    -- Start small and grow
+    vsContainer.Size = UDim2.new(0, 0, 0, 0)
+    
+    -- Dramatic entrance animation
+    self._utilities.Tween(vsContainer, {
+        Size = UDim2.new(0, 600, 0, 200)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    self._utilities.Tween(vsText, {
+        TextTransparency = 0
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+    
+    -- Add shake effect
+    task.spawn(function()
+        task.wait(0.4)
+        local originalPos = vsContainer.Position
+        for i = 1, 10 do
+            vsContainer.Position = UDim2.new(
+                originalPos.X.Scale, 
+                originalPos.X.Offset + math.random(-5, 5),
+                originalPos.Y.Scale,
+                originalPos.Y.Offset + math.random(-5, 5)
+            )
+            task.wait(0.03)
+        end
+        vsContainer.Position = originalPos
+    end)
+    
+    -- Sound effects
     if self._soundSystem then
-        self._soundSystem:PlayMusic("Battle")
+        self._soundSystem:PlayUISound("BattleStart")
+    end
+    
+    -- Wait then fade out
+    task.wait(1.2)
+    
+    self._utilities.Tween(vsText, {
+        TextTransparency = 1
+    }, TweenInfo.new(0.3))
+    
+    self._utilities.Tween(vsContainer, {
+        Size = UDim2.new(0, 800, 0, 0)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In))
+    
+    task.wait(0.3)
+    darkOverlay:Destroy()
+    
+    if callback then
+        callback()
     end
 end
 
 function BattleUI:CreateBattleArena()
-    -- Create overlay
+    -- Create overlay with entrance animation
     local overlay = Instance.new("Frame")
     overlay.Name = "BattleArena"
     overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.Position = UDim2.new(0, 0, 1, 0) -- Start from bottom
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.2
     overlay.ZIndex = 500
     overlay.Parent = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
     
     self.BattleArena = overlay
+    
+    -- Slide up animation
+    self._utilities.Tween(overlay, {
+        Position = UDim2.new(0, 0, 0, 0)
+    }, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
     
     -- Battle container
     local battleContainer = Instance.new("Frame")
@@ -1063,14 +1164,97 @@ function BattleUI:CreateBattleArena()
     battleContainer.ZIndex = 501
     battleContainer.Parent = overlay
     
-    -- Create battle UI elements
-    self:CreateBattleHeader(battleContainer)
-    self:CreateBattleField(battleContainer)
-    self:CreateBattleControls(battleContainer)
-    self:CreateBattleLog(battleContainer)
+    -- Create battle UI elements with staggered animations
+    task.spawn(function()
+        task.wait(0.3)
+        self:CreateBattleHeader(battleContainer)
+        
+        task.wait(0.1)
+        self:CreateBattleField(battleContainer)
+        
+        task.wait(0.1)
+        self:CreateBattleControls(battleContainer)
+        
+        task.wait(0.1)
+        self:CreateBattleLog(battleContainer)
+        
+        -- Initialize battle display
+        self:UpdateBattleDisplay()
+        
+        -- Animate pet cards flying in
+        self:AnimatePetCardsEntrance()
+    end)
+end
+
+function BattleUI:AnimatePetCardsEntrance()
+    -- Animate player pets
+    if self.PlayerPetFrames then
+        for i, frame in ipairs(self.PlayerPetFrames) do
+            if frame then
+                local originalPos = frame.Position
+                frame.Position = UDim2.new(-0.5, 0, frame.Position.Y.Scale, frame.Position.Y.Offset)
+                
+                task.spawn(function()
+                    task.wait((i - 1) * 0.1)
+                    self._utilities.Tween(frame, {
+                        Position = originalPos
+                    }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+                    
+                    -- Add particle effect
+                    self:CreatePetEntranceParticles(frame)
+                end)
+            end
+        end
+    end
     
-    -- Initialize battle display
-    self:UpdateBattleDisplay()
+    -- Animate opponent pets
+    if self.OpponentPetFrames then
+        for i, frame in ipairs(self.OpponentPetFrames) do
+            if frame then
+                local originalPos = frame.Position
+                frame.Position = UDim2.new(1.5, 0, frame.Position.Y.Scale, frame.Position.Y.Offset)
+                
+                task.spawn(function()
+                    task.wait((i - 1) * 0.1)
+                    self._utilities.Tween(frame, {
+                        Position = originalPos
+                    }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+                    
+                    -- Add particle effect
+                    self:CreatePetEntranceParticles(frame)
+                end)
+            end
+        end
+    end
+end
+
+function BattleUI:CreatePetEntranceParticles(petFrame: Frame)
+    for i = 1, 10 do
+        local particle = Instance.new("Frame")
+        particle.Size = UDim2.new(0, math.random(4, 8), 0, math.random(4, 8))
+        particle.Position = UDim2.new(0.5, 0, 0.5, 0)
+        particle.AnchorPoint = Vector2.new(0.5, 0.5)
+        particle.BackgroundColor3 = self._config.COLORS.Primary
+        particle.BorderSizePixel = 0
+        particle.ZIndex = petFrame.ZIndex - 1
+        particle.Parent = petFrame
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0.5, 0)
+        corner.Parent = particle
+        
+        -- Animate outward
+        local angle = math.random() * math.pi * 2
+        local distance = math.random(30, 60)
+        
+        self._utilities.Tween(particle, {
+            Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance),
+            Size = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        game:GetService("Debris"):AddItem(particle, 0.6)
+    end
 end
 
 function BattleUI:CreateBattleHeader(parent: Frame)
