@@ -145,6 +145,40 @@ function ShopUI:Initialize(frame: Frame?, dependencies: table?)
 end
 
 -- ========================================
+-- SEARCH/FILTER
+-- ========================================
+
+function ShopUI:FilterEggs(searchText: string)
+    searchText = searchText:lower()
+    
+    for _, child in ipairs(self._eggScrollFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Name:match("^EggCard_") then
+            local shouldShow = true
+            
+            if searchText ~= "" then
+                local eggName = child:FindFirstChild("InfoSection")
+                if eggName then
+                    local nameLabel = eggName:FindFirstChildOfClass("TextLabel")
+                    if nameLabel and nameLabel.Text then
+                        shouldShow = nameLabel.Text:lower():find(searchText, 1, true) ~= nil
+                    end
+                end
+            end
+            
+            child.Visible = shouldShow
+            
+            -- Animate visibility change
+            if shouldShow then
+                child.Size = UDim2.new(0, EGG_CARD_SIZE.X, 0, 0)
+                self._utilities.Tween(child, {
+                    Size = UDim2.new(0, EGG_CARD_SIZE.X, 0, EGG_CARD_SIZE.Y)
+                }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            end
+        end
+    end
+end
+
+-- ========================================
 -- OPEN/CLOSE
 -- ========================================
 
@@ -260,22 +294,137 @@ function ShopUI:CreateHeader()
     
     self._utilities.CreateCorner(self._header, 12)
     
-    -- Title
+    -- Add gradient to header
+    local headerGradient = Instance.new("UIGradient")
+    headerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(0.95, 0.95, 0.95))
+    })
+    headerGradient.Rotation = 90
+    headerGradient.Parent = self._header
+    
+    -- Title section (left side)
+    local titleContainer = Instance.new("Frame")
+    titleContainer.Name = "TitleContainer"
+    titleContainer.Size = UDim2.new(0.3, -10, 1, 0)
+    titleContainer.BackgroundTransparency = 1
+    titleContainer.Parent = self._header
+    
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(1, -100, 1, 0)
-    title.Position = UDim2.new(0, 20, 0, 0)
+    title.Size = UDim2.new(1, -10, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = "✨ Sanrio Tycoon Shop ✨"
+    title.Text = "✨ SHOP"
     title.TextColor3 = self._config.COLORS.White
     title.Font = self._config.FONTS.Display
     title.TextScaled = true
-    title.Parent = self._header
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = titleContainer
     
     local titleConstraint = Instance.new("UITextSizeConstraint")
-    titleConstraint.MaxTextSize = 24
-    titleConstraint.MinTextSize = 18
+    titleConstraint.MaxTextSize = 28
+    titleConstraint.MinTextSize = 20
     titleConstraint.Parent = title
+    
+    -- Search section (middle)
+    local searchContainer = Instance.new("Frame")
+    searchContainer.Name = "SearchContainer"
+    searchContainer.Size = UDim2.new(0.4, -20, 0, 40)
+    searchContainer.Position = UDim2.new(0.3, 10, 0.5, -20)
+    searchContainer.BackgroundColor3 = Color3.new(1, 1, 1)
+    searchContainer.BackgroundTransparency = 0.9
+    searchContainer.Parent = self._header
+    
+    self._utilities.CreateCorner(searchContainer, 20)
+    
+    -- Search icon
+    local searchIcon = Instance.new("TextLabel")
+    searchIcon.Name = "SearchIcon"
+    searchIcon.Size = UDim2.new(0, 40, 1, 0)
+    searchIcon.BackgroundTransparency = 1
+    searchIcon.Text = "🔍"
+    searchIcon.TextColor3 = self._config.COLORS.White
+    searchIcon.TextScaled = true
+    searchIcon.Parent = searchContainer
+    
+    -- Search input
+    self._searchBox = Instance.new("TextBox")
+    self._searchBox.Name = "SearchBox"
+    self._searchBox.Size = UDim2.new(1, -80, 1, 0)
+    self._searchBox.Position = UDim2.new(0, 40, 0, 0)
+    self._searchBox.BackgroundTransparency = 1
+    self._searchBox.Text = ""
+    self._searchBox.PlaceholderText = "Search items..."
+    self._searchBox.TextColor3 = self._config.COLORS.White
+    self._searchBox.PlaceholderColor3 = Color3.new(0.9, 0.9, 0.9)
+    self._searchBox.Font = self._config.FONTS.Primary
+    self._searchBox.TextScaled = true
+    self._searchBox.Parent = searchContainer
+    
+    local searchConstraint = Instance.new("UITextSizeConstraint")
+    searchConstraint.MaxTextSize = 18
+    searchConstraint.MinTextSize = 14
+    searchConstraint.Parent = self._searchBox
+    
+    -- Clear button (hidden by default)
+    local clearButton = Instance.new("TextButton")
+    clearButton.Name = "ClearButton"
+    clearButton.Size = UDim2.new(0, 40, 1, 0)
+    clearButton.Position = UDim2.new(1, -40, 0, 0)
+    clearButton.BackgroundTransparency = 1
+    clearButton.Text = "✖"
+    clearButton.TextColor3 = self._config.COLORS.White
+    clearButton.Font = self._config.FONTS.Primary
+    clearButton.TextScaled = true
+    clearButton.Visible = false
+    clearButton.Parent = searchContainer
+    
+    -- Search functionality
+    self._searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local searchText = self._searchBox.Text
+        clearButton.Visible = searchText ~= ""
+        
+        if self._currentTab == "Eggs" then
+            self:FilterEggs(searchText)
+        end
+    end)
+    
+    clearButton.MouseButton1Click:Connect(function()
+        self._searchBox.Text = ""
+        if self._soundSystem then
+            self._soundSystem:PlayUISound("Click")
+        end
+    end)
+    
+    -- Filters section (right side)
+    local filtersContainer = Instance.new("Frame")
+    filtersContainer.Name = "FiltersContainer"
+    filtersContainer.Size = UDim2.new(0.3, -10, 1, 0)
+    filtersContainer.Position = UDim2.new(0.7, 0, 0, 0)
+    filtersContainer.BackgroundTransparency = 1
+    filtersContainer.Parent = self._header
+    
+    -- Layout for filter buttons
+    local filterLayout = Instance.new("UIListLayout")
+    filterLayout.FillDirection = Enum.FillDirection.Horizontal
+    filterLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    filterLayout.Padding = UDim.new(0, 8)
+    filterLayout.Parent = filtersContainer
+    
+    -- Sort dropdown
+    local sortButton = Instance.new("TextButton")
+    sortButton.Name = "SortButton"
+    sortButton.Size = UDim2.new(0, 100, 0, 32)
+    sortButton.BackgroundColor3 = Color3.new(1, 1, 1)
+    sortButton.BackgroundTransparency = 0.9
+    sortButton.Text = "Sort: Price ▼"
+    sortButton.TextColor3 = self._config.COLORS.White
+    sortButton.Font = self._config.FONTS.Primary
+    sortButton.TextScaled = true
+    sortButton.Parent = filtersContainer
+    
+    self._utilities.CreateCorner(sortButton, 16)
     
     -- Close button
     local closeButton = self._uiFactory:CreateButton(self._header, {
@@ -865,6 +1014,51 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
     buttonGradient.Rotation = 90
     buttonGradient.Parent = buyButton
     
+    -- Add button stroke for depth
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Color = self._config.COLORS.Primary
+    buttonStroke.Transparency = 0.8
+    buttonStroke.Thickness = 1
+    buttonStroke.Parent = buyButton
+    
+    -- Button hover effects
+    local originalButtonSize = buyButton.Size
+    buyButton.MouseEnter:Connect(function()
+        -- Scale animation
+        self._utilities.Tween(buyButton, {
+            Size = UDim2.new(1, -16, 0, 40)
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        -- Gradient animation
+        self._utilities.Tween(buttonGradient, {
+            Rotation = 270
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+        
+        -- Stroke glow
+        self._utilities.Tween(buttonStroke, {
+            Transparency = 0.4,
+            Thickness = 2
+        }, TweenInfo.new(0.2))
+    end)
+    
+    buyButton.MouseLeave:Connect(function()
+        -- Reset scale
+        self._utilities.Tween(buyButton, {
+            Size = originalButtonSize
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        
+        -- Reset gradient
+        self._utilities.Tween(buttonGradient, {
+            Rotation = 90
+        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+        
+        -- Reset stroke
+        self._utilities.Tween(buttonStroke, {
+            Transparency = 0.8,
+            Thickness = 1
+        }, TweenInfo.new(0.2))
+    end)
+    
     -- Premium hover effects
     local originalBorderTransparency = border.Transparency
     
@@ -945,6 +1139,37 @@ function ShopUI:CreateEggCard(parent: Frame, eggData: EggData): Frame?
         self._utilities.Tween(eggImage, {
             Size = UDim2.new(0.85, 0, 0.85, 0)
         }, TweenInfo.new(0.3, Enum.EasingStyle.Back))
+        
+        -- Add shine effect
+        local shine = Instance.new("Frame")
+        shine.Name = "ShineEffect"
+        shine.Size = UDim2.new(0.3, 0, 2, 0)
+        shine.Position = UDim2.new(-0.5, 0, -0.5, 0)
+        shine.BackgroundColor3 = Color3.new(1, 1, 1)
+        shine.BackgroundTransparency = 0.8
+        shine.BorderSizePixel = 0
+        shine.ZIndex = card.ZIndex + 5
+        shine.Parent = card
+        
+        local shineGradient = Instance.new("UIGradient")
+        shineGradient.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.4, 0.8),
+            NumberSequenceKeypoint.new(0.5, 0.6),
+            NumberSequenceKeypoint.new(0.6, 0.8),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+        shineGradient.Rotation = 30
+        shineGradient.Parent = shine
+        
+        -- Animate shine across card
+        self._utilities.Tween(shine, {
+            Position = UDim2.new(1.2, 0, -0.5, 0)
+        }, TweenInfo.new(0.6, Enum.EasingStyle.Linear)):Connect(function()
+            if shine and shine.Parent then
+                shine:Destroy()
+            end
+        end)
         
         -- Sound effect
         if self._soundSystem then
