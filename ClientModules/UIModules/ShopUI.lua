@@ -406,23 +406,23 @@ function ShopUI:SelectTab(tabName: string)
         end
     end
     
-    -- Smooth content transition
+    -- Hide all tab frames first
+    for name, tab in pairs(self._tabs) do
+        if tab.frame and name ~= tabName then
+            tab.frame.Visible = false
+        end
+    end
+    
+    -- Clear any existing content if needed
     if currentTab and currentTab.frame then
         -- Fade out current tab
         self._utilities.Tween(currentTab.frame, {
-            GroupTransparency = 1
+            BackgroundTransparency = 1
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
-        
-        -- Slide out
-        local originalPos = currentTab.frame.Position
-        self._utilities.Tween(currentTab.frame, {
-            Position = UDim2.new(-0.5, 0, currentTab.frame.Position.Y.Scale, currentTab.frame.Position.Y.Offset)
-        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
         
         task.wait(0.2)
         currentTab.frame.Visible = false
-        currentTab.frame.Position = originalPos
-        currentTab.frame.GroupTransparency = 0
+        currentTab.frame.BackgroundTransparency = 0
     end
     
     -- Initialize tab if needed
@@ -434,13 +434,13 @@ function ShopUI:SelectTab(tabName: string)
     -- Show new tab with animation
     if targetTab and targetTab.frame then
         targetTab.frame.Visible = true
-        targetTab.frame.GroupTransparency = 1
-        targetTab.frame.Position = UDim2.new(1.5, 0, targetTab.frame.Position.Y.Scale, targetTab.frame.Position.Y.Offset)
+        targetTab.frame.BackgroundTransparency = 1
+        targetTab.frame.Position = UDim2.new(1.5, 0, 0, 0)
         
         -- Slide in
         self._utilities.Tween(targetTab.frame, {
-            Position = UDim2.new(0, 0, targetTab.frame.Position.Y.Scale, targetTab.frame.Position.Y.Offset),
-            GroupTransparency = 0
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 0
         }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
     end
     
@@ -1202,6 +1202,11 @@ end
 -- ========================================
 
 function ShopUI:CreateGamepassShop(parent: Frame)
+    -- Clear previous content
+    if self._gamepassScrollFrame and self._gamepassScrollFrame.Parent then
+        self._gamepassScrollFrame:Destroy()
+    end
+    
     -- Create scrolling frame
     self._gamepassScrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
         size = UDim2.new(1, -10, 1, -10),
@@ -1345,6 +1350,11 @@ end
 -- ========================================
 
 function ShopUI:CreateCurrencyShop(parent: Frame)
+    -- Clear previous content
+    if self._currencyScrollFrame and self._currencyScrollFrame.Parent then
+        self._currencyScrollFrame:Destroy()
+    end
+    
     -- Create scrolling frame
     self._currencyScrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
         size = UDim2.new(1, -10, 1, -10),

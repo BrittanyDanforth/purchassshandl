@@ -1997,17 +1997,47 @@ function BattleUI:EndBattle(result: {winner: number, rewards: table})
 end
 
 function BattleUI:ShowBattleResult(result: {winner: number, rewards: table})
+    local isWinner = result.winner == 1
+    
+    -- Create overlay
+    local overlay = Instance.new("Frame")
+    overlay.Name = "VictoryOverlay"
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 1
+    overlay.ZIndex = 550
+    overlay.Parent = self.BattleArena
+    
+    -- Fade in overlay
+    self._utilities.Tween(overlay, {
+        BackgroundTransparency = 0.5
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad))
+    
+    -- Create confetti for victory
+    if isWinner then
+        self:CreateVictoryConfetti(overlay)
+    else
+        -- Create defeat effect
+        self:CreateDefeatEffect(overlay)
+    end
+    
+    -- Create result frame with entrance animation
     local resultFrame = Instance.new("Frame")
-    resultFrame.Size = UDim2.new(0, 500, 0, 400)
-    resultFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+    resultFrame.Size = UDim2.new(0, 0, 0, 0)
+    resultFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    resultFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     resultFrame.BackgroundColor3 = self._config.COLORS.Background
     resultFrame.ZIndex = 600
-    resultFrame.Parent = self.BattleArena
+    resultFrame.Parent = overlay
     
     self._utilities.CreateCorner(resultFrame, 20)
     
+    -- Animate entrance
+    self._utilities.Tween(resultFrame, {
+        Size = UDim2.new(0, 500, 0, 400)
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
     -- Result text
-    local isWinner = result.winner == 1
     local resultText = isWinner and "VICTORY!" or "DEFEAT"
     local resultColor = isWinner and self._config.COLORS.Success or self._config.COLORS.Error
     
@@ -2021,7 +2051,31 @@ function BattleUI:ShowBattleResult(result: {winner: number, rewards: table})
         zIndex = 601
     })
     
-    -- Rewards display
+    -- Animate text entrance
+    resultLabel.TextTransparency = 1
+    task.spawn(function()
+        task.wait(0.5)
+        self._utilities.Tween(resultLabel, {
+            TextTransparency = 0
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Quad))
+        
+        -- Pulse effect for result text
+        if isWinner then
+            task.wait(0.5)
+            for i = 1, 3 do
+                self._utilities.Tween(resultLabel, {
+                    TextSize = 52
+                }, TweenInfo.new(0.2, Enum.EasingStyle.Sine))
+                task.wait(0.2)
+                self._utilities.Tween(resultLabel, {
+                    TextSize = 48
+                }, TweenInfo.new(0.2, Enum.EasingStyle.Sine))
+                task.wait(0.2)
+            end
+        end
+    end)
+    
+    -- Rewards display with animation
     if result.rewards then
         local rewardsFrame = Instance.new("Frame")
         rewardsFrame.Size = UDim2.new(1, -40, 0, 200)
@@ -2030,8 +2084,11 @@ function BattleUI:ShowBattleResult(result: {winner: number, rewards: table})
         rewardsFrame.ZIndex = 601
         rewardsFrame.Parent = resultFrame
         
-        -- Show rewards
-        self:DisplayBattleRewards(rewardsFrame, result.rewards)
+        -- Animate rewards flying in
+        task.spawn(function()
+            task.wait(0.8)
+            self:AnimateRewardsFlyIn(rewardsFrame, result.rewards)
+        end)
     end
     
     -- Continue button
@@ -2320,6 +2377,243 @@ function BattleUI:Destroy()
     self.BattleControls = {}
     self.HealthBars = {}
     self.BattleLogFrame = nil
+end
+
+function BattleUI:CreateVictoryConfetti(parent: Frame)
+    -- Create confetti particles
+    for i = 1, 50 do
+        task.spawn(function()
+            local confetti = Instance.new("Frame")
+            confetti.Size = UDim2.new(0, math.random(8, 15), 0, math.random(15, 25))
+            confetti.Position = UDim2.new(math.random(), 0, -0.1, 0)
+            confetti.BackgroundColor3 = Color3.fromHSV(math.random(), 0.8, 1)
+            confetti.BorderSizePixel = 0
+            confetti.ZIndex = 560
+            confetti.Parent = parent
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, 4)
+            corner.Parent = confetti
+            
+            -- Random rotation
+            confetti.Rotation = math.random(0, 360)
+            
+            -- Fall animation
+            local fallTime = math.random() * 2 + 3
+            local swayAmount = math.random(30, 80)
+            
+            self._utilities.Tween(confetti, {
+                Position = UDim2.new(confetti.Position.X.Scale + math.random(-0.1, 0.1), 
+                                   swayAmount * math.sin(tick() * 2), 1.1, 0),
+                Rotation = confetti.Rotation + math.random(180, 540)
+            }, TweenInfo.new(fallTime, Enum.EasingStyle.Linear))
+            
+            -- Fade out at bottom
+            task.wait(fallTime - 0.5)
+            self._utilities.Tween(confetti, {
+                BackgroundTransparency = 1
+            }, TweenInfo.new(0.5))
+            
+            game:GetService("Debris"):AddItem(confetti, 0.5)
+        end)
+    end
+    
+    -- Victory sparkles
+    for i = 1, 20 do
+        task.spawn(function()
+            task.wait(math.random() * 2)
+            
+            local sparkle = Instance.new("ImageLabel")
+            sparkle.Size = UDim2.new(0, 50, 0, 50)
+            sparkle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+            sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+            sparkle.BackgroundTransparency = 1
+            sparkle.Image = "rbxassetid://7072719831" -- Star image
+            sparkle.ImageColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+            sparkle.ZIndex = 565
+            sparkle.Parent = parent
+            
+            -- Sparkle animation
+            sparkle.Size = UDim2.new(0, 0, 0, 0)
+            self._utilities.Tween(sparkle, {
+                Size = UDim2.new(0, 50, 0, 50),
+                Rotation = 180,
+                ImageTransparency = 0
+            }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            task.wait(0.5)
+            
+            self._utilities.Tween(sparkle, {
+                Size = UDim2.new(0, 0, 0, 0),
+                Rotation = 360,
+                ImageTransparency = 1
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+            
+            game:GetService("Debris"):AddItem(sparkle, 0.3)
+        end)
+    end
+end
+
+function BattleUI:CreateDefeatEffect(parent: Frame)
+    -- Create slow motion effect
+    local slowMoFrame = Instance.new("Frame")
+    slowMoFrame.Size = UDim2.new(1, 0, 1, 0)
+    slowMoFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    slowMoFrame.BackgroundTransparency = 0.8
+    slowMoFrame.ZIndex = 555
+    slowMoFrame.Parent = parent
+    
+    -- Pulse effect
+    task.spawn(function()
+        for i = 1, 3 do
+            self._utilities.Tween(slowMoFrame, {
+                BackgroundTransparency = 0.6
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Sine))
+            task.wait(0.3)
+            self._utilities.Tween(slowMoFrame, {
+                BackgroundTransparency = 0.8
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Sine))
+            task.wait(0.3)
+        end
+    end)
+    
+    -- Defeat particles (falling dark particles)
+    for i = 1, 30 do
+        task.spawn(function()
+            local particle = Instance.new("Frame")
+            particle.Size = UDim2.new(0, math.random(10, 20), 0, math.random(10, 20))
+            particle.Position = UDim2.new(math.random(), 0, -0.1, 0)
+            particle.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+            particle.BorderSizePixel = 0
+            particle.ZIndex = 560
+            particle.Parent = parent
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = particle
+            
+            -- Fall slowly
+            self._utilities.Tween(particle, {
+                Position = UDim2.new(particle.Position.X.Scale, 0, 1.1, 0),
+                BackgroundTransparency = 1,
+                Size = UDim2.new(0, 0, 0, 0)
+            }, TweenInfo.new(math.random() * 2 + 4, Enum.EasingStyle.Linear))
+            
+            game:GetService("Debris"):AddItem(particle, 6)
+        end)
+    end
+end
+
+function BattleUI:AnimateRewardsFlyIn(rewardsFrame: Frame, rewards: table)
+    local yOffset = 40
+    local delay = 0
+    
+    -- Title
+    local rewardLabel = self._uiFactory:CreateLabel(rewardsFrame, {
+        text = "Rewards",
+        size = UDim2.new(1, 0, 0, 30),
+        position = UDim2.new(0.5, 0, 0, 0),
+        font = self._config.FONTS.Secondary,
+        textSize = 20
+    })
+    rewardLabel.AnchorPoint = Vector2.new(0.5, 0)
+    
+    -- Animate each reward flying in
+    if rewards.experience then
+        task.spawn(function()
+            task.wait(delay)
+            local expLabel = self._uiFactory:CreateLabel(rewardsFrame, {
+                text = "+" .. rewards.experience .. " Experience",
+                size = UDim2.new(1, 0, 0, 25),
+                position = UDim2.new(-0.5, 0, 0, yOffset),
+                textColor = self._config.COLORS.Success
+            })
+            
+            self._utilities.Tween(expLabel, {
+                Position = UDim2.new(0, 0, 0, yOffset)
+            }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            -- Glow effect
+            task.wait(0.5)
+            self:CreateCollectEffect(expLabel)
+        end)
+        yOffset = yOffset + 30
+        delay = delay + 0.1
+    end
+    
+    if rewards.coins then
+        task.spawn(function()
+            task.wait(delay)
+            local coinLabel = self._uiFactory:CreateLabel(rewardsFrame, {
+                text = "+" .. self._utilities.FormatNumber(rewards.coins) .. " Coins",
+                size = UDim2.new(1, 0, 0, 25),
+                position = UDim2.new(1.5, 0, 0, yOffset),
+                textColor = self._config.COLORS.Warning
+            })
+            
+            self._utilities.Tween(coinLabel, {
+                Position = UDim2.new(0, 0, 0, yOffset)
+            }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            task.wait(0.5)
+            self:CreateCollectEffect(coinLabel)
+        end)
+        yOffset = yOffset + 30
+        delay = delay + 0.1
+    end
+    
+    -- Items with collect animation
+    if rewards.items then
+        for _, item in ipairs(rewards.items) do
+            task.spawn(function()
+                task.wait(delay)
+                local itemLabel = self._uiFactory:CreateLabel(rewardsFrame, {
+                    text = item.name .. " x" .. item.quantity,
+                    size = UDim2.new(1, 0, 0, 25),
+                    position = UDim2.new(0, 0, 1, 0),
+                    textColor = self._config.COLORS.Primary
+                })
+                
+                self._utilities.Tween(itemLabel, {
+                    Position = UDim2.new(0, 0, 0, yOffset)
+                }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+                
+                -- Add collect particle effect
+                task.wait(0.5)
+                self:CreateCollectEffect(itemLabel)
+            end)
+            yOffset = yOffset + 30
+            delay = delay + 0.1
+        end
+    end
+end
+
+function BattleUI:CreateCollectEffect(element: GuiObject)
+    for i = 1, 8 do
+        local particle = Instance.new("Frame")
+        particle.Size = UDim2.new(0, 6, 0, 6)
+        particle.Position = UDim2.new(0.5, 0, 0.5, 0)
+        particle.AnchorPoint = Vector2.new(0.5, 0.5)
+        particle.BackgroundColor3 = self._config.COLORS.Success
+        particle.BorderSizePixel = 0
+        particle.ZIndex = element.ZIndex + 1
+        particle.Parent = element
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0.5, 0)
+        corner.Parent = particle
+        
+        local angle = (i - 1) * (math.pi * 2 / 8)
+        local distance = 30
+        
+        self._utilities.Tween(particle, {
+            Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance),
+            Size = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        game:GetService("Debris"):AddItem(particle, 0.4)
+    end
 end
 
 return BattleUI
