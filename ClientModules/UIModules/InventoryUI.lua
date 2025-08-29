@@ -1448,7 +1448,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         else
             warn("[InventoryUI] EventBus not available for ShowPetDetails")
         end
-    end)
+    end))
     
     -- Premium hover effects
     local originalZIndex = card.ZIndex or 1
@@ -2581,7 +2581,7 @@ function InventoryUI:CreateDeleteSelectionCard(parent: ScrollingFrame, petInstan
         end
         
         self:UpdateDeleteCount()
-    end)
+    end))
     
     return card
 end
