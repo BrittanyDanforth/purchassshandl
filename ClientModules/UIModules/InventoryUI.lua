@@ -1355,7 +1355,15 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         if self._config.DEBUG.ENABLED then
             print("[InventoryUI] Pet card clicked:", petInstance.uniqueId)
         end
-        self:ShowPetDetails(petInstance, petData)
+        -- Fire event to show pet details
+        if self._eventBus then
+            self._eventBus:Fire("ShowPetDetails", {
+                petInstance = petInstance,
+                petData = petData
+            })
+        else
+            warn("[InventoryUI] EventBus not available for ShowPetDetails")
+        end
     end)
     
     -- Premium hover effects

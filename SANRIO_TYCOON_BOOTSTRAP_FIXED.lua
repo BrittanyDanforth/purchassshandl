@@ -64,6 +64,12 @@ end
 -- ========================================
 local function createRemotes(folders)
 	print("🔌 [BOOTSTRAP] Creating RemoteEvents and RemoteFunctions...")
+	
+	-- Ensure folders exist
+	if not folders.RemoteFunctions then
+		warn("[BOOTSTRAP] RemoteFunctions folder not found!")
+		return
+	end
 
 	-- RemoteEvents
 	local eventNames = {

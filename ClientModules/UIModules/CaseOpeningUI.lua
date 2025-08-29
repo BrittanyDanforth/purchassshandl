@@ -277,7 +277,7 @@ function CaseOpeningUI:CreateContainer()
     -- Add animated gradient effect
     task.spawn(function()
         while self._container.Parent do
-            TweenService:Create(gradient, TweenInfo.new(5, Enum.EasingStyle.Linear), {
+            Services.TweenService:Create(gradient, TweenInfo.new(5, Enum.EasingStyle.Linear), {
                 Rotation = gradient.Rotation + 360
             }):Play()
             task.wait(5)
@@ -1002,7 +1002,7 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
         -- Animate rotation
         task.spawn(function()
             while rayContainer.Parent do
-                TweenService:Create(rayContainer, TweenInfo.new(8, Enum.EasingStyle.Linear), {
+                Services.TweenService:Create(rayContainer, TweenInfo.new(8, Enum.EasingStyle.Linear), {
                     Rotation = rayContainer.Rotation + 360
                 }):Play()
                 task.wait(8)
