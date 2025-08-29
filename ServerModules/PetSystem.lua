@@ -98,6 +98,26 @@ function PetSystem:AddPetToInventory(player, petInstance)
     -- Mark data as dirty
     DataStoreModule:MarkPlayerDirty(player.UserId)
     
+    -- Fire pet updated event
+    local RemoteEvents = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvents")
+    local PetUpdated = RemoteEvents:FindFirstChild("PetUpdated")
+    if PetUpdated then
+        PetUpdated:FireClient(player, {
+            action = "added",
+            petId = petInstance.uniqueId,
+            pet = petInstance
+        })
+    end
+    
+    -- Also fire inventory updated event
+    local InventoryUpdated = RemoteEvents:FindFirstChild("InventoryUpdated")
+    if InventoryUpdated then
+        InventoryUpdated:FireClient(player, {
+            pets = playerData.pets,
+            petCount = playerData.petCount
+        })
+    end
+    
     return true, petInstance
 end
 

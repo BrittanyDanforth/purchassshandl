@@ -468,13 +468,37 @@ function CaseOpeningUI:CreateCaseItem(petId: string, isWinner: boolean): Frame
             end
         end
         
-        -- 3. Ultimate fallback
+        -- 3. Ultimate fallback - create readable name from ID
         if not petData then
+            -- Convert pet ID to readable name
+            local displayName = petId or "Unknown"
+            if type(displayName) == "string" then
+                -- Convert hello_kitty_classic to "Hello Kitty Classic"
+                displayName = displayName:gsub("_", " ")
+                displayName = displayName:gsub("(%a)([%w_']*)", function(first, rest)
+                    return first:upper() .. rest:lower()
+                end)
+            end
+            
+            -- Determine rarity from name
+            local rarity = 1
+            if displayName:lower():find("legendary") then
+                rarity = 5
+            elseif displayName:lower():find("mythical") or displayName:lower():find("secret") then
+                rarity = 6
+            elseif displayName:lower():find("epic") then
+                rarity = 4
+            elseif displayName:lower():find("rare") then
+                rarity = 3
+            elseif displayName:lower():find("uncommon") then
+                rarity = 2
+            end
+            
             petData = {
-                displayName = petId or "Unknown",
-                name = petId or "Unknown",
-                rarity = 1,
-                imageId = "rbxassetid://0"
+                displayName = displayName,
+                name = displayName,
+                rarity = rarity,
+                imageId = "rbxassetid://11410884298" -- Default pet image
             }
         end
     end
@@ -716,11 +740,30 @@ function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
     
     -- Particles based on rarity
     if self._particleSystem and self._options.particleEffects and finalPetData.rarity >= 4 then
+        -- Get screen position of result frame
+        local camera = workspace.CurrentCamera
+        local frameCenter = resultFrame.AbsolutePosition + resultFrame.AbsoluteSize/2
+        local depth = 10 -- Distance from camera
+        local worldPos = camera:ScreenPointToRay(frameCenter.X, frameCenter.Y, depth).Origin
+        
         for i = 1, 50 do
             spawn(function()
                 task.wait(i * 0.05)
-                self._particleSystem:CreateParticle(resultFrame, "star", 
-                    UDim2.new(math.random(), 0, 1, 0))
+                -- Create particle at world position with some randomness
+                local offset = Vector3.new(
+                    (math.random() - 0.5) * 5,
+                    (math.random() - 0.5) * 5,
+                    (math.random() - 0.5) * 2
+                )
+                self._particleSystem:CreateParticle("star", worldPos + offset, {
+                    velocity = Vector3.new(
+                        (math.random() - 0.5) * 10,
+                        math.random() * 10 + 5,
+                        (math.random() - 0.5) * 10
+                    ),
+                    lifetime = 2,
+                    size = math.random() * 0.5 + 0.5
+                })
             end)
         end
     end
@@ -866,9 +909,20 @@ function CaseOpeningUI:GenerateCaseItems(result: CaseResult): {string}
         end
     end
     
-    -- If still no pets found, use placeholder pets
+    -- If still no pets found, use actual Sanrio pet IDs
     if #allPets == 0 then
-        allPets = {"Common_Pet_1", "Common_Pet_2", "Rare_Pet_1", "Epic_Pet_1", "Legendary_Pet_1"}
+        allPets = {
+            "hello_kitty_classic",
+            "hello_kitty_angel", 
+            "my_melody_classic",
+            "kuromi_classic",
+            "cinnamoroll_classic",
+            "pompompurin_classic",
+            "badtz_maru_classic",
+            "keroppi_classic",
+            "tuxedosam_classic",
+            "chococat_classic"
+        }
     end
     
     -- Generate random items
