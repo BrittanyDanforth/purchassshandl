@@ -233,9 +233,10 @@ function EffectsLibrary:CreateGlowEffect(frame: GuiObject, options: EffectOption
     if not self._enabled then return "" end
     
     -- Check if frame has a parent
-    if not frame.Parent then
+    -- Ensure frame has a parent
+    if not frame or not frame.Parent then
         warn("[EffectsLibrary] Cannot create glow effect - frame has no parent")
-        return ""
+        return nil
     end
     
     options = options or {}

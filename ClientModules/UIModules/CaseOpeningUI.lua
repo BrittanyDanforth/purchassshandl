@@ -868,8 +868,8 @@ function CaseOpeningUI:CreateCollectButton()
         Position = UDim2.new(0.5, -COLLECT_BUTTON_SIZE.X/2, 1, -70)
     }, self._config.TWEEN_INFO.Bounce)
     
-    -- Add glow effect
-    if self._effectsLibrary then
+    -- Add glow effect (only if button is parented)
+    if self._effectsLibrary and self._collectButton.Parent then
         self._effectsLibrary:CreateGlowEffect(self._collectButton, {
             color = self._config.COLORS.Success,
             size = 30

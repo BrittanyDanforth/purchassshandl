@@ -108,6 +108,29 @@ function InventoryUI.new(dependencies)
     self._config = dependencies.Config or Config
     self._utilities = dependencies.Utilities or Utilities
     
+    -- Load PetDatabase from SharedModules
+    self._petDatabase = {}
+    local sharedModules = game.ReplicatedStorage:FindFirstChild("SharedModules") or 
+                         game.ReplicatedStorage:FindFirstChild("SanrioTycoon") and 
+                         game.ReplicatedStorage.SanrioTycoon:FindFirstChild("SharedModules")
+    
+    if sharedModules then
+        local petDatabaseModule = sharedModules:FindFirstChild("PetDatabase")
+        if petDatabaseModule then
+            local success, result = pcall(require, petDatabaseModule)
+            if success then
+                self._petDatabase = result
+                print("[InventoryUI] PetDatabase loaded successfully")
+            else
+                warn("[InventoryUI] Failed to load PetDatabase:", result)
+            end
+        else
+            warn("[InventoryUI] PetDatabase module not found in SharedModules")
+        end
+    else
+        warn("[InventoryUI] SharedModules not found")
+    end
+    
     -- UI References
     self.Frame = nil
     self.PetGrid = nil
@@ -1014,11 +1037,19 @@ function InventoryUI:RefreshInventory()
     end
     self.IsRefreshing = true
     
-    -- Ensure PetGrid exists
+    -- Find PetGrid in current tab
     if not self.PetGrid or not self.PetGrid.Parent then
-        warn("[InventoryUI] PetGrid not found, cannot refresh")
-        self.IsRefreshing = false
-        return
+        -- Try to find it in the Pets tab
+        local petsTab = self.TabFrames and self.TabFrames["Pets"]
+        if petsTab then
+            self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+        end
+        
+        if not self.PetGrid then
+            warn("[InventoryUI] PetGrid not found, cannot refresh")
+            self.IsRefreshing = false
+            return
+        end
     end
     
     -- Get grid layout
@@ -1112,8 +1143,16 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
                 petData.uniqueId = uniqueId
                 
                 -- Get pet template data
-                local templateData = self._dataCache and self._dataCache:Get("petDatabase." .. petData.petId) or
-                                   {name = "Unknown", displayName = "Unknown", rarity = 1}
+                local templateData = nil
+                if self._petDatabase and self._petDatabase.GetPet then
+                    templateData = self._petDatabase:GetPet(petData.petId)
+                elseif self._petDatabase and self._petDatabase[petData.petId] then
+                    templateData = self._petDatabase[petData.petId]
+                end
+                
+                if not templateData then
+                    templateData = {name = "Unknown", displayName = "Unknown", rarity = 1}
+                end
                 
                 -- Apply filters
                 local filterFunc = FILTER_DEFINITIONS[self.CurrentFilter]
@@ -1430,15 +1469,34 @@ function InventoryUI:LoadPetsForDeletion(parent: ScrollingFrame)
     
     -- Sort by rarity (lowest first for easier mass deletion)
     table.sort(pets, function(a, b)
-        local aData = self._dataCache and self._dataCache:Get("petDatabase." .. a.petId) or {}
-        local bData = self._dataCache and self._dataCache:Get("petDatabase." .. b.petId) or {}
+        local aData = nil
+        local bData = nil
+        
+        if self._petDatabase and self._petDatabase.GetPet then
+            aData = self._petDatabase:GetPet(a.petId)
+            bData = self._petDatabase:GetPet(b.petId)
+        elseif self._petDatabase then
+            aData = self._petDatabase[a.petId]
+            bData = self._petDatabase[b.petId]
+        end
+        
+        aData = aData or {}
+        bData = bData or {}
         return (aData.rarity or 1) < (bData.rarity or 1)
     end)
     
     -- Create selection cards
     for _, pet in ipairs(pets) do
-        local petData = self._dataCache and self._dataCache:Get("petDatabase." .. pet.petId) or
-                       {name = "Unknown", displayName = "Unknown", rarity = 1}
+        local petData = nil
+        if self._petDatabase and self._petDatabase.GetPet then
+            petData = self._petDatabase:GetPet(pet.petId)
+        elseif self._petDatabase and self._petDatabase[pet.petId] then
+            petData = self._petDatabase[pet.petId]
+        end
+        
+        if not petData then
+            petData = {name = "Unknown", displayName = "Unknown", rarity = 1}
+        end
         
         local card = self:CreateDeleteSelectionCard(parent, pet, petData)
     end
@@ -1521,7 +1579,13 @@ function InventoryUI:SelectPetsByRarity(rarity: number)
             
             if playerData.pets and playerData.pets[petId] then
                 local pet = playerData.pets[petId]
-                local petData = self._dataCache and self._dataCache:Get("petDatabase." .. pet.petId) or {}
+                local petData = nil
+                if self._petDatabase and self._petDatabase.GetPet then
+                    petData = self._petDatabase:GetPet(pet.petId)
+                elseif self._petDatabase and self._petDatabase[pet.petId] then
+                    petData = self._petDatabase[pet.petId]
+                end
+                petData = petData or {}
                 
                 if petData.rarity == rarity and not pet.equipped and not pet.locked then
                     self.SelectedForDeletion[petId] = true
