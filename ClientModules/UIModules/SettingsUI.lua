@@ -230,16 +230,17 @@ end
 -- ========================================
 
 function SettingsUI:CreateUI()
-    local mainPanel = self._windowManager and self._windowManager:GetMainPanel() or 
-                     Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    local parent = self._mainUI and self._mainUI.MainPanel or 
+                   self._windowManager and self._windowManager:GetMainPanel() or 
+                   Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
     
-    if not mainPanel then
-        warn("[SettingsUI] No main panel found")
+    if not parent then
+        warn("[SettingsUI] No parent container found")
         return
     end
     
     -- Create main frame with exact same sizing as ShopUI
-    self.Frame = self._uiFactory:CreateFrame(mainPanel, {
+    self.Frame = self._uiFactory:CreateFrame(parent, {
         name = "SettingsFrame",
         size = UDim2.new(1, -20, 1, -90),  -- Same as ShopUI
         position = UDim2.new(0, 10, 0, 80), -- Same as ShopUI
