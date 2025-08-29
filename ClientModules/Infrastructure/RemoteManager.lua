@@ -358,18 +358,23 @@ function RemoteManager:GetRemoteFunction(name: string): RemoteFunction?
 end
 
 function RemoteManager:Invoke(functionName: string, ...: any): any
+	return self:InvokeWithPriority(functionName, "NORMAL", ...)
+end
+
+function RemoteManager:InvokeWithPriority(functionName: string, priority: "HIGH" | "NORMAL" | "LOW", ...: any): any
 	local remote = self._remoteFunctions[functionName]
 	if not remote then
 		warn("[RemoteManager] RemoteFunction not found:", functionName)
 		return nil
 	end
 
-	-- Create request
+	-- Create request with priority
 	local request = {
 		functionName = functionName,
 		args = {...},
 		timestamp = tick(),
 		retryCount = 0,
+		priority = priority or "NORMAL",
 	}
 
 	-- Try immediate execution if not rate limited
@@ -384,6 +389,10 @@ end
 -- Alias for compatibility
 function RemoteManager:InvokeFunction(functionName: string, ...: any): any
 	return self:Invoke(functionName, ...)
+end
+
+function RemoteManager:InvokePriority(functionName: string, ...: any): any
+	return self:InvokeWithPriority(functionName, "HIGH", ...)
 end
 
 function RemoteManager:InvokeServer(functionName: string, ...: any): Types.RemoteResult<any>
@@ -535,7 +544,32 @@ function RemoteManager:QueueRequest(request)
 
 	request.promise = promise
 
-	table.insert(self._requestQueue, request)
+	-- Insert based on priority
+	if request.priority == "HIGH" then
+		-- Find position after other HIGH priority requests
+		local insertPos = 1
+		for i, req in ipairs(self._requestQueue) do
+			if req.priority ~= "HIGH" then
+				break
+			end
+			insertPos = i + 1
+		end
+		table.insert(self._requestQueue, insertPos, request)
+	elseif request.priority == "LOW" then
+		-- Always insert at the end for LOW priority
+		table.insert(self._requestQueue, request)
+	else
+		-- NORMAL priority - insert after HIGH but before LOW
+		local insertPos = #self._requestQueue + 1
+		for i = #self._requestQueue, 1, -1 do
+			if self._requestQueue[i].priority == "LOW" then
+				insertPos = i
+			else
+				break
+			end
+		end
+		table.insert(self._requestQueue, insertPos, request)
+	end
 
 	-- Wait for result
 	while not promise._resolved do
