@@ -1313,6 +1313,48 @@ function BattleUI:CreateBattleHeader(parent: Frame)
     })
     
     self.TurnTimerLabel = timerLabel
+    
+    -- Turn indicator label
+    local turnIndicator = self._uiFactory:CreateLabel(header, {
+        text = "YOUR TURN",
+        size = UDim2.new(0, 200, 0, 30),
+        position = UDim2.new(0.5, -100, 1, -35),
+        font = self._config.FONTS.Secondary,
+        textColor = self._config.COLORS.Success,
+        textSize = 18,
+        zIndex = 504
+    })
+    
+    self.TurnIndicatorLabel = turnIndicator
+    
+    -- Add glow effect to turn indicator
+    local indicatorGlow = Instance.new("Frame")
+    indicatorGlow.Size = UDim2.new(1, 10, 1, 10)
+    indicatorGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    indicatorGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+    indicatorGlow.BackgroundTransparency = 1
+    indicatorGlow.ZIndex = turnIndicator.ZIndex - 1
+    indicatorGlow.Parent = turnIndicator
+    
+    local indicatorStroke = Instance.new("UIStroke")
+    indicatorStroke.Color = self._config.COLORS.Success
+    indicatorStroke.Thickness = 2
+    indicatorStroke.Transparency = 0.5
+    indicatorStroke.Parent = indicatorGlow
+    
+    -- Animate indicator glow
+    task.spawn(function()
+        while indicatorGlow.Parent do
+            self._utilities.Tween(indicatorStroke, {
+                Transparency = 0.2
+            }, TweenInfo.new(1, Enum.EasingStyle.Sine))
+            task.wait(1)
+            self._utilities.Tween(indicatorStroke, {
+                Transparency = 0.5
+            }, TweenInfo.new(1, Enum.EasingStyle.Sine))
+            task.wait(1)
+        end
+    end)
 end
 
 function BattleUI:CreateBattlerInfo(parent: Frame, player: Player, size: UDim2, position: UDim2, isPlayer: boolean): Frame
@@ -1593,7 +1635,31 @@ function BattleUI:CreateMoveButton(index: number): Frame
     
     button.Name = "MoveButton" .. index
     
-    -- Add cooldown overlay
+    -- Store in controls
+    self.BattleControls["MoveButton" .. index] = button
+    
+    -- Add ready glow effect
+    local glowFrame = Instance.new("Frame")
+    glowFrame.Name = "ReadyGlow"
+    glowFrame.Size = UDim2.new(1, 8, 1, 8)
+    glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    glowFrame.BackgroundTransparency = 1
+    glowFrame.ZIndex = button.ZIndex - 1
+    glowFrame.Parent = button
+    
+    local glowStroke = Instance.new("UIStroke")
+    glowStroke.Name = "GlowStroke"
+    glowStroke.Color = self._config.COLORS.Success
+    glowStroke.Thickness = 3
+    glowStroke.Transparency = 1
+    glowStroke.Parent = glowFrame
+    
+    local glowCorner = Instance.new("UICorner")
+    glowCorner.CornerRadius = UDim.new(0, 8)
+    glowCorner.Parent = glowFrame
+    
+    -- Add cooldown overlay with sweep effect
     local cooldownOverlay = Instance.new("Frame")
     cooldownOverlay.Name = "CooldownOverlay"
     cooldownOverlay.Size = UDim2.new(1, 0, 1, 0)
@@ -1828,24 +1894,314 @@ end
 
 function BattleUI:UpdateMoveButtons()
     -- Enable/disable move buttons based on turn
-    local isMyTurn = self.CurrentBattle.currentTurn == 1
+    local isMyTurn = self.CurrentBattle and self.CurrentBattle.currentTurn == 1
     
     for i = 1, 4 do
         local button = self.BattleControls["MoveButton" .. i]
         if button then
             button.Active = isMyTurn
-            button.BackgroundColor3 = isMyTurn and 
-                                     self._config.COLORS.Primary or 
-                                     self._config.COLORS.TextSecondary
+            
+            -- Update button appearance
+            if isMyTurn then
+                button.BackgroundColor3 = self._config.COLORS.Primary
+                self:EnableMoveButton(button, i)
+            else
+                button.BackgroundColor3 = self._config.COLORS.TextSecondary
+                self:DisableMoveButton(button)
+            end
+            
+            -- Check cooldown
+            local cooldown = self:GetMoveCooldown(i)
+            if cooldown > 0 then
+                self:ShowCooldown(button, cooldown)
+            else
+                self:HideCooldown(button)
+            end
         end
     end
 end
 
-function BattleUI:UpdateTurnIndicator()
-    -- Update turn timer
-    if self.TurnTimerLabel then
-        self.TurnTimerLabel.Text = tostring(self.CurrentBattle.turnTimer or 30)
+function BattleUI:EnableMoveButton(button: TextButton, moveIndex: number)
+    -- Show ready glow
+    local glowFrame = button:FindFirstChild("ReadyGlow")
+    if glowFrame then
+        local glowStroke = glowFrame:FindFirstChild("GlowStroke")
+        if glowStroke then
+            -- Animate glow pulse
+            task.spawn(function()
+                while button.Active and glowStroke.Parent do
+                    self._utilities.Tween(glowStroke, {
+                        Transparency = 0.3,
+                        Thickness = 4
+                    }, TweenInfo.new(0.8, Enum.EasingStyle.Sine))
+                    task.wait(0.8)
+                    self._utilities.Tween(glowStroke, {
+                        Transparency = 0.6,
+                        Thickness = 3
+                    }, TweenInfo.new(0.8, Enum.EasingStyle.Sine))
+                    task.wait(0.8)
+                end
+            end)
+        end
     end
+    
+    -- Add hover effect
+    if not button:GetAttribute("HoverConnected") then
+        button:SetAttribute("HoverConnected", true)
+        
+        button.MouseEnter:Connect(function()
+            if button.Active then
+                self._utilities.Tween(button, {
+                    Size = UDim2.new(1, 5, 1, 5)
+                }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+                
+                -- Show ability preview
+                self:ShowAbilityPreview(moveIndex)
+            end
+        end)
+        
+        button.MouseLeave:Connect(function()
+            self._utilities.Tween(button, {
+                Size = UDim2.new(1, 0, 1, 0)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+            
+            self:HideAbilityPreview()
+        end)
+    end
+end
+
+function BattleUI:DisableMoveButton(button: TextButton)
+    -- Hide glow
+    local glowFrame = button:FindFirstChild("ReadyGlow")
+    if glowFrame then
+        local glowStroke = glowFrame:FindFirstChild("GlowStroke")
+        if glowStroke then
+            glowStroke.Transparency = 1
+        end
+    end
+    
+    -- Reset size
+    button.Size = UDim2.new(1, 0, 1, 0)
+end
+
+function BattleUI:GetMoveCooldown(moveIndex: number): number
+    -- This would check actual cooldown from battle state
+    -- For now, return 0 (no cooldown)
+    return 0
+end
+
+function BattleUI:ShowCooldown(button: TextButton, cooldown: number)
+    local overlay = button:FindFirstChild("CooldownOverlay")
+    if overlay then
+        overlay.Visible = true
+        
+        -- Update cooldown text
+        local label = overlay:FindFirstChildOfClass("TextLabel")
+        if label then
+            label.Text = tostring(cooldown)
+        end
+        
+        -- Create sweep animation
+        self:CreateCooldownSweep(button, cooldown)
+    end
+end
+
+function BattleUI:HideCooldown(button: TextButton)
+    local overlay = button:FindFirstChild("CooldownOverlay")
+    if overlay then
+        overlay.Visible = false
+    end
+end
+
+function BattleUI:CreateCooldownSweep(button: TextButton, totalTime: number)
+    local sweep = button:FindFirstChild("CooldownSweep") or Instance.new("ImageLabel")
+    sweep.Name = "CooldownSweep"
+    sweep.Size = UDim2.new(1, 0, 1, 0)
+    sweep.BackgroundTransparency = 1
+    sweep.Image = "rbxassetid://4641587788" -- Radial fill image
+    sweep.ImageColor3 = Color3.new(0, 0, 0)
+    sweep.ImageTransparency = 0.5
+    sweep.ZIndex = button.ZIndex + 2
+    sweep.Parent = button
+    
+    -- Animate sweep
+    local startTime = tick()
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        local elapsed = tick() - startTime
+        local progress = elapsed / totalTime
+        
+        if progress >= 1 then
+            sweep:Destroy()
+            connection:Disconnect()
+            self:HideCooldown(button)
+        else
+            -- Update radial fill based on progress
+            sweep.ImageRectSize = Vector2.new(512, 512 * (1 - progress))
+            sweep.ImageRectOffset = Vector2.new(0, 512 * progress)
+        end
+    end)
+end
+
+function BattleUI:UpdateTurnIndicator()
+    if not self.CurrentBattle then return end
+    
+    local isPlayerTurn = self.CurrentBattle.currentTurn == 1
+    
+    -- Update active pet glow
+    self:UpdateActivePetGlow(isPlayerTurn)
+    
+    -- Update turn timer with animation
+    if self.TurnTimerLabel then
+        local timer = self.CurrentBattle.turnTimer or 30
+        self.TurnTimerLabel.Text = tostring(timer)
+        
+        -- Animate timer pulse if low time
+        if timer <= 5 then
+            self:AnimateTimerUrgent()
+        end
+    end
+    
+    -- Update turn indicator text
+    if self.TurnIndicatorLabel then
+        self.TurnIndicatorLabel.Text = isPlayerTurn and "YOUR TURN" or "OPPONENT'S TURN"
+        self.TurnIndicatorLabel.TextColor3 = isPlayerTurn and self._config.COLORS.Success or self._config.COLORS.Warning
+    end
+end
+
+function BattleUI:UpdateActivePetGlow(isPlayerTurn: boolean)
+    -- Find active pet frames
+    local playerPets = self.PlayerSide and self.PlayerSide:FindFirstChild("PetArea")
+    local opponentPets = self.OpponentSide and self.OpponentSide:FindFirstChild("PetArea")
+    
+    if playerPets then
+        local activePet = playerPets:FindFirstChild("ActivePet")
+        if activePet then
+            if isPlayerTurn then
+                self:AddActivePetGlow(activePet)
+            else
+                self:RemoveActivePetGlow(activePet)
+            end
+        end
+    end
+    
+    if opponentPets then
+        local activePet = opponentPets:FindFirstChild("ActivePet")
+        if activePet then
+            if not isPlayerTurn then
+                self:AddActivePetGlow(activePet)
+            else
+                self:RemoveActivePetGlow(activePet)
+            end
+        end
+    end
+end
+
+function BattleUI:AddActivePetGlow(petFrame: Frame)
+    -- Remove existing glow
+    local existingGlow = petFrame:FindFirstChild("TurnGlow")
+    if existingGlow then
+        existingGlow:Destroy()
+    end
+    
+    -- Create glowing border
+    local glowFrame = Instance.new("Frame")
+    glowFrame.Name = "TurnGlow"
+    glowFrame.Size = UDim2.new(1, 20, 1, 20)
+    glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    glowFrame.BackgroundTransparency = 1
+    glowFrame.ZIndex = petFrame.ZIndex - 1
+    glowFrame.Parent = petFrame
+    
+    -- Create UIStroke for glow
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = self._config.COLORS.Success
+    stroke.Thickness = 4
+    stroke.Transparency = 0.5
+    stroke.Parent = glowFrame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = glowFrame
+    
+    -- Animate glow pulse
+    task.spawn(function()
+        while glowFrame.Parent do
+            self._utilities.Tween(stroke, {
+                Thickness = 6,
+                Transparency = 0.2
+            }, TweenInfo.new(0.8, Enum.EasingStyle.Sine))
+            task.wait(0.8)
+            self._utilities.Tween(stroke, {
+                Thickness = 4,
+                Transparency = 0.5
+            }, TweenInfo.new(0.8, Enum.EasingStyle.Sine))
+            task.wait(0.8)
+        end
+    end)
+    
+    -- Add particles
+    self:CreateTurnParticles(petFrame)
+end
+
+function BattleUI:RemoveActivePetGlow(petFrame: Frame)
+    local glowFrame = petFrame:FindFirstChild("TurnGlow")
+    if glowFrame then
+        self._utilities.Tween(glowFrame, {
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.3))
+        
+        task.wait(0.3)
+        glowFrame:Destroy()
+    end
+end
+
+function BattleUI:CreateTurnParticles(petFrame: Frame)
+    task.spawn(function()
+        for i = 1, 20 do
+            task.wait(math.random() * 0.5)
+            
+            local particle = Instance.new("Frame")
+            particle.Size = UDim2.new(0, 4, 0, 4)
+            particle.Position = UDim2.new(math.random(), 0, 1, 0)
+            particle.BackgroundColor3 = self._config.COLORS.Success
+            particle.BorderSizePixel = 0
+            particle.ZIndex = petFrame.ZIndex + 1
+            particle.Parent = petFrame
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = particle
+            
+            -- Float up animation
+            self._utilities.Tween(particle, {
+                Position = UDim2.new(particle.Position.X.Scale, 0, -0.2, 0),
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1
+            }, TweenInfo.new(2, Enum.EasingStyle.Linear))
+            
+            game:GetService("Debris"):AddItem(particle, 2)
+        end
+    end)
+end
+
+function BattleUI:AnimateTimerUrgent()
+    if not self.TurnTimerLabel then return end
+    
+    -- Flash red
+    self.TurnTimerLabel.TextColor3 = self._config.COLORS.Error
+    
+    -- Pulse animation
+    self._utilities.Tween(self.TurnTimerLabel, {
+        TextSize = 28
+    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+    
+    task.wait(0.2)
+    
+    self._utilities.Tween(self.TurnTimerLabel, {
+        TextSize = 24
+    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
 end
 
 function BattleUI:OnTurnStart(data: {turn: number, timer: number})
@@ -1872,32 +2228,204 @@ function BattleUI:OnTurnStart(data: {turn: number, timer: number})
 end
 
 function BattleUI:StartTurnTimer()
-    spawn(function()
-        local timer = self.CurrentBattle.turnTimer or TURN_TIMER
+    -- Stop existing timer
+    if self._timerConnection then
+        self._timerConnection:Disconnect()
+        self._timerConnection = nil
+    end
+    
+    local timer = self.CurrentBattle.turnTimer or TURN_TIMER
+    local lastUpdate = tick()
+    
+    -- Create countdown animation
+    self._timerConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not self.IsInBattle then
+            if self._timerConnection then
+                self._timerConnection:Disconnect()
+                self._timerConnection = nil
+            end
+            return
+        end
         
-        while timer > 0 and self.IsInBattle do
+        local now = tick()
+        local elapsed = now - lastUpdate
+        
+        if elapsed >= 1 then
+            lastUpdate = now
+            timer = timer - 1
+            
+            if timer <= 0 then
+                if self._timerConnection then
+                    self._timerConnection:Disconnect()
+                    self._timerConnection = nil
+                end
+                return
+            end
+            
+            -- Update timer display
             if self.TurnTimerLabel then
                 self.TurnTimerLabel.Text = tostring(timer)
+                
+                -- Animate timer change
+                self:AnimateTimerTick(timer)
                 
                 -- Change color based on time
                 if timer <= 5 then
                     self.TurnTimerLabel.TextColor3 = self._config.COLORS.Error
+                    self:CreateTimerWarning(timer)
                 elseif timer <= 10 then
                     self.TurnTimerLabel.TextColor3 = self._config.COLORS.Warning
                 else
                     self.TurnTimerLabel.TextColor3 = self._config.COLORS.White
                 end
             end
-            
-            task.wait(1)
-            timer = timer - 1
         end
     end)
+end
+
+function BattleUI:AnimateTimerTick(timer: number)
+    if not self.TurnTimerLabel then return end
+    
+    -- Scale pop animation
+    self.TurnTimerLabel.Size = UDim2.new(0, 120, 0, 120)
+    
+    self._utilities.Tween(self.TurnTimerLabel, {
+        Size = UDim2.new(0, 100, 0, 100)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    -- Critical time effects
+    if timer <= 5 then
+        -- Create radial sweep
+        self:CreateTimerSweep(timer)
+    end
+end
+
+function BattleUI:CreateTimerSweep(timeLeft: number)
+    local timerParent = self.TurnTimerLabel.Parent
+    if not timerParent then return end
+    
+    -- Create sweep effect
+    local sweep = Instance.new("ImageLabel")
+    sweep.Name = "TimerSweep"
+    sweep.Size = UDim2.new(0, 120, 0, 120)
+    sweep.Position = self.TurnTimerLabel.Position
+    sweep.AnchorPoint = self.TurnTimerLabel.AnchorPoint
+    sweep.BackgroundTransparency = 1
+    sweep.Image = "rbxassetid://4641587788" -- Circle image
+    sweep.ImageColor3 = self._config.COLORS.Error
+    sweep.ImageTransparency = 0.7
+    sweep.ZIndex = self.TurnTimerLabel.ZIndex - 1
+    sweep.Parent = timerParent
+    
+    -- Animate sweep
+    sweep.Size = UDim2.new(0, 100, 0, 100)
+    self._utilities.Tween(sweep, {
+        Size = UDim2.new(0, 150, 0, 150),
+        ImageTransparency = 1
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    game:GetService("Debris"):AddItem(sweep, 0.5)
+end
+
+function BattleUI:CreateTimerWarning(timer: number)
+    if timer == 5 then
+        -- Create warning flash
+        local warning = Instance.new("Frame")
+        warning.Size = UDim2.new(1, 0, 1, 0)
+        warning.BackgroundColor3 = self._config.COLORS.Error
+        warning.BackgroundTransparency = 0.9
+        warning.ZIndex = 450
+        warning.Parent = self.BattleArena
+        
+        -- Flash animation
+        self._utilities.Tween(warning, {
+            BackgroundTransparency = 0.7
+        }, TweenInfo.new(0.1))
+        
+        task.wait(0.1)
+        
+        self._utilities.Tween(warning, {
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.3))
+        
+        game:GetService("Debris"):AddItem(warning, 0.4)
+        
+        -- Sound effect
+        if self._soundSystem then
+            self._soundSystem:PlayUISound("TimerWarning")
+        end
+    end
+end
+
+function BattleUI:ShowAbilityPreview(moveIndex: number)
+    -- Create preview tooltip
+    if self._abilityPreview then
+        self._abilityPreview:Destroy()
+    end
+    
+    local preview = Instance.new("Frame")
+    preview.Name = "AbilityPreview"
+    preview.Size = UDim2.new(0, 200, 0, 100)
+    preview.Position = UDim2.new(0.5, -100, 0, -120)
+    preview.BackgroundColor3 = self._config.COLORS.Dark
+    preview.BorderSizePixel = 0
+    preview.ZIndex = 600
+    preview.Parent = self.BattleArena
+    
+    self._utilities.CreateCorner(preview, 8)
+    self._utilities.CreateShadow(preview, 10)
+    
+    -- Move name
+    local moveName = self._uiFactory:CreateLabel(preview, {
+        text = "Move " .. moveIndex,
+        size = UDim2.new(1, -10, 0, 30),
+        position = UDim2.new(0, 5, 0, 5),
+        font = self._config.FONTS.Secondary,
+        textSize = 16
+    })
+    
+    -- Move description
+    local moveDesc = self._uiFactory:CreateLabel(preview, {
+        text = "Damage: 50\nType: Normal\nAccuracy: 95%",
+        size = UDim2.new(1, -10, 0, 60),
+        position = UDim2.new(0, 5, 0, 35),
+        font = self._config.FONTS.Body,
+        textSize = 14,
+        textColor = self._config.COLORS.TextSecondary
+    })
+    
+    self._abilityPreview = preview
+    
+    -- Animate entrance
+    preview.Size = UDim2.new(0, 0, 0, 0)
+    self._utilities.Tween(preview, {
+        Size = UDim2.new(0, 200, 0, 100)
+    }, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+end
+
+function BattleUI:HideAbilityPreview()
+    if self._abilityPreview then
+        self._utilities.Tween(self._abilityPreview, {
+            Size = UDim2.new(0, 0, 0, 0)
+        }, TweenInfo.new(0.15, Enum.EasingStyle.Quad))
+        
+        task.wait(0.15)
+        if self._abilityPreview then
+            self._abilityPreview:Destroy()
+            self._abilityPreview = nil
+        end
+    end
 end
 
 function BattleUI:UseMove(moveIndex: number)
     if not self.CurrentBattle or self.CurrentBattle.currentTurn ~= 1 then
         return
+    end
+    
+    -- Create button press effect
+    local button = self.BattleControls["MoveButton" .. moveIndex]
+    if button then
+        self:CreateMoveUseEffect(button)
     end
     
     -- Send move to server
@@ -2613,6 +3141,147 @@ function BattleUI:CreateCollectEffect(element: GuiObject)
         }, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
         game:GetService("Debris"):AddItem(particle, 0.4)
+    end
+end
+
+function BattleUI:CreateMoveUseEffect(button: TextButton)
+    -- Button press animation
+    self._utilities.Tween(button, {
+        Size = UDim2.new(0.9, 0, 0.9, 0)
+    }, TweenInfo.new(0.1, Enum.EasingStyle.Quad))
+    
+    task.wait(0.1)
+    
+    self._utilities.Tween(button, {
+        Size = UDim2.new(1, 0, 1, 0)
+    }, TweenInfo.new(0.1, Enum.EasingStyle.Back))
+    
+    -- Create energy burst
+    for i = 1, 8 do
+        local burst = Instance.new("Frame")
+        burst.Size = UDim2.new(0, 4, 0, 20)
+        burst.Position = UDim2.new(0.5, 0, 0.5, 0)
+        burst.AnchorPoint = Vector2.new(0.5, 0.5)
+        burst.BackgroundColor3 = self._config.COLORS.Primary
+        burst.BorderSizePixel = 0
+        burst.Rotation = (i - 1) * 45
+        burst.ZIndex = button.ZIndex + 10
+        burst.Parent = button
+        
+        -- Animate outward
+        self._utilities.Tween(burst, {
+            Size = UDim2.new(0, 2, 0, 40),
+            Position = UDim2.new(0.5, math.cos(math.rad(burst.Rotation)) * 50, 
+                               0.5, math.sin(math.rad(burst.Rotation)) * 50),
+            BackgroundTransparency = 1
+        }, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        game:GetService("Debris"):AddItem(burst, 0.4)
+    end
+    
+    -- Sound effect
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("UseMove")
+    end
+end
+
+function BattleUI:CreateImpactEffect(targetPosition: UDim2, moveType: string?)
+    local playerGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not playerGui then return end
+    
+    -- Impact explosion
+    local impact = Instance.new("Frame")
+    impact.Size = UDim2.new(0, 0, 0, 0)
+    impact.Position = targetPosition
+    impact.AnchorPoint = Vector2.new(0.5, 0.5)
+    impact.BackgroundColor3 = self._config.COLORS.Error
+    impact.BorderSizePixel = 0
+    impact.ZIndex = 600
+    impact.Parent = self.BattleArena or playerGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.5, 0)
+    corner.Parent = impact
+    
+    -- Expand and fade
+    self._utilities.Tween(impact, {
+        Size = UDim2.new(0, 150, 0, 150),
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Create shockwave rings
+    for i = 1, 3 do
+        task.spawn(function()
+            task.wait(i * 0.1)
+            
+            local ring = Instance.new("Frame")
+            ring.Size = UDim2.new(0, 50, 0, 50)
+            ring.Position = targetPosition
+            ring.AnchorPoint = Vector2.new(0.5, 0.5)
+            ring.BackgroundTransparency = 1
+            ring.ZIndex = 599
+            ring.Parent = impact.Parent
+            
+            local ringStroke = Instance.new("UIStroke")
+            ringStroke.Color = self._config.COLORS.Error
+            ringStroke.Thickness = 3
+            ringStroke.Transparency = 0
+            ringStroke.Parent = ring
+            
+            local ringCorner = Instance.new("UICorner")
+            ringCorner.CornerRadius = UDim.new(0.5, 0)
+            ringCorner.Parent = ring
+            
+            -- Expand ring
+            self._utilities.Tween(ring, {
+                Size = UDim2.new(0, 200 + i * 50, 0, 200 + i * 50)
+            }, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            self._utilities.Tween(ringStroke, {
+                Transparency = 1,
+                Thickness = 1
+            }, TweenInfo.new(0.6, Enum.EasingStyle.Quad))
+            
+            game:GetService("Debris"):AddItem(ring, 0.6)
+        end)
+    end
+    
+    -- Impact particles
+    for i = 1, 20 do
+        local particle = Instance.new("Frame")
+        particle.Size = UDim2.new(0, math.random(4, 8), 0, math.random(4, 8))
+        particle.Position = targetPosition
+        particle.AnchorPoint = Vector2.new(0.5, 0.5)
+        particle.BackgroundColor3 = Color3.fromRGB(255, math.random(100, 255), 0)
+        particle.BorderSizePixel = 0
+        particle.ZIndex = 601
+        particle.Parent = impact.Parent
+        
+        local particleCorner = Instance.new("UICorner")
+        particleCorner.CornerRadius = UDim.new(0.5, 0)
+        particleCorner.Parent = particle
+        
+        -- Random direction
+        local angle = math.random() * math.pi * 2
+        local distance = math.random(50, 150)
+        local targetX = targetPosition.X.Offset + math.cos(angle) * distance
+        local targetY = targetPosition.Y.Offset + math.sin(angle) * distance
+        
+        self._utilities.Tween(particle, {
+            Position = UDim2.new(0, targetX, 0, targetY),
+            Size = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1,
+            Rotation = math.random(180, 540)
+        }, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        game:GetService("Debris"):AddItem(particle, 0.6)
+    end
+    
+    game:GetService("Debris"):AddItem(impact, 0.5)
+    
+    -- Sound effect
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Impact")
     end
 end
 
