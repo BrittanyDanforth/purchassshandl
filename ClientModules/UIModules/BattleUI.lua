@@ -502,51 +502,99 @@ function BattleUI:StartQuickMatch()
 end
 
 function BattleUI:ShowMatchmakingUI()
-    -- Create overlay
+    -- Create overlay with fade-in
     local overlay = Instance.new("Frame")
     overlay.Name = "MatchmakingOverlay"
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.5
+    overlay.BackgroundTransparency = 1
     overlay.ZIndex = 500
     overlay.Parent = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
     
     self.MatchmakingOverlay = overlay
     
-    -- Search window
+    -- Fade in overlay
+    self._utilities.Tween(overlay, {
+        BackgroundTransparency = 0.5
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+    
+    -- Search window with entrance animation
     local searchWindow = Instance.new("Frame")
-    searchWindow.Size = UDim2.new(0, 400, 0, 200)
-    searchWindow.Position = UDim2.new(0.5, -200, 0.5, -100)
+    searchWindow.Size = UDim2.new(0, 0, 0, 0)
+    searchWindow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    searchWindow.AnchorPoint = Vector2.new(0.5, 0.5)
     searchWindow.BackgroundColor3 = self._config.COLORS.Background
     searchWindow.ZIndex = 501
     searchWindow.Parent = overlay
     
     self._utilities.CreateCorner(searchWindow, 20)
+    self._utilities.CreateShadow(searchWindow, 20)
     
-    -- Spinner
-    local spinner = Instance.new("ImageLabel")
-    spinner.Size = UDim2.new(0, 60, 0, 60)
-    spinner.Position = UDim2.new(0.5, -30, 0.3, -30)
-    spinner.BackgroundTransparency = 1
-    spinner.Image = "rbxassetid://4965362309" -- Loading spinner
-    spinner.ZIndex = 502
-    spinner.Parent = searchWindow
+    -- Animate window entrance
+    self._utilities.Tween(searchWindow, {
+        Size = UDim2.new(0, 400, 0, 250)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
     
-    -- Animate spinner
-    local spinTween = Services.TweenService:Create(spinner, 
-        TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1),
-        {Rotation = 360}
-    )
-    spinTween:Play()
+    -- Create animated searching dots
+    local dotsContainer = Instance.new("Frame")
+    dotsContainer.Size = UDim2.new(0, 150, 0, 50)
+    dotsContainer.Position = UDim2.new(0.5, 0, 0.3, 0)
+    dotsContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    dotsContainer.BackgroundTransparency = 1
+    dotsContainer.ZIndex = 502
+    dotsContainer.Parent = searchWindow
     
-    -- Status label
+    -- Create 3 animated dots
+    for i = 1, 3 do
+        local dot = Instance.new("Frame")
+        dot.Name = "SearchDot" .. i
+        dot.Size = UDim2.new(0, 20, 0, 20)
+        dot.Position = UDim2.new(0, (i - 1) * 50 + 15, 0.5, -10)
+        dot.BackgroundColor3 = self._config.COLORS.Primary
+        dot.BorderSizePixel = 0
+        dot.ZIndex = 503
+        dot.Parent = dotsContainer
+        
+        local dotCorner = Instance.new("UICorner")
+        dotCorner.CornerRadius = UDim.new(0.5, 0)
+        dotCorner.Parent = dot
+        
+        -- Animate dots bouncing
+        task.spawn(function()
+            task.wait((i - 1) * 0.2)
+            while dot.Parent and self.IsSearching do
+                self._utilities.Tween(dot, {
+                    Position = UDim2.new(0, (i - 1) * 50 + 15, 0.5, -20),
+                    Size = UDim2.new(0, 25, 0, 25)
+                }, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.Out))
+                task.wait(0.4)
+                self._utilities.Tween(dot, {
+                    Position = UDim2.new(0, (i - 1) * 50 + 15, 0.5, -10),
+                    Size = UDim2.new(0, 20, 0, 20)
+                }, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.In))
+                task.wait(0.4)
+            end
+        end)
+    end
+    
+    -- Status label with typewriter effect
     local statusLabel = self._uiFactory:CreateLabel(searchWindow, {
-        text = "Searching for opponent...",
+        text = "",
         size = UDim2.new(1, 0, 0, 30),
-        position = UDim2.new(0, 0, 0.6, 0),
+        position = UDim2.new(0, 0, 0.5, 10),
         font = self._config.FONTS.Secondary,
         zIndex = 502
     })
+    
+    -- Typewriter effect
+    local statusText = "Searching for opponent..."
+    task.spawn(function()
+        for i = 1, #statusText do
+            if not self.IsSearching then break end
+            statusLabel.Text = string.sub(statusText, 1, i)
+            task.wait(0.05)
+        end
+    end)
     
     -- Timer
     local timerLabel = self._uiFactory:CreateLabel(searchWindow, {
@@ -615,23 +663,208 @@ end
 function BattleUI:OnMatchFound(data: {opponent: Player, battleId: string})
     self.IsSearching = false
     
-    -- Close matchmaking UI
+    -- Create VS screen before closing matchmaking
     if self.MatchmakingOverlay then
-        self.MatchmakingOverlay:Destroy()
-        self.MatchmakingOverlay = nil
+        self:CreateVersusScreen(data.opponent, function()
+            -- Close matchmaking UI after VS screen
+            if self.MatchmakingOverlay then
+                self.MatchmakingOverlay:Destroy()
+                self.MatchmakingOverlay = nil
+            end
+            
+            -- Open team selection
+            self:OpenTeamSelection(data)
+        end)
     end
-    
-    -- Show notification
-    self._notificationSystem:SendNotification("Match Found!", 
-        "Battle starting against " .. data.opponent.DisplayName, "success")
     
     -- Play sound
     if self._soundSystem then
         self._soundSystem:PlayUISound("MatchFound")
     end
+end
+
+function BattleUI:CreateVersusScreen(opponent: Player, callback: () -> ())
+    local playerGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not playerGui then return end
     
-    -- Open team selection
-    self:OpenTeamSelection(data)
+    -- Create VS overlay
+    local vsOverlay = Instance.new("Frame")
+    vsOverlay.Name = "VersusScreen"
+    vsOverlay.Size = UDim2.new(1, 0, 1, 0)
+    vsOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    vsOverlay.BackgroundTransparency = 0.3
+    vsOverlay.ZIndex = 600
+    vsOverlay.Parent = playerGui
+    
+    -- Player side (left)
+    local playerSide = Instance.new("Frame")
+    playerSide.Size = UDim2.new(0.5, 0, 1, 0)
+    playerSide.Position = UDim2.new(-0.5, 0, 0, 0)
+    playerSide.BackgroundColor3 = self._config.COLORS.Primary
+    playerSide.BorderSizePixel = 0
+    playerSide.ZIndex = 601
+    playerSide.Parent = vsOverlay
+    
+    -- Opponent side (right)
+    local opponentSide = Instance.new("Frame")
+    opponentSide.Size = UDim2.new(0.5, 0, 1, 0)
+    opponentSide.Position = UDim2.new(1, 0, 0, 0)
+    opponentSide.BackgroundColor3 = self._config.COLORS.Error
+    opponentSide.BorderSizePixel = 0
+    opponentSide.ZIndex = 601
+    opponentSide.Parent = vsOverlay
+    
+    -- Slide in sides
+    self._utilities.Tween(playerSide, {
+        Position = UDim2.new(0, 0, 0, 0)
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+    
+    self._utilities.Tween(opponentSide, {
+        Position = UDim2.new(0.5, 0, 0, 0)
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+    
+    -- Player info
+    local playerInfo = self:CreateVersusPlayerInfo(playerSide, Services.Players.LocalPlayer, true)
+    local opponentInfo = self:CreateVersusPlayerInfo(opponentSide, opponent, false)
+    
+    -- VS text in center
+    task.wait(0.5)
+    
+    local vsText = Instance.new("TextLabel")
+    vsText.Size = UDim2.new(0, 200, 0, 150)
+    vsText.Position = UDim2.new(0.5, 0, 0.5, 0)
+    vsText.AnchorPoint = Vector2.new(0.5, 0.5)
+    vsText.BackgroundTransparency = 1
+    vsText.Text = "VS"
+    vsText.Font = Enum.Font.Fantasy
+    vsText.TextScaled = true
+    vsText.TextColor3 = Color3.new(1, 1, 1)
+    vsText.TextStrokeColor3 = Color3.new(0, 0, 0)
+    vsText.TextStrokeTransparency = 0
+    vsText.ZIndex = 610
+    vsText.Parent = vsOverlay
+    
+    -- VS entrance animation
+    vsText.Size = UDim2.new(0, 0, 0, 0)
+    self._utilities.Tween(vsText, {
+        Size = UDim2.new(0, 200, 0, 150),
+        Rotation = 360
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    -- Add lightning effect
+    self:CreateVersusLightning(vsOverlay)
+    
+    -- Wait then transition
+    task.wait(2.5)
+    
+    -- Fade out
+    self._utilities.Tween(vsOverlay, {
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.5))
+    
+    for _, child in ipairs(vsOverlay:GetDescendants()) do
+        if child:IsA("GuiObject") then
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                self._utilities.Tween(child, {
+                    TextTransparency = 1
+                }, TweenInfo.new(0.5))
+            elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                self._utilities.Tween(child, {
+                    ImageTransparency = 1
+                }, TweenInfo.new(0.5))
+            end
+            if child.BackgroundTransparency < 1 then
+                self._utilities.Tween(child, {
+                    BackgroundTransparency = 1
+                }, TweenInfo.new(0.5))
+            end
+        end
+    end
+    
+    task.wait(0.5)
+    vsOverlay:Destroy()
+    
+    if callback then
+        callback()
+    end
+end
+
+function BattleUI:CreateVersusPlayerInfo(parent: Frame, player: Player, isLeft: boolean)
+    local infoFrame = Instance.new("Frame")
+    infoFrame.Size = UDim2.new(0.8, 0, 0.6, 0)
+    infoFrame.Position = UDim2.new(0.1, 0, 0.2, 0)
+    infoFrame.BackgroundTransparency = 1
+    infoFrame.Parent = parent
+    
+    -- Avatar
+    local avatar = Instance.new("ImageLabel")
+    avatar.Size = UDim2.new(0, 150, 0, 150)
+    avatar.Position = isLeft and UDim2.new(0.3, 0, 0.3, 0) or UDim2.new(0.7, -150, 0.3, 0)
+    avatar.BackgroundColor3 = Color3.new(1, 1, 1)
+    avatar.BorderSizePixel = 0
+    avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150"
+    avatar.ScaleType = Enum.ScaleType.Crop
+    avatar.ZIndex = 605
+    avatar.Parent = infoFrame
+    
+    local avatarCorner = Instance.new("UICorner")
+    avatarCorner.CornerRadius = UDim.new(0.5, 0)
+    avatarCorner.Parent = avatar
+    
+    -- Name
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0, 50)
+    nameLabel.Position = UDim2.new(0, 0, 0.7, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.DisplayName
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.TextScaled = true
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.ZIndex = 605
+    nameLabel.Parent = infoFrame
+    
+    -- Animate entrance
+    avatar.Size = UDim2.new(0, 0, 0, 0)
+    nameLabel.TextTransparency = 1
+    
+    task.spawn(function()
+        task.wait(0.3)
+        self._utilities.Tween(avatar, {
+            Size = UDim2.new(0, 150, 0, 150)
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        task.wait(0.2)
+        self._utilities.Tween(nameLabel, {
+            TextTransparency = 0
+        }, TweenInfo.new(0.3))
+    end)
+    
+    return infoFrame
+end
+
+function BattleUI:CreateVersusLightning(parent: Frame)
+    for i = 1, 5 do
+        task.spawn(function()
+            task.wait(math.random() * 0.5)
+            
+            local lightning = Instance.new("Frame")
+            lightning.Size = UDim2.new(0, 4, 1, 0)
+            lightning.Position = UDim2.new(0.5, math.random(-100, 100), 0, 0)
+            lightning.BackgroundColor3 = Color3.new(1, 1, 1)
+            lightning.BorderSizePixel = 0
+            lightning.ZIndex = 608
+            lightning.Parent = parent
+            
+            -- Flash effect
+            self._utilities.Tween(lightning, {
+                BackgroundTransparency = 1
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Linear))
+            
+            game:GetService("Debris"):AddItem(lightning, 0.2)
+        end)
+    end
 end
 
 -- ========================================
@@ -1889,7 +2122,227 @@ end
 
 function BattleUI:UpdatePetDisplays()
     -- Update active pets and bench for both sides
-    -- This would show current pet images, health, and status
+    if not self.CurrentBattle then return end
+    
+    -- Update player pets
+    if self.PlayerSide then
+        local petArea = self.PlayerSide:FindFirstChild("PetArea")
+        if petArea then
+            local activePet = petArea:FindFirstChild("ActivePet")
+            if activePet and self.CurrentBattle.playerTeam then
+                local currentPet = self.CurrentBattle.playerTeam[self.CurrentBattle.playerActivePet or 1]
+                if currentPet then
+                    self:UpdatePetDisplay(activePet, currentPet, true)
+                end
+            end
+        end
+    end
+    
+    -- Update opponent pets
+    if self.OpponentSide then
+        local petArea = self.OpponentSide:FindFirstChild("PetArea")
+        if petArea then
+            local activePet = petArea:FindFirstChild("ActivePet")
+            if activePet and self.CurrentBattle.opponentTeam then
+                local currentPet = self.CurrentBattle.opponentTeam[self.CurrentBattle.opponentActivePet or 1]
+                if currentPet then
+                    self:UpdatePetDisplay(activePet, currentPet, false)
+                end
+            end
+        end
+    end
+end
+
+function BattleUI:UpdatePetDisplay(petFrame: Frame, petData: table, isPlayer: boolean)
+    local petImage = petFrame:FindFirstChild("PetImage")
+    if petImage then
+        petImage.Image = petData.image or ""
+    end
+    
+    -- Update health bar
+    local healthBar = petFrame:FindFirstChild("PetHealthBar")
+    if healthBar then
+        local fill = healthBar:FindFirstChild("Fill")
+        if fill then
+            local healthPercent = petData.currentHealth / petData.maxHealth
+            self._utilities.Tween(fill, {
+                Size = UDim2.new(healthPercent, 0, 1, 0)
+            }, TweenInfo.new(0.3, Enum.EasingStyle.Quad))
+        end
+    end
+end
+
+function BattleUI:SwitchPet(newPetIndex: number)
+    if not self.CurrentBattle or self.CurrentBattle.currentTurn ~= 1 then
+        return
+    end
+    
+    -- Validate pet index
+    if newPetIndex < 1 or newPetIndex > #self.CurrentBattle.playerTeam then
+        return
+    end
+    
+    -- Don't switch to current pet
+    if newPetIndex == self.CurrentBattle.playerActivePet then
+        return
+    end
+    
+    -- Animate pet switch
+    self:AnimatePetSwitch(newPetIndex, true)
+    
+    -- Send to server
+    if self._remoteManager then
+        self._remoteManager:FireServer("SwitchBattlePet", {
+            battleId = self.CurrentBattle.battleId,
+            petIndex = newPetIndex
+        })
+    end
+end
+
+function BattleUI:AnimatePetSwitch(newPetIndex: number, isPlayer: boolean)
+    local side = isPlayer and self.PlayerSide or self.OpponentSide
+    if not side then return end
+    
+    local petArea = side:FindFirstChild("PetArea")
+    if not petArea then return end
+    
+    local activePet = petArea:FindFirstChild("ActivePet")
+    if not activePet then return end
+    
+    -- Create swap trail particles
+    self:CreateSwapTrail(activePet)
+    
+    -- Slide out current pet
+    self._utilities.Tween(activePet, {
+        Position = UDim2.new(isPlayer and -0.5 or 1.5, 0, 0.3, -100),
+        Size = UDim2.new(0, 150, 0, 150)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In))
+    
+    task.wait(0.4)
+    
+    -- Update pet data
+    local team = isPlayer and self.CurrentBattle.playerTeam or self.CurrentBattle.opponentTeam
+    local newPet = team[newPetIndex]
+    
+    if newPet then
+        -- Update pet display
+        local petImage = activePet:FindFirstChild("PetImage")
+        if petImage then
+            petImage.Image = newPet.image or ""
+        end
+        
+        -- Update current index
+        if isPlayer then
+            self.CurrentBattle.playerActivePet = newPetIndex
+        else
+            self.CurrentBattle.opponentActivePet = newPetIndex
+        end
+    end
+    
+    -- Reset position for slide in
+    activePet.Position = UDim2.new(isPlayer and 1.5 or -0.5, 0, 0.3, -100)
+    
+    -- Slide in new pet
+    self._utilities.Tween(activePet, {
+        Position = UDim2.new(0.5, -100, 0.3, -100),
+        Size = UDim2.new(0, 200, 0, 200)
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    -- Flash effect on arrival
+    task.spawn(function()
+        task.wait(0.4)
+        self:CreatePetArrivalFlash(activePet)
+    end)
+    
+    -- Update health bar
+    self:UpdatePetDisplays()
+    
+    -- Sound effect
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("PetSwitch")
+    end
+end
+
+function BattleUI:CreateSwapTrail(petFrame: Frame)
+    -- Create trail particles
+    for i = 1, 15 do
+        task.spawn(function()
+            local trail = Instance.new("Frame")
+            trail.Size = UDim2.new(0, math.random(6, 12), 0, math.random(6, 12))
+            trail.Position = UDim2.new(0.5, math.random(-50, 50), 0.5, math.random(-50, 50))
+            trail.AnchorPoint = Vector2.new(0.5, 0.5)
+            trail.BackgroundColor3 = Color3.fromHSV(math.random(), 0.8, 1)
+            trail.BorderSizePixel = 0
+            trail.ZIndex = petFrame.ZIndex + 1
+            trail.Parent = petFrame
+            
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0.5, 0)
+            corner.Parent = trail
+            
+            -- Animate trail
+            local targetX = trail.Position.X.Offset * 3
+            local targetY = trail.Position.Y.Offset * 3
+            
+            self._utilities.Tween(trail, {
+                Position = UDim2.new(0.5, targetX, 0.5, targetY),
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1,
+                Rotation = math.random(180, 540)
+            }, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            game:GetService("Debris"):AddItem(trail, 0.6)
+        end)
+    end
+end
+
+function BattleUI:CreatePetArrivalFlash(petFrame: Frame)
+    -- Flash effect
+    local flash = Instance.new("Frame")
+    flash.Size = UDim2.new(1, 40, 1, 40)
+    flash.Position = UDim2.new(0.5, 0, 0.5, 0)
+    flash.AnchorPoint = Vector2.new(0.5, 0.5)
+    flash.BackgroundColor3 = Color3.new(1, 1, 1)
+    flash.BackgroundTransparency = 0.5
+    flash.ZIndex = petFrame.ZIndex - 1
+    flash.Parent = petFrame
+    
+    local flashCorner = Instance.new("UICorner")
+    flashCorner.CornerRadius = UDim.new(0, 20)
+    flashCorner.Parent = flash
+    
+    -- Animate flash
+    self._utilities.Tween(flash, {
+        Size = UDim2.new(1, 100, 1, 100),
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    game:GetService("Debris"):AddItem(flash, 0.4)
+    
+    -- Star burst
+    for i = 1, 8 do
+        local star = Instance.new("ImageLabel")
+        star.Size = UDim2.new(0, 30, 0, 30)
+        star.Position = UDim2.new(0.5, 0, 0.5, 0)
+        star.AnchorPoint = Vector2.new(0.5, 0.5)
+        star.BackgroundTransparency = 1
+        star.Image = "rbxassetid://7072719831" -- Star image
+        star.ImageColor3 = Color3.fromRGB(255, 215, 0)
+        star.ZIndex = petFrame.ZIndex + 2
+        star.Parent = petFrame
+        
+        local angle = (i - 1) * (math.pi * 2 / 8)
+        local distance = 80
+        
+        self._utilities.Tween(star, {
+            Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance),
+            Size = UDim2.new(0, 0, 0, 0),
+            ImageTransparency = 1,
+            Rotation = 180
+        }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        
+        game:GetService("Debris"):AddItem(star, 0.5)
+    end
 end
 
 function BattleUI:UpdateMoveButtons()
