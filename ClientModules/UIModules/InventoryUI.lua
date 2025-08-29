@@ -1320,19 +1320,21 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         card.ZIndex = originalZIndex + 10
         -- Shadow stays at ZIndex -1 relative to card
         
-        -- Create glow effect
-        if not glowFrame then
-            glowFrame = Instance.new("Frame")
-            glowFrame.Name = "GlowEffect"
-            glowFrame.Size = UDim2.new(1, 12, 1, 12)
-            glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-            glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-            glowFrame.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
-            glowFrame.BackgroundTransparency = 0.7
-            glowFrame.ZIndex = card.ZIndex - 1
-            glowFrame.Parent = card.Parent
-            self._utilities.CreateCorner(glowFrame, 12)
+        -- Create glow effect (destroy old one first if it exists)
+        if glowFrame and glowFrame.Parent then
+            glowFrame:Destroy()
         end
+        
+        glowFrame = Instance.new("Frame")
+        glowFrame.Name = "GlowEffect"
+        glowFrame.Size = UDim2.new(1, 12, 1, 12)
+        glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+        glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        glowFrame.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
+        glowFrame.BackgroundTransparency = 0.7
+        glowFrame.ZIndex = -2  -- Behind shadow
+        glowFrame.Parent = card  -- Parent to card, not card.Parent!
+        self._utilities.CreateCorner(glowFrame, 12)
         
         -- Animate background color
         self._utilities.Tween(card, {
@@ -1399,12 +1401,20 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
             BackgroundTransparency = 0.8
         }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
         
-        -- Fade out glow
-        if glowFrame then
+        -- Fade out and destroy glow
+        if glowFrame and glowFrame.Parent then
             self._utilities.Tween(glowFrame, {
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, 12, 1, 12)
             }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            -- Schedule destruction after animation
+            task.delay(0.2, function()
+                if glowFrame and glowFrame.Parent then
+                    glowFrame:Destroy()
+                    glowFrame = nil
+                end
+            end)
         end
     end)
     
