@@ -187,6 +187,8 @@ end
 -- ========================================
 
 function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
+    print("[PetDetailsUI] Opening details for pet:", petInstance.uniqueId or "unknown")
+    
     -- Close any existing window
     self:Close()
     
@@ -211,6 +213,23 @@ function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
         return
     end
     
+    -- Debug: Check visibility
+    if self._overlay then
+        print("[PetDetailsUI] Overlay created, parent:", self._overlay.Parent)
+        print("[PetDetailsUI] Overlay visible:", self._overlay.Visible)
+        self._overlay.Visible = true
+        
+        if self._detailsFrame then
+            print("[PetDetailsUI] Details frame size:", self._detailsFrame.Size)
+            print("[PetDetailsUI] Details frame position:", self._detailsFrame.Position)
+            self._detailsFrame.Visible = true
+        else
+            warn("[PetDetailsUI] Details frame not created!")
+        end
+    else
+        warn("[PetDetailsUI] Overlay not created!")
+    end
+    
     -- Register with window manager (if method exists)
     if self._windowManager and self._windowManager.RegisterOverlay then
         -- Wrap in pcall to catch any DisplayOrder errors
@@ -226,6 +245,8 @@ function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
     if self._soundSystem then
         self._soundSystem:PlayUISound("Open")
     end
+    
+    print("[PetDetailsUI] Open completed")
 end
 
 function PetDetailsUI:Close()
@@ -275,6 +296,8 @@ end
 -- ========================================
 
 function PetDetailsUI:CreateOverlay()
+    print("[PetDetailsUI] Creating overlay...")
+    
     -- Create a separate ScreenGui with higher DisplayOrder to ensure it's always on top
     local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("PetDetailsUILayer")
     if not screenGui then
@@ -283,7 +306,12 @@ function PetDetailsUI:CreateOverlay()
         screenGui.DisplayOrder = 10  -- Higher than main UI
         screenGui.ResetOnSpawn = false
         screenGui.IgnoreGuiInset = true
+        screenGui.Enabled = true  -- Ensure it's enabled
         screenGui.Parent = Services.Players.LocalPlayer.PlayerGui
+        print("[PetDetailsUI] Created new ScreenGui")
+    else
+        print("[PetDetailsUI] Using existing ScreenGui")
+        screenGui.Enabled = true  -- Ensure it's enabled
     end
     
     -- Create overlay
@@ -293,26 +321,35 @@ function PetDetailsUI:CreateOverlay()
     self._overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     self._overlay.BackgroundTransparency = 1
     self._overlay.ZIndex = 200
+    self._overlay.Visible = true  -- Ensure visible
     self._overlay.Parent = screenGui
+    
+    print("[PetDetailsUI] Overlay created, size:", self._overlay.Size)
     
     -- Fade in
     self._utilities.Tween(self._overlay, {
         BackgroundTransparency = 0.3
     }, self._config.TWEEN_INFO.Normal)
     
-    -- Click to close
+    -- Click to close (create button after overlay)
     local closeButton = Instance.new("TextButton")
     closeButton.Size = UDim2.new(1, 0, 1, 0)
     closeButton.BackgroundTransparency = 1
     closeButton.Text = ""
+    closeButton.ZIndex = 199  -- Below content
     closeButton.Parent = self._overlay
     
     self._janitor:Add(closeButton.MouseButton1Click:Connect(function()
+        print("[PetDetailsUI] Background clicked, closing...")
         self:Close()
     end))
+    
+    print("[PetDetailsUI] Overlay setup complete")
 end
 
 function PetDetailsUI:CreateDetailsWindow()
+    print("[PetDetailsUI] Creating details window...")
+    
     -- Main frame
     self._detailsFrame = Instance.new("Frame")
     self._detailsFrame.Name = "PetDetailsFrame"
@@ -320,23 +357,30 @@ function PetDetailsUI:CreateDetailsWindow()
     self._detailsFrame.Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
     self._detailsFrame.BackgroundColor3 = self._config.COLORS.Background
     self._detailsFrame.ZIndex = 201
+    self._detailsFrame.Visible = true  -- Ensure visible
     self._detailsFrame.Parent = self._overlay
+    
+    print("[PetDetailsUI] Details frame created, size:", WINDOW_SIZE.X, "x", WINDOW_SIZE.Y)
     
     self._utilities.CreateCorner(self._detailsFrame, 20)
     
-    -- Animate in
-    self._detailsFrame.Size = UDim2.new(0, 0, 0, 0)
-    self._detailsFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    self._utilities.Tween(self._detailsFrame, {
-        Size = UDim2.new(0, WINDOW_SIZE.X, 0, WINDOW_SIZE.Y),
-        Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
-    }, self._config.TWEEN_INFO.Bounce)
+    -- Start with full size (skip animation for debugging)
+    -- self._detailsFrame.Size = UDim2.new(0, 0, 0, 0)
+    -- self._detailsFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    -- self._utilities.Tween(self._detailsFrame, {
+    --     Size = UDim2.new(0, WINDOW_SIZE.X, 0, WINDOW_SIZE.Y),
+    --     Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
+    -- }, self._config.TWEEN_INFO.Bounce)
     
+    print("[PetDetailsUI] Creating header...")
     -- Create header
     self:CreateHeader()
     
+    print("[PetDetailsUI] Creating content...")
     -- Create content
     self:CreateContent()
+    
+    print("[PetDetailsUI] Details window setup complete")
 end
 
 function PetDetailsUI:CreateHeader()
@@ -755,11 +799,18 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
     
     yOffset = yOffset + 20
     
-    -- Combat stats
+    -- Combat stats - check multiple sources for stats
+    local petStats = petInstance.stats or {}
+    local baseStats = self._currentPetData.baseStats or {}
+    
     local stats = {
-        {name = "Power", value = petInstance.power, icon = STAT_ICONS.power, color = self._config.COLORS.Error},
-        {name = "Speed", value = petInstance.speed, icon = STAT_ICONS.speed, color = self._config.COLORS.Warning},
-        {name = "Luck", value = petInstance.luck, icon = STAT_ICONS.luck, color = self._config.COLORS.Success}
+        {name = "Power", value = petStats.power or petInstance.power or baseStats.power or 0, icon = STAT_ICONS.power, color = self._config.COLORS.Error},
+        {name = "Health", value = petStats.health or petInstance.health or baseStats.health or 100, icon = "❤️", color = self._config.COLORS.Error},
+        {name = "Defense", value = petStats.defense or petInstance.defense or baseStats.defense or 0, icon = "🛡️", color = self._config.COLORS.Primary},
+        {name = "Speed", value = petStats.speed or petInstance.speed or baseStats.speed or 0, icon = STAT_ICONS.speed, color = self._config.COLORS.Warning},
+        {name = "Luck", value = petStats.luck or petInstance.luck or baseStats.luck or 0, icon = STAT_ICONS.luck, color = self._config.COLORS.Success},
+        {name = "Coins", value = petStats.coins or petInstance.coins or baseStats.coins or 0, icon = "💰", color = self._config.COLORS.Warning},
+        {name = "Gems", value = petStats.gems or petInstance.gems or baseStats.gems or 0, icon = "💎", color = self._config.COLORS.Info}
     }
     
     for _, stat in ipairs(stats) do
@@ -981,15 +1032,20 @@ function PetDetailsUI:ShowPetInfo(parent: Frame)
     infoFrame.BackgroundTransparency = 1
     infoFrame.Parent = parent
     
+    -- Create comprehensive info list
     local infoList = {
-        {label = "Pet ID", value = self._currentPetInstance.uniqueId or "Unknown"},
-        {label = "Species", value = self._currentPetData.displayName or "Unknown"},
-        {label = "Rarity", value = RARITY_NAMES[self._currentPetData.rarity] or "Unknown"},
+        {label = "Pet ID", value = self._currentPetInstance.uniqueId or self._currentPetInstance.id or "Unknown"},
+        {label = "Species", value = self._currentPetData.displayName or self._currentPetData.name or "Unknown"},
+        {label = "Rarity", value = RARITY_NAMES[self._currentPetData.rarity] or "Unknown", color = self._utilities.GetRarityColor(self._currentPetData.rarity)},
         {label = "Variant", value = self:FormatVariant(self._currentPetInstance.variant)},
         {label = "Obtained", value = self:FormatDate(self._currentPetInstance.obtained)},
+        {label = "Time Owned", value = self:FormatTimeOwned(self._currentPetInstance.obtained)},
         {label = "Source", value = self:FormatSource(self._currentPetInstance.source)},
-        {label = "Tradeable", value = self._currentPetData.tradeable and "Yes" or "No"},
-        {label = "Battle Ready", value = self._currentPetInstance.level >= 10 and "Yes" or "No"}
+        {label = "Nickname", value = self._currentPetInstance.nickname or "None"},
+        {label = "Tradeable", value = self._currentPetData.tradeable ~= false and "Yes" or "No"},
+        {label = "Battle Ready", value = self._currentPetInstance.level >= 10 and "Yes" or "No"},
+        {label = "Total Battles", value = tostring(self._currentPetInstance.battleCount or 0)},
+        {label = "Wins", value = tostring(self._currentPetInstance.wins or 0)}
     }
     
     local yOffset = 0
@@ -1016,7 +1072,8 @@ function PetDetailsUI:ShowPetInfo(parent: Frame)
             size = UDim2.new(0.6, 0, 1, 0),
             position = UDim2.new(0.4, 0, 0, 0),
             textXAlignment = Enum.TextXAlignment.Right,
-            font = self._config.FONTS.Secondary
+            font = self._config.FONTS.Secondary,
+            textColor = info.color or self._config.COLORS.Text
         })
         
         -- Separator
@@ -1069,7 +1126,35 @@ function PetDetailsUI:FormatDate(timestamp: number?): string
     if not timestamp then
         return "Unknown"
     end
-    return os.date("%m/%d/%Y", timestamp)
+    return os.date("%m/%d/%Y %I:%M %p", timestamp)
+end
+
+function PetDetailsUI:FormatTimeOwned(timestamp: number?): string
+    if not timestamp then
+        return "Unknown"
+    end
+    
+    local now = os.time()
+    local diff = now - timestamp
+    
+    if diff < 60 then
+        return "Just now"
+    elseif diff < 3600 then
+        local minutes = math.floor(diff / 60)
+        return minutes .. " minute" .. (minutes ~= 1 and "s" or "") .. " ago"
+    elseif diff < 86400 then
+        local hours = math.floor(diff / 3600)
+        return hours .. " hour" .. (hours ~= 1 and "s" or "") .. " ago"
+    elseif diff < 604800 then
+        local days = math.floor(diff / 86400)
+        return days .. " day" .. (days ~= 1 and "s" or "") .. " ago"
+    elseif diff < 2592000 then
+        local weeks = math.floor(diff / 604800)
+        return weeks .. " week" .. (weeks ~= 1 and "s" or "") .. " ago"
+    else
+        local months = math.floor(diff / 2592000)
+        return months .. " month" .. (months ~= 1 and "s" or "") .. " ago"
+    end
 end
 
 function PetDetailsUI:FormatSource(source: string?): string
