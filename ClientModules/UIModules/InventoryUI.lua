@@ -4643,13 +4643,15 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
     local delta = equipped and 1 or -1
     self:UpdateSingleStat("equippedPets", delta)
     
-    -- Update data cache
-    local playerData = self._dataCache:Get("playerData")
-    if playerData and playerData.pets then
-        for _, pet in pairs(playerData.pets) do
-            if pet.uniqueId == uniqueId then
-                pet.equipped = equipped
-                break
+    -- Update data cache (but only if we're not exceeding the limit)
+    if not (equipped and currentEquipped >= 6) then
+        local playerData = self._dataCache:Get("playerData")
+        if playerData and playerData.pets then
+            for _, pet in pairs(playerData.pets) do
+                if pet.uniqueId == uniqueId then
+                    pet.equipped = equipped
+                    break
+                end
             end
         end
     end

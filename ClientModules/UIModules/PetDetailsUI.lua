@@ -1609,6 +1609,38 @@ function PetDetailsUI:OnEquipClicked()
 					end
 				end
 				
+				-- Final check before updating - ensure we're not exceeding limit
+				if not wasEquipped then
+					-- One more check to be absolutely sure
+					local finalPlayerData = self._dataCache and self._dataCache:Get("playerData")
+					local finalEquippedCount = 0
+					if finalPlayerData and finalPlayerData.pets then
+						for _, petData in pairs(finalPlayerData.pets) do
+							if petData.equipped then
+								finalEquippedCount = finalEquippedCount + 1
+							end
+						end
+					end
+					
+					if finalEquippedCount >= 6 then
+						-- STOP - DO NOT UPDATE ANYTHING
+						if self._notificationSystem then
+							self._notificationSystem:Show({
+								title = "Maximum Pets Equipped",
+								message = "Cannot equip - already at maximum (6/6)",
+								type = "error",
+								duration = 3
+							})
+						end
+						
+						-- Reset button state
+						self._buttonStates.equip.isLoading = false
+						self:UpdateEquipButton()
+						
+						return
+					end
+				end
+				
 				-- Safe to update
 				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
 				self:UpdateEquipButton()
