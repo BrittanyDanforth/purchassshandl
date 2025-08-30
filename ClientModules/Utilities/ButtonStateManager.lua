@@ -213,6 +213,9 @@ function ButtonStateManager:SetButtonState(button: TextButton, state: string)
         self:ApplyVisualState(button, state)
     end
     
+    -- Update tooltip
+    self:UpdateTooltip(button)
+    
     -- Handle state-specific logic
     if state == ButtonState.LOADING then
         self:ShowLoadingIndicator(button)
@@ -280,6 +283,85 @@ function ButtonStateManager:CreateLoadingIndicator(button: TextButton)
     self._loadingIndicators[button] = indicator
 end
 
+function ButtonStateManager:CreateTooltip(button: TextButton)
+    local tooltip = Instance.new("Frame")
+    tooltip.Name = "Tooltip"
+    tooltip.Size = UDim2.new(0, 150, 0, 30)
+    tooltip.Position = UDim2.new(0.5, -75, -1, -5)
+    tooltip.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    tooltip.BorderSizePixel = 0
+    tooltip.Visible = false
+    tooltip.ZIndex = button.ZIndex + 10
+    tooltip.Parent = button
+    
+    -- Add corner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = tooltip
+    
+    -- Add text
+    local text = Instance.new("TextLabel")
+    text.Name = "TooltipText"
+    text.Size = UDim2.new(1, -10, 1, 0)
+    text.Position = UDim2.new(0, 5, 0, 0)
+    text.BackgroundTransparency = 1
+    text.Text = ""
+    text.TextColor3 = Color3.fromRGB(255, 255, 255)
+    text.TextScaled = true
+    text.Font = Enum.Font.SourceSans
+    text.Parent = tooltip
+    
+    -- Add text size constraint
+    local constraint = Instance.new("UITextSizeConstraint")
+    constraint.MaxTextSize = 14
+    constraint.MinTextSize = 10
+    constraint.Parent = text
+    
+    return tooltip
+end
+
+function ButtonStateManager:UpdateTooltip(button: TextButton, message: string?)
+    local buttonData = self._buttons[button]
+    if not buttonData then return end
+    
+    local tooltip = button:FindFirstChild("Tooltip")
+    if not tooltip then
+        tooltip = self:CreateTooltip(button)
+    end
+    
+    local tooltipText = tooltip:FindFirstChild("TooltipText")
+    if not tooltipText then return end
+    
+    if message then
+        tooltipText.Text = message
+        tooltip.Visible = true
+        
+        -- Auto-hide after 3 seconds
+        task.delay(3, function()
+            if tooltip and tooltip.Parent then
+                tooltip.Visible = false
+            end
+        end)
+    else
+        -- Generate message based on state
+        local stateMessages = {
+            [ButtonState.LOADING] = "Processing...",
+            [ButtonState.COOLDOWN] = "On cooldown",
+            [ButtonState.DISABLED] = "Disabled",
+            [ButtonState.ERROR] = "Error occurred",
+            [ButtonState.SUCCESS] = "Success!"
+        }
+        
+        local msg = stateMessages[buttonData.state]
+        if msg then
+            tooltipText.Text = msg
+            tooltip.Visible = true
+        else
+            tooltip.Visible = false
+        end
+    end
+end
+
 function ButtonStateManager:ShowLoadingIndicator(button: TextButton)
     local indicator = self._loadingIndicators[button]
     if not indicator then return end
@@ -317,6 +399,11 @@ function ButtonStateManager:ExecuteAction(button: TextButton, action: () -> any,
     end
     
     options = options or {}
+    
+    -- If queue mode is enabled, add to queue instead of rejecting
+    if options.allowQueue then
+        return self:QueueAction(button, action, options)
+    end
     
     -- Check if button is in a valid state
     if buttonData.state == ButtonState.LOADING or 
@@ -402,6 +489,80 @@ function ButtonStateManager:ExecuteAction(button: TextButton, action: () -> any,
     end)
 end
 
+function ButtonStateManager:QueueAction(button: TextButton, action: () -> any, options: table?)
+    local buttonData = self._buttons[button]
+    if not buttonData then
+        return Promise.reject("Button not registered")
+    end
+    
+    -- Add action to queue
+    local queueItem = {
+        action = action,
+        options = options,
+        promise = nil,
+        resolve = nil,
+        reject = nil
+    }
+    
+    -- Create promise for this queued action
+    queueItem.promise = Promise.new(function(resolve, reject)
+        queueItem.resolve = resolve
+        queueItem.reject = reject
+    end)
+    
+    table.insert(buttonData.actionQueue, queueItem)
+    
+    -- Update button to show queue count
+    if #buttonData.actionQueue > 1 then
+        button.Text = string.format("%s (%d)", buttonData.originalText, #buttonData.actionQueue)
+    end
+    
+    -- Process queue if not already processing
+    if not buttonData.isProcessing then
+        self:ProcessActionQueue(button)
+    end
+    
+    return queueItem.promise
+end
+
+function ButtonStateManager:ProcessActionQueue(button: TextButton)
+    local buttonData = self._buttons[button]
+    if not buttonData or #buttonData.actionQueue == 0 then
+        return
+    end
+    
+    buttonData.isProcessing = true
+    
+    -- Get next action from queue
+    local queueItem = table.remove(buttonData.actionQueue, 1)
+    
+    -- Execute the action
+    self:ExecuteAction(button, queueItem.action, queueItem.options)
+        :Then(function(result)
+            queueItem.resolve(result)
+            
+            -- Update button text if more items in queue
+            if #buttonData.actionQueue > 0 then
+                button.Text = string.format("%s (%d)", buttonData.originalText, #buttonData.actionQueue)
+                -- Process next item after a short delay
+                task.wait(0.1)
+                self:ProcessActionQueue(button)
+            else
+                buttonData.isProcessing = false
+            end
+        end)
+        :Catch(function(error)
+            queueItem.reject(error)
+            
+            -- Clear queue on error
+            buttonData.actionQueue = {}
+            buttonData.isProcessing = false
+            
+            -- Reset button text
+            button.Text = buttonData.originalText
+        end)
+end
+
 function ButtonStateManager:StartCooldownTimer(button: TextButton)
     local buttonData = self._buttons[button]
     if not buttonData then return end
@@ -419,8 +580,10 @@ function ButtonStateManager:StartCooldownTimer(button: TextButton)
             connection:Disconnect()
             self:SetButtonState(button, ButtonState.IDLE)
             button.Text = originalText
+            self:UpdateTooltip(button, nil) -- Clear tooltip
         else
             button.Text = string.format("%s (%.1fs)", originalText, remaining)
+            self:UpdateTooltip(button, string.format("Cooldown: %.1fs", remaining))
         end
     end)
 end
