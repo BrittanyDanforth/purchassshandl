@@ -296,29 +296,28 @@ end
 -- ========================================
 
 function PetDetailsUI:CreateOverlay()
-	print("[PetDetailsUI] Creating overlay...")
-
-	-- Find the main SanrioTycoonUI ScreenGui
-	local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
-	if not screenGui then
-		-- Wait a bit for it to be created if it doesn't exist yet
-		screenGui = Services.Players.LocalPlayer.PlayerGui:WaitForChild("SanrioTycoonUI", 5)
-		if not screenGui then
-			warn("[PetDetailsUI] SanrioTycoonUI ScreenGui not found!")
-			return
-		end
-	end
-	print("[PetDetailsUI] Using SanrioTycoonUI ScreenGui")
-
-	-- Create overlay inside the main UI
-	self._overlay = Instance.new("Frame")
-	self._overlay.Name = "PetDetailsOverlay"
-	self._overlay.Size = UDim2.new(1, 0, 1, 0)
-	self._overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-	self._overlay.BackgroundTransparency = 1
-	self._overlay.ZIndex = 1000  -- High ZIndex to be on top within SanrioTycoonUI
-	self._overlay.Visible = true  -- Ensure visible
-	self._overlay.Parent = screenGui
+    print("[PetDetailsUI] Creating overlay...")
+    
+    -- Use the main SanrioTycoonUI ScreenGui instead of creating a separate one
+    local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not screenGui then
+        screenGui = Services.Players.LocalPlayer.PlayerGui:WaitForChild("SanrioTycoonUI", 5)
+        if not screenGui then
+            warn("[PetDetailsUI] SanrioTycoonUI ScreenGui not found!")
+            return
+        end
+    end
+    print("[PetDetailsUI] Using SanrioTycoonUI ScreenGui")
+    
+    -- Create overlay
+    self._overlay = Instance.new("Frame")
+    self._overlay.Name = "PetDetailsOverlay"
+    self._overlay.Size = UDim2.new(1, 0, 1, 0)
+    self._overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    self._overlay.BackgroundTransparency = 1
+    self._overlay.ZIndex = 200
+    self._overlay.Visible = true  -- Ensure visible
+    self._overlay.Parent = screenGui
     
     print("[PetDetailsUI] Overlay created, size:", self._overlay.Size)
     
@@ -327,13 +326,13 @@ function PetDetailsUI:CreateOverlay()
         BackgroundTransparency = 0.3
     }, self._config.TWEEN_INFO.Normal)
     
-    	-- Click to close (create button after overlay)
-	local closeButton = Instance.new("TextButton")
-	closeButton.Size = UDim2.new(1, 0, 1, 0)
-	closeButton.BackgroundTransparency = 1
-	closeButton.Text = ""
-	closeButton.ZIndex = 999  -- Below content but high within SanrioTycoonUI
-	closeButton.Parent = self._overlay
+    -- Click to close (create button after overlay)
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(1, 0, 1, 0)
+    closeButton.BackgroundTransparency = 1
+    closeButton.Text = ""
+    closeButton.ZIndex = 199  -- Below content
+    closeButton.Parent = self._overlay
     
     self._janitor:Add(closeButton.MouseButton1Click:Connect(function()
         print("[PetDetailsUI] Background clicked, closing...")
@@ -346,15 +345,15 @@ end
 function PetDetailsUI:CreateDetailsWindow()
     print("[PetDetailsUI] Creating details window...")
     
-    	-- Main frame
-	self._detailsFrame = Instance.new("Frame")
-	self._detailsFrame.Name = "PetDetailsFrame"
-	self._detailsFrame.Size = UDim2.new(0, WINDOW_SIZE.X, 0, WINDOW_SIZE.Y)
-	self._detailsFrame.Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
-	self._detailsFrame.BackgroundColor3 = self._config.COLORS.Background
-	self._detailsFrame.ZIndex = 1001  -- Above overlay within SanrioTycoonUI
-	self._detailsFrame.Visible = true  -- Ensure visible
-	self._detailsFrame.Parent = self._overlay
+    -- Main frame
+    self._detailsFrame = Instance.new("Frame")
+    self._detailsFrame.Name = "PetDetailsFrame"
+    self._detailsFrame.Size = UDim2.new(0, WINDOW_SIZE.X, 0, WINDOW_SIZE.Y)
+    self._detailsFrame.Position = UDim2.new(0.5, -WINDOW_SIZE.X/2, 0.5, -WINDOW_SIZE.Y/2)
+    self._detailsFrame.BackgroundColor3 = self._config.COLORS.Background
+    self._detailsFrame.ZIndex = 201
+    self._detailsFrame.Visible = true  -- Ensure visible
+    self._detailsFrame.Parent = self._overlay
     
     print("[PetDetailsUI] Details frame created, size:", WINDOW_SIZE.X, "x", WINDOW_SIZE.Y)
     
@@ -383,9 +382,9 @@ function PetDetailsUI:CreateHeader()
     local header = Instance.new("Frame")
     header.Name = "Header"
     header.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
-    	header.BackgroundColor3 = self._config.COLORS.Primary
-	header.ZIndex = 1002
-	header.Parent = self._detailsFrame
+    header.BackgroundColor3 = self._config.COLORS.Primary
+    header.ZIndex = 202
+    header.Parent = self._detailsFrame
     
     self._utilities.CreateCorner(header, 20)
     
@@ -395,7 +394,7 @@ function PetDetailsUI:CreateHeader()
     cornerFix.Position = UDim2.new(0, 0, 1, -20)
     cornerFix.BackgroundColor3 = self._config.COLORS.Primary
     cornerFix.BorderSizePixel = 0
-    cornerFix.ZIndex = 1001
+    cornerFix.ZIndex = 201
     cornerFix.Parent = header
     
     -- Pet name
@@ -411,7 +410,7 @@ function PetDetailsUI:CreateHeader()
         textColor = self._config.COLORS.White,
         textSize = 20,
         textXAlignment = Enum.TextXAlignment.Left,
-        zIndex = 1003
+        zIndex = 203
     })
     
     -- Close button
@@ -422,7 +421,7 @@ function PetDetailsUI:CreateHeader()
         backgroundColor = Color3.new(1, 1, 1),
         backgroundTransparency = 0.9,
         textColor = self._config.COLORS.White,
-        zIndex = 1003,
+        zIndex = 203,
         callback = function()
             self:Close()
         end
@@ -435,7 +434,7 @@ function PetDetailsUI:CreateContent()
     content.Size = UDim2.new(1, -20, 1, -HEADER_HEIGHT - 20)
     content.Position = UDim2.new(0, 10, 0, HEADER_HEIGHT + 10)
     content.BackgroundTransparency = 1
-    content.ZIndex = 1002
+    content.ZIndex = 202
     content.Parent = self._detailsFrame
     
     -- Left side - Pet display and actions
@@ -451,7 +450,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
     leftSide.Size = UDim2.new(0.4, -10, 1, 0)
     leftSide.Position = UDim2.new(0, 0, 0, 0)
     leftSide.BackgroundTransparency = 1
-    leftSide.ZIndex = 1002
+    leftSide.ZIndex = 202
     leftSide.Parent = parent
     
     -- Pet display
@@ -460,7 +459,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
     petDisplay.Size = UDim2.new(0, PET_DISPLAY_SIZE, 0, PET_DISPLAY_SIZE)
     petDisplay.Position = UDim2.new(0.5, -PET_DISPLAY_SIZE/2, 0, 0)
     petDisplay.BackgroundColor3 = self._config.COLORS.Surface
-    petDisplay.ZIndex = 1002
+    petDisplay.ZIndex = 202
     petDisplay.Parent = leftSide
     
     self._utilities.CreateCorner(petDisplay, 12)
@@ -472,7 +471,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
     petImage.BackgroundTransparency = 1
     petImage.Image = self._currentPetData.imageId or ""
     petImage.ScaleType = Enum.ScaleType.Fit
-    petImage.ZIndex = 1003
+    petImage.ZIndex = 203
     petImage.Parent = petDisplay
     
     -- Apply variant effects
@@ -496,7 +495,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
     infoContainer.Size = UDim2.new(1, 0, 1, -PET_DISPLAY_SIZE - 10)
     infoContainer.Position = UDim2.new(0, 0, 0, PET_DISPLAY_SIZE + 10)
     infoContainer.BackgroundTransparency = 1
-    infoContainer.ZIndex = 1004
+    infoContainer.ZIndex = 204
     infoContainer.Parent = leftSide
     
     -- Layout for info container
@@ -514,7 +513,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
             size = UDim2.new(1, 0, 0, 25),
             textColor = self._utilities.GetRarityColor(self._currentPetData.rarity),
             font = self._config.FONTS.Secondary,
-            zIndex = 1004,
+            zIndex = 204,
             layoutOrder = 1
         })
     end
@@ -524,7 +523,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
     actionsFrame.Name = "ActionButtonsFrame"
     actionsFrame.Size = UDim2.new(1, -20, 0, (BUTTON_HEIGHT + BUTTON_SPACING) * 3)  -- Space for 3 buttons
     actionsFrame.BackgroundTransparency = 1
-    actionsFrame.ZIndex = 1005
+    actionsFrame.ZIndex = 205
     actionsFrame.LayoutOrder = 2
     actionsFrame.Parent = infoContainer
     
@@ -543,7 +542,7 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
         size = UDim2.new(1, -40, 0, 35),
         backgroundColor = self._config.COLORS.Secondary,
         layoutOrder = 3,
-        zIndex = 1006,
+        zIndex = 206,
         callback = function()
             self:OpenRenameDialog()
         end
@@ -559,7 +558,7 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
         backgroundColor = self._currentPetInstance.equipped and 
                          self._config.COLORS.Error or 
                          self._config.COLORS.Success,
-        zIndex = 1006,
+        zIndex = 206,
         callback = function()
             self:OnEquipClicked()
         end
@@ -576,7 +575,7 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
         backgroundColor = self._currentPetInstance.locked and 
                          self._config.COLORS.Success or 
                          self._config.COLORS.Warning,
-        zIndex = 1006,
+        zIndex = 206,
         callback = function()
             self:OnLockClicked()
         end
@@ -591,7 +590,7 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
         size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
         position = UDim2.new(0, 0, 0, (BUTTON_HEIGHT + BUTTON_SPACING) * 2), -- Below lock button
         backgroundColor = self._config.COLORS.Error,
-        zIndex = 1006,
+        zIndex = 206,
         callback = function()
             self:OnDeleteClicked()
         end
@@ -607,7 +606,7 @@ function PetDetailsUI:CreateRightSide(parent: Frame)
     rightSide.Size = UDim2.new(0.6, -10, 1, 0)
     rightSide.Position = UDim2.new(0.4, 10, 0, 0)
     rightSide.BackgroundTransparency = 1
-    rightSide.ZIndex = 1002
+    rightSide.ZIndex = 202
     rightSide.Parent = parent
     
     -- Create tabs
@@ -637,7 +636,7 @@ function PetDetailsUI:CreateTabs(parent: Frame, tabs: table)
     tabContent.Size = UDim2.new(1, 0, 1, -TAB_HEIGHT - 5)
     tabContent.Position = UDim2.new(0, 0, 0, TAB_HEIGHT + 5)
     tabContent.BackgroundColor3 = self._config.COLORS.Surface
-    tabContent.ZIndex = 1003
+    tabContent.ZIndex = 203
     tabContent.Parent = parent
     
     self._utilities.CreateCorner(tabContent, 12)
@@ -1216,7 +1215,7 @@ function PetDetailsUI:ApplyVariantEffect(container: Frame, variant: string)
         glow.Image = "rbxassetid://5028857084"
         glow.ImageColor3 = Color3.fromRGB(255, 215, 0)
         glow.ImageTransparency = 0.5
-        glow.ZIndex = 1001
+        glow.ZIndex = 201
         glow.Parent = container
     elseif variant == "rainbow" then
         -- Add rainbow effect
@@ -1413,7 +1412,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
     confirmOverlay.Size = UDim2.new(1, 0, 1, 0)
     confirmOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
     confirmOverlay.BackgroundTransparency = 0.5
-    confirmOverlay.ZIndex = 1400
+    confirmOverlay.ZIndex = 400
     confirmOverlay.Parent = self._overlay
     
     -- Confirmation window
@@ -1421,7 +1420,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
     confirmWindow.Size = UDim2.new(0, 350, 0, 200)
     confirmWindow.Position = UDim2.new(0.5, -175, 0.5, -100)
     confirmWindow.BackgroundColor3 = self._config.COLORS.Background
-    confirmWindow.ZIndex = 1401
+    confirmWindow.ZIndex = 401
     confirmWindow.Parent = confirmOverlay
     
     self._utilities.CreateCorner(confirmWindow, 12)
@@ -1433,7 +1432,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
         position = UDim2.new(0, 20, 0, 20),
         textSize = 20,
         font = self._config.FONTS.Bold,
-        zIndex = 1402
+        zIndex = 402
     })
     
     -- Message
@@ -1448,7 +1447,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
         textSize = 16,
         textYAlignment = Enum.TextYAlignment.Top,
         textWrapped = true,
-        zIndex = 1402
+        zIndex = 402
     })
     
     -- Buttons
@@ -1456,7 +1455,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
     buttonContainer.Size = UDim2.new(1, -40, 0, 40)
     buttonContainer.Position = UDim2.new(0, 20, 1, -60)
     buttonContainer.BackgroundTransparency = 1
-    buttonContainer.ZIndex = 1402
+    buttonContainer.ZIndex = 402
     buttonContainer.Parent = confirmWindow
     
     -- Cancel button
@@ -1465,7 +1464,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
         size = UDim2.new(0.5, -5, 1, 0),
         position = UDim2.new(0, 0, 0, 0),
         backgroundColor = self._config.COLORS.Surface,
-        zIndex = 1403,
+        zIndex = 403,
         callback = function()
             confirmOverlay:Destroy()
             if self._soundSystem then
@@ -1480,7 +1479,7 @@ function PetDetailsUI:ShowDeleteConfirmation()
         size = UDim2.new(0.5, -5, 1, 0),
         position = UDim2.new(0.5, 5, 0, 0),
         backgroundColor = self._config.COLORS.Error,
-        zIndex = 1403,
+        zIndex = 403,
         callback = function()
             confirmOverlay:Destroy()
             self:ExecuteDelete()
@@ -1612,7 +1611,7 @@ function PetDetailsUI:OpenRenameDialog()
     self._renameDialog.Size = UDim2.new(0, RENAME_DIALOG_SIZE.X, 0, RENAME_DIALOG_SIZE.Y)
     self._renameDialog.Position = UDim2.new(0.5, -RENAME_DIALOG_SIZE.X/2, 0.5, -RENAME_DIALOG_SIZE.Y/2)
     self._renameDialog.BackgroundColor3 = self._config.COLORS.Background
-    self._renameDialog.ZIndex = 1300
+    self._renameDialog.ZIndex = 300
     self._renameDialog.Parent = self._overlay
     
     self._utilities.CreateCorner(self._renameDialog, 12)
