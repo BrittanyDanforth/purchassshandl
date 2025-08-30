@@ -1382,107 +1382,95 @@ function PetDetailsUI:ApplyVariantEffect(container: Frame, variant: string)
 end
 
 -- ========================================
--- HELPER FUNCTIONS
--- ========================================
-
-function PetDetailsUI:GetEquippedCount(): number
-	local count = 0
-	local playerData = self._dataCache and self._dataCache:Get("playerData")
-	if playerData and playerData.pets then
-		for _, pet in pairs(playerData.pets) do
-			if pet.equipped then
-				count = count + 1
-			end
-		end
-	end
-	return count
-end
-
--- ========================================
 -- BUTTON ACTIONS
 -- ========================================
 
 function PetDetailsUI:OnEquipClicked()
-	-- Simple loading check
+	-- Immediately exit if the button is already working on a request.
 	if self._buttonStates.equip.isLoading then return end
-	
-	-- Get current equipped count from a SINGLE source of truth
-	local equippedCount = self:GetEquippedCount()
+
 	local isEquipping = not self._currentPetInstance.equipped
-	
-	-- Simple validation: Can't equip if at max
-	if isEquipping and equippedCount >= 6 then
-		self._notificationSystem:Show({
-			title = "Maximum Equipped",
-			message = "You have 6 pets equipped. Unequip one first.",
-			type = "error",
-			duration = 3
-		})
-		self._soundSystem:PlayUISound("Error")
-		return
+
+	-- *** NEW AAA FIX STARTS HERE ***
+	-- Check the rules BEFORE sending anything to the server.
+	if isEquipping then
+		local equippedCount = 0
+		local playerData = self._dataCache:Get("playerData")
+		if playerData and playerData.pets then
+			for _, petData in pairs(playerData.pets) do
+				if petData.equipped then equippedCount = equippedCount + 1 end
+			end
+		end
+		
+		-- If the team is full, show an error and stop immediately.
+		local MAX_EQUIPPED = 6
+		if equippedCount >= MAX_EQUIPPED then
+			self._notificationSystem:Show({
+				title = "Team Full",
+				message = "You can't equip more than " .. MAX_EQUIPPED .. " pets.",
+				type = "error"
+			})
+			self._soundSystem:PlayUISound("Error")
+			return -- EXIT
+		end
 	end
-	
-	-- Set loading state
+	-- *** NEW AAA FIX ENDS HERE ***
+
+	-- Set the button to its loading state
 	self._buttonStates.equip.isLoading = true
 	self._equipButton.Text = "..."
 	self._equipButton.Active = false
-	
-	-- Send request
-	local remote = isEquipping and "EquipPet" or "UnequipPet"
-	
+
+	-- Determine which remote function to call
+	local remoteName = isEquipping and "EquipPet" or "UnequipPet"
+
 	task.spawn(function()
-		-- Try to call server
-		local success, serverResponse = pcall(function()
-			return self._remoteManager:InvokeServer(remote, self._currentPetInstance.uniqueId)
+		-- Call the server and handle the response
+		local success, response = pcall(function()
+			return self._remoteManager:InvokeServer(remoteName, self._currentPetInstance.uniqueId)
 		end)
 		
-		-- Always reset loading state first
+		-- Always reset the button's loading state after the server responds
 		self._buttonStates.equip.isLoading = false
-		
-		-- Handle server response
-		if success and serverResponse then
-			-- Success! Update our local state
-			self._currentPetInstance.equipped = isEquipping
-			self:UpdateEquipButton()
+
+		if success and response then
+			-- Handle both response formats: {success = true} or just true
+			local isSuccess = (type(response) == "table" and response.success) or 
+			                  (type(response) == "boolean" and response)
 			
-			-- Show success message
-			self._notificationSystem:Show({
-				title = "Success",
-				message = isEquipping and "Pet equipped!" or "Pet unequipped!",
-				type = "success",
-				duration = 3
-			})
-			
-			-- Fire event
-			self._eventBus:Fire(isEquipping and "PetEquipped" or "PetUnequipped", {
-				uniqueId = self._currentPetInstance.uniqueId
-			})
-			
-			-- Notify inventory to refresh count
-			if self._eventBus then
-				self._eventBus:Fire("RefreshEquippedCount")
+			if isSuccess then
+				-- SERVER APPROVED!
+				self._currentPetInstance.equipped = isEquipping
+				self._notificationSystem:Show({
+					title = "Success",
+					message = isEquipping and "Pet equipped!" or "Pet unequipped!",
+					type = "success"
+				})
+				
+				-- Fire the event so the InventoryUI can update its stats
+				local eventName = isEquipping and "PetEquipped" or "PetUnequipped"
+				self._eventBus:Fire(eventName, { uniqueId = self._currentPetInstance.uniqueId })
+			else
+				-- SERVER REJECTED!
+				-- The server said no, so we don't change anything.
+				-- We just show the error message from the server (or a generic one).
+				local errorMessage = (type(response) == "table" and response.error) or 
+				                     "Request failed. Please try again."
+				self._notificationSystem:Show({ title = "Error", message = errorMessage, type = "error" })
+				self._soundSystem:PlayUISound("Error")
 			end
 		else
-			-- Server error or rejection
-			self:UpdateEquipButton()
-			
-			-- Show appropriate error
-			if isEquipping and equippedCount >= 6 then
-				self._notificationSystem:Show({
-					title = "Maximum Equipped",
-					message = "You already have 6 pets equipped.",
-					type = "error",
-					duration = 3
-				})
-			else
-				self._notificationSystem:Show({
-					title = "Error",
-					message = serverResponse or "Failed to update pet status",
-					type = "error",
-					duration = 3
-				})
-			end
+			-- Network error or timeout
+			self._notificationSystem:Show({ 
+				title = "Error", 
+				message = "Failed to contact server. Please try again.", 
+				type = "error" 
+			})
+			self._soundSystem:PlayUISound("Error")
 		end
+
+		-- Always update the button to reflect the true state
+		self:UpdateEquipButton()
 	end)
 end
 

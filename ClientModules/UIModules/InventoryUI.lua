@@ -4539,10 +4539,10 @@ function InventoryUI:OnSearchChanged(text: string)
 end
 
 function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolean)
-    -- Simple approach: Just update the visuals based on the current data
-    local card = nil
+    -- This function now ONLY updates the visual card itself.
     
-    -- Find the card
+    -- Find the card in the grid
+    local card = nil
     if self.VirtualScrollEnabled then
         for _, activeCard in pairs(self.ActiveCards) do
             if activeCard.Name == "PetCard_" .. uniqueId then
@@ -4558,14 +4558,12 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
             end
         end
     end
-    
-    -- Update the card if found
+
     if card then
         card:SetAttribute("Equipped", equipped)
-        
         local indicator = card:FindFirstChild("EquippedIndicator")
         if equipped and not indicator then
-            -- Add equipped indicator
+            -- Create and fade in the checkmark
             indicator = Instance.new("ImageLabel")
             indicator.Name = "EquippedIndicator"
             indicator.Size = UDim2.new(0, 30, 0, 30)
@@ -4580,7 +4578,7 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
                 ImageTransparency = 0
             }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
         elseif not equipped and indicator then
-            -- Remove equipped indicator
+            -- Fade out and destroy the checkmark
             self._utilities.Tween(indicator, {
                 ImageTransparency = 1
             }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
@@ -4592,9 +4590,11 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
             self._soundSystem:PlayUISound(equipped and "Equip" or "Unequip")
         end
     end
-    
-    -- Simple: Just refresh the count from data
-    self:RefreshEquippedCount()
+
+    -- After updating the card, we tell our Real-Time Stats System to update the count.
+    -- This is the key to a smooth, animated update.
+    local equippedDelta = equipped and 1 or -1
+    self:UpdateSingleStat("equippedPets", equippedDelta)
 end
 
 function InventoryUI:RefreshEquippedCount()
