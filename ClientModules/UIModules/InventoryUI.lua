@@ -1386,7 +1386,13 @@ function InventoryUI:ShowTab(tabName: string)
     if tabName == "Pets" then
         local petsTab = self.TabFrames["Pets"]
         if petsTab then
-            self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+            -- Look for PetGrid in container first, then directly
+            local container = petsTab:FindFirstChild("PetGridContainer")
+            if container then
+                self.PetGrid = container:FindFirstChild("PetGridScrollFrame")
+            else
+                self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+            end
             
             -- Ensure the PetGrid is properly initialized
             if self.PetGrid then
@@ -1482,7 +1488,13 @@ function InventoryUI:SwitchTab(targetTab: string, tabButtonsFrame: Frame, tabFra
     if targetTab == "Pets" then
         local petsTab = self.TabFrames["Pets"]
         if petsTab then
-            self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+            -- Look for PetGrid in container first, then directly
+            local container = petsTab:FindFirstChild("PetGridContainer")
+            if container then
+                self.PetGrid = container:FindFirstChild("PetGridScrollFrame")
+            else
+                self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+            end
         end
         
         task.defer(function()
@@ -1581,6 +1593,8 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     
     -- Add responsive grid layout
     local function updateGridLayout()
+        if not self.PetGrid then return end -- Safety check
+        
         local frameWidth = self.PetGrid.AbsoluteSize.X
         if frameWidth == 0 then return end -- Avoid dividing by zero
         
@@ -3016,7 +3030,13 @@ function InventoryUI:RefreshInventory()
             -- Try to find it in the Pets tab
             local petsTab = self.TabFrames and self.TabFrames["Pets"]
             if petsTab then
-                self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+                -- Look for PetGrid in container first, then directly
+                local container = petsTab:FindFirstChild("PetGridContainer")
+                if container then
+                    self.PetGrid = container:FindFirstChild("PetGridScrollFrame")
+                else
+                    self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+                end
             end
             
             if not self.PetGrid then
