@@ -4,6 +4,7 @@
                  lock toggle, nickname system, and proper positioning fixes
     Features: Stats display, abilities list, equip/lock buttons, rename functionality,
               proper layering and positioning from user feedback
+              NOW WITH TRIPLE-A BUTTON HANDLING SYSTEM
 ]]
 
 local Types = require(script.Parent.Parent.Core.ClientTypes)
@@ -11,6 +12,7 @@ local Config = require(script.Parent.Parent.Core.ClientConfig)
 local Services = require(script.Parent.Parent.Core.ClientServices)
 local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
 local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
+local ButtonStateManager = require(script.Parent.Parent.Utilities.ButtonStateManager)
 
 local PetDetailsUI = {}
 PetDetailsUI.__index = PetDetailsUI
@@ -124,6 +126,19 @@ function PetDetailsUI.new(dependencies)
 	-- State
 	self._isOpen = false
 	self._isUpdating = false
+	
+	-- Initialize Button State Manager for professional button handling
+	self._buttonStateManager = ButtonStateManager.new({
+		cooldownTime = 0.3,
+		loadingTimeout = 10,
+		animationSpeed = 0.2,
+		hapticEnabled = true,
+		soundEnabled = true,
+		visualFeedback = true,
+		successDuration = 0.5,
+		errorDuration = 1.5
+	})
+	self._janitor:Add(self._buttonStateManager)
 
 	-- Set up event listeners
 	self:SetupEventListeners()
@@ -569,6 +584,9 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
 			self:OpenRenameDialog()
 		end
 	})
+	
+	-- Register rename button with state manager
+	self._buttonStateManager:RegisterButton(renameButton)
 end
 
 function PetDetailsUI:CreateActionButtons(parent: Frame)
@@ -582,10 +600,22 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 			self._config.COLORS.Success,
 		zIndex = 206,
 		callback = function()
-			self:OnEquipClicked()
+			-- Professional button handling with state manager
+			self._buttonStateManager:ExecuteAction(self._equipButton, function()
+				return self:OnEquipClicked()
+			end, {
+				loadingText = "...",
+				successText = self._currentPetInstance.equipped and "Unequipped!" or "Equipped!",
+				errorText = "Failed!",
+				successSound = "rbxassetid://9125402735", -- Success sound
+				errorSound = "rbxassetid://9125402746" -- Error sound
+			})
 		end
 	})
 
+	-- Register button with state manager for professional handling
+	self._buttonStateManager:RegisterButton(self._equipButton)
+	
 	-- Store original color
 	self._equipButton:SetAttribute("OriginalColor", self._equipButton.BackgroundColor3)
 
@@ -599,9 +629,21 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 			self._config.COLORS.Warning,
 		zIndex = 206,
 		callback = function()
-			self:OnLockClicked()
+			-- Professional button handling with state manager
+			self._buttonStateManager:ExecuteAction(self._lockButton, function()
+				return self:OnLockClicked()
+			end, {
+				loadingText = "...",
+				successText = self._currentPetInstance.locked and "Unlocked!" or "Locked!",
+				errorText = "Failed!",
+				successSound = "rbxassetid://9125402735",
+				errorSound = "rbxassetid://9125402746"
+			})
 		end
 	})
+	
+	-- Register button with state manager
+	self._buttonStateManager:RegisterButton(self._lockButton)
 
 	-- Store original color
 	self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
@@ -1240,56 +1282,46 @@ end
 -- ========================================
 
 function PetDetailsUI:OnEquipClicked()
-	if self._isUpdating then return end
-	self._isUpdating = true
+	-- Professional button handling - no more _isUpdating!
+	-- Send request to server
+	local remote = self._currentPetInstance.equipped and "UnequipPet" or "EquipPet"
 
-	-- Update button state
-	if self._equipButton then
-		self._equipButton.Text = "..."
-		self._equipButton.Active = false
-	end
+	if self._remoteManager then
+		local success, result = self._remoteManager:InvokeServer(remote, 
+			self._currentPetInstance.uniqueId)
 
-	-- Wrap in pcall to ensure _isUpdating is always reset
-	local success, err = pcall(function()
-		-- Send request to server
-		local remote = self._currentPetInstance.equipped and "UnequipPet" or "EquipPet"
+		if success then
+			-- Update local state
+			self._currentPetInstance.equipped = not self._currentPetInstance.equipped
+			self:UpdateEquipButton()
 
-		if self._remoteManager then
-			local invokeSuccess, result = pcall(function()
-				return self._remoteManager:InvokeServer(remote, 
-					self._currentPetInstance.uniqueId)
-			end)
+			-- Show notification
+			local message = self._currentPetInstance.equipped and 
+				"Pet equipped!" or "Pet unequipped!"
+			if self._notificationSystem then
+				self._notificationSystem:Show({
+					title = "Success",
+					message = message,
+					type = "success",
+					duration = 3
+				})
+			end
 
-			if invokeSuccess and result then
-				-- Update local state
-				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
-				self:UpdateEquipButton()
-
-				-- Show notification
-				local message = self._currentPetInstance.equipped and 
-					"Pet equipped!" or "Pet unequipped!"
-				if self._notificationSystem then
-					self._notificationSystem:Show({
-						title = "Success",
-						message = message,
-						type = "success",
-						duration = 3
-					})
-				end
-
-				-- Fire event
-				if self._eventBus then
-					local eventName = self._currentPetInstance.equipped and 
-						"PetEquipped" or "PetUnequipped"
-					self._eventBus:Fire(eventName, {
-						uniqueId = self._currentPetInstance.uniqueId
-					})
-				end
-			else
-				-- Show error
-				if self._notificationSystem then
-					self._notificationSystem:Show({
-						title = "Error",
+			-- Fire event
+			if self._eventBus then
+				local eventName = self._currentPetInstance.equipped and 
+					"PetEquipped" or "PetUnequipped"
+				self._eventBus:Fire(eventName, {
+					uniqueId = self._currentPetInstance.uniqueId
+				})
+			end
+			
+			return true -- Success for button state manager
+		else
+			-- Show error
+			if self._notificationSystem then
+				self._notificationSystem:Show({
+					title = "Error",
 						message = "Failed to update pet",
 						type = "error",
 						duration = 3
@@ -1299,79 +1331,54 @@ function PetDetailsUI:OnEquipClicked()
 				-- Reset button
 				self:UpdateEquipButton()
 			end
-		end
-	end)
-
-	if not success then
-		warn("[PetDetailsUI] Equip error:", err)
-		-- Reset button on error
-		self:UpdateEquipButton()
-		
-		if self._notificationSystem then
-			self._notificationSystem:Show({
-				title = "Error",
-				message = "An error occurred while updating equip status",
-				type = "error",
-				duration = 3
-			})
+			
+			error(result or "Failed to update pet") -- Throw error for button state manager
 		end
 	end
-
-	-- ALWAYS reset the flag
-	self._isUpdating = false
+	
+	error("RemoteManager not available")
 end
 
 function PetDetailsUI:OnLockClicked()
-	if self._isUpdating then return end
-	self._isUpdating = true
+	-- Professional button handling - no more _isUpdating!
+	-- Send request to server
+	local remote = self._currentPetInstance.locked and "UnlockPet" or "LockPet"
 
-	-- Update button state
-	if self._lockButton then
-		self._lockButton.Text = "..."
-		self._lockButton.Active = false
-	end
+	if self._remoteManager then
+		local success, result = self._remoteManager:InvokeServer(remote, 
+			self._currentPetInstance.uniqueId)
 
-	-- Wrap in pcall to ensure _isUpdating is always reset
-	local success, err = pcall(function()
-		-- Send request to server
-		local remote = self._currentPetInstance.locked and "UnlockPet" or "LockPet"
+		if success then
+			-- Update local state
+			self._currentPetInstance.locked = not self._currentPetInstance.locked
+			self:UpdateLockButton()
 
-		if self._remoteManager then
-			-- Try to use InvokeServer but with a timeout
-			local invokeSuccess, result = pcall(function()
-				return self._remoteManager:InvokeServer(remote, 
-					self._currentPetInstance.uniqueId)
-			end)
+			-- Show notification
+			local message = self._currentPetInstance.locked and 
+				"Pet locked!" or "Pet unlocked!"
+			if self._notificationSystem then
+				self._notificationSystem:Show({
+					title = "Info",
+					message = message,
+					type = "info",
+					duration = 3
+				})
+			end
 
-			if invokeSuccess and result then
-				-- Update local state
-				self._currentPetInstance.locked = not self._currentPetInstance.locked
-				self:UpdateLockButton()
-
-				-- Show notification
-				local message = self._currentPetInstance.locked and 
-					"Pet locked!" or "Pet unlocked!"
-				if self._notificationSystem then
-					self._notificationSystem:Show({
-						title = "Info",
-						message = message,
-						type = "info",
-						duration = 3
-					})
-				end
-
-				-- Fire event
-				if self._eventBus then
-					local eventName = self._currentPetInstance.locked and 
-						"PetLocked" or "PetUnlocked"
-					self._eventBus:Fire(eventName, {
-						uniqueId = self._currentPetInstance.uniqueId
-					})
-				end
-			else
-				-- Show error
-				if self._notificationSystem then
-					self._notificationSystem:Show({
+			-- Fire event
+			if self._eventBus then
+				local eventName = self._currentPetInstance.locked and 
+					"PetLocked" or "PetUnlocked"
+				self._eventBus:Fire(eventName, {
+					uniqueId = self._currentPetInstance.uniqueId
+				})
+			end
+			
+			return true -- Success for button state manager
+		else
+			-- Show error
+			if self._notificationSystem then
+				self._notificationSystem:Show({
 						title = "Error",
 						message = "Failed to update pet lock status",
 						type = "error",
@@ -1382,26 +1389,12 @@ function PetDetailsUI:OnLockClicked()
 				-- Reset button
 				self:UpdateLockButton()
 			end
-		end
-	end)
-
-	if not success then
-		warn("[PetDetailsUI] Lock error:", err)
-		-- Reset button on error
-		self:UpdateLockButton()
-		
-		if self._notificationSystem then
-			self._notificationSystem:Show({
-				title = "Error",
-				message = "An error occurred while updating lock status",
-				type = "error",
-				duration = 3
-			})
+			
+			error(result or "Failed to update pet lock status") -- Throw error for button state manager
 		end
 	end
-
-	-- ALWAYS reset the flag
-	self._isUpdating = false
+	
+	error("RemoteManager not available")
 end
 
 function PetDetailsUI:UpdateEquipButton()
