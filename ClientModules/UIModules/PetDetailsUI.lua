@@ -1333,18 +1333,20 @@ function PetDetailsUI:OnLockClicked()
 	end
 	
 	-- Send request to server
-	local remote = self._currentPetInstance.locked and "UnlockPet" or "LockPet"
-	
 	task.spawn(function()
-		local success, result = pcall(function()
+		local success = pcall(function()
 			if self._remoteManager then
-				return self._remoteManager:InvokeServer(remote, self._currentPetInstance.uniqueId)
+				self._remoteManager:Fire("TogglePetLock", {
+					uniqueId = self._currentPetInstance.uniqueId, 
+					locked = not self._currentPetInstance.locked
+				})
+				return true
 			end
-			return false, "No remote manager"
+			return false
 		end)
 		
-		if success and result then
-			-- Update local state
+		if success then
+			-- Update local state immediately (optimistic update)
 			self._currentPetInstance.locked = not self._currentPetInstance.locked
 			self:UpdateLockButton()
 			
@@ -1373,7 +1375,7 @@ function PetDetailsUI:OnLockClicked()
 			if self._notificationSystem then
 				self._notificationSystem:Show({
 					title = "Error",
-					message = result or "Failed to update pet lock status",
+					message = "Failed to update pet lock status",
 					type = "error",
 					duration = 3
 				})
@@ -1699,6 +1701,9 @@ function PetDetailsUI:ConfirmRename(newName: string)
 		self:CloseRenameDialog()
 		return
 	end
+	
+	-- Check if already processing
+	if self._buttonStates.rename.isLoading then return end
 
 	-- Validate name length
 	if #newName > 20 then
@@ -1712,6 +1717,9 @@ function PetDetailsUI:ConfirmRename(newName: string)
 		end
 		return
 	end
+	
+	-- Set loading state
+	self._buttonStates.rename.isLoading = true
 
 	-- Filter the text first for Roblox compliance
 	local TextService = game:GetService("TextService")
@@ -1724,13 +1732,14 @@ function PetDetailsUI:ConfirmRename(newName: string)
 	end)
 	
 	-- Send rename request with proper format
-	if self._remoteManager then
-		local success, result = pcall(function()
-			return self._remoteManager:InvokeServer("RenamePet", {
-				uniqueId = self._currentPetInstance.uniqueId,
-				nickname = filteredName
-			})
-		end)
+	task.spawn(function()
+		if self._remoteManager then
+			local success, result = pcall(function()
+				return self._remoteManager:InvokeServer("RenamePet", {
+					uniqueId = self._currentPetInstance.uniqueId,
+					nickname = filteredName
+				})
+			end)
 
 		if success and result and result.success then
 			-- Update local state with filtered name
@@ -1769,9 +1778,13 @@ function PetDetailsUI:ConfirmRename(newName: string)
 				})
 			end
 		end
+		
+		-- Reset loading state
+		self._buttonStates.rename.isLoading = false
 	end
-
+	
 	self:CloseRenameDialog()
+	end)
 end
 
 function PetDetailsUI:CloseRenameDialog()
