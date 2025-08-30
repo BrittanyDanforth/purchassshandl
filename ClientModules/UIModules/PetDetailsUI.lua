@@ -1316,10 +1316,52 @@ function PetDetailsUI:OnEquipClicked()
 				-- Update local state
 				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
 				self:UpdateEquipButton()
+				
+				-- Show success notification
+				local message = self._currentPetInstance.equipped and 
+					"Pet equipped!" or "Pet unequipped!"
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Success",
+						message = message,
+						type = "success",
+						duration = 3
+					})
+				end
+				
+				-- Fire event to update inventory
+				if self._eventBus then
+					local eventName = self._currentPetInstance.equipped and 
+						"PetEquipped" or "PetUnequipped"
+					self._eventBus:Fire(eventName, {
+						uniqueId = self._currentPetInstance.uniqueId
+					})
+				end
 			elseif type(result) == "boolean" and result then
 				-- Legacy response format
 				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
 				self:UpdateEquipButton()
+				
+				-- Show success notification
+				local message = self._currentPetInstance.equipped and 
+					"Pet equipped!" or "Pet unequipped!"
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Success",
+						message = message,
+						type = "success",
+						duration = 3
+					})
+				end
+				
+				-- Fire event to update inventory
+				if self._eventBus then
+					local eventName = self._currentPetInstance.equipped and 
+						"PetEquipped" or "PetUnequipped"
+					self._eventBus:Fire(eventName, {
+						uniqueId = self._currentPetInstance.uniqueId
+					})
+				end
 			else
 				-- Server rejected the request
 				if self._notificationSystem then
@@ -1330,27 +1372,6 @@ function PetDetailsUI:OnEquipClicked()
 						duration = 3
 					})
 				end
-			end
-			
-			-- Show notification
-			local message = self._currentPetInstance.equipped and 
-				"Pet equipped!" or "Pet unequipped!"
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Success",
-					message = message,
-					type = "success",
-					duration = 3
-				})
-			end
-			
-			-- Fire event
-			if self._eventBus then
-				local eventName = self._currentPetInstance.equipped and 
-					"PetEquipped" or "PetUnequipped"
-				self._eventBus:Fire(eventName, {
-					uniqueId = self._currentPetInstance.uniqueId
-				})
 			end
 		else
 			-- Show error
