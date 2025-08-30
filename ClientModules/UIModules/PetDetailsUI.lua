@@ -711,6 +711,25 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 			self._config.COLORS.Success),
 		zIndex = 206,
 		callback = function()
+			-- Check if at max before calling OnEquipClicked
+			if isAtMaxEquipped then
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Maximum Pets Equipped",
+						message = "You already have 6 pets equipped. Unequip one first.",
+						type = "error",
+						duration = 3
+					})
+				end
+				
+				-- Play error sound
+				if self._soundSystem then
+					self._soundSystem:PlayUISound("Error")
+				end
+				
+				return
+			end
+			
 			self:OnEquipClicked()
 		end
 	})
@@ -1424,32 +1443,11 @@ end
 -- ========================================
 
 function PetDetailsUI:OnEquipClicked()
-	-- Check if button is disabled
-	if self._equipButton and not self._equipButton.Active then
-		-- Show notification if they're trying to equip when at max
-		if self._notificationSystem then
-			self._notificationSystem:Show({
-				title = "Maximum Pets Equipped",
-				message = "You already have 6 pets equipped. Unequip one first.",
-				type = "error",
-				duration = 3
-			})
-		end
-		
-		-- Play error sound
-		if self._soundSystem then
-			self._soundSystem:PlayUISound("Error")
-		end
-		
-		return
-	end
-	
 	-- Check if already loading
 	if self._buttonStates.equip.isLoading then return end
 	
-	-- If we are trying to EQUIP a pet (not unequip)
+	-- CRITICAL: Double-check if we're trying to equip when at max
 	if not self._currentPetInstance.equipped then
-		-- Check equip limit
 		local playerData = self._dataCache and self._dataCache:Get("playerData")
 		local equippedCount = 0
 		if playerData and playerData.pets then
@@ -1460,13 +1458,12 @@ function PetDetailsUI:OnEquipClicked()
 			end
 		end
 		
-		-- Check if we are at the limit
-		local MAX_EQUIPPED = 6 -- Your game's max equipped pets
-		if equippedCount >= MAX_EQUIPPED then
+		if equippedCount >= 6 then
+			-- Show notification
 			if self._notificationSystem then
 				self._notificationSystem:Show({
-					title = "Equip Limit Reached",
-					message = "You cannot equip more than " .. MAX_EQUIPPED .. " pets.",
+					title = "Maximum Pets Equipped",
+					message = "You already have 6 pets equipped. Unequip one first.",
 					type = "error",
 					duration = 3
 				})
@@ -1477,9 +1474,17 @@ function PetDetailsUI:OnEquipClicked()
 				self._soundSystem:PlayUISound("Error")
 			end
 			
-			return -- Stop here, don't send request
+			-- Make sure button shows correct state
+			if self._equipButton then
+				self._equipButton.Active = false
+				self._equipButton.AutoButtonColor = false
+			end
+			
+			return -- STOP HERE - DO NOT SEND REQUEST
 		end
 	end
+	
+
 	
 	-- Set loading state
 	self._buttonStates.equip.isLoading = true
