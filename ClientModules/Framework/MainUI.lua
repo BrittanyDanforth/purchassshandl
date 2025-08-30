@@ -801,7 +801,7 @@ function MainUI:OpenModule(moduleName: string)
             }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
         end
         
-        task.wait(0.1)
+        -- Don't wait, close immediately
         self:CloseModule(self._currentModule)
     end
     

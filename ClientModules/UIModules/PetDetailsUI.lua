@@ -1311,9 +1311,26 @@ function PetDetailsUI:OnEquipClicked()
 		end)
 		
 		if success and result then
-			-- Update local state
-			self._currentPetInstance.equipped = not self._currentPetInstance.equipped
-			self:UpdateEquipButton()
+			-- Only update local state if server confirms success
+			if type(result) == "table" and result.success then
+				-- Update local state
+				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
+				self:UpdateEquipButton()
+			elseif type(result) == "boolean" and result then
+				-- Legacy response format
+				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
+				self:UpdateEquipButton()
+			else
+				-- Server rejected the request
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Error",
+						message = (result and result.message) or "Failed to update pet status",
+						type = "error",
+						duration = 3
+					})
+				end
+			end
 			
 			-- Show notification
 			local message = self._currentPetInstance.equipped and 
