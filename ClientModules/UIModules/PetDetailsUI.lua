@@ -296,18 +296,18 @@ end
 -- ========================================
 
 function PetDetailsUI:CreateOverlay()
-    print("[PetDetailsUI] Creating overlay...")
-    
-    -- Use the main SanrioTycoonUI ScreenGui instead of creating a separate one
-    local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
-    if not screenGui then
-        screenGui = Services.Players.LocalPlayer.PlayerGui:WaitForChild("SanrioTycoonUI", 5)
-        if not screenGui then
-            warn("[PetDetailsUI] SanrioTycoonUI ScreenGui not found!")
-            return
-        end
-    end
-    print("[PetDetailsUI] Using SanrioTycoonUI ScreenGui")
+	print("[PetDetailsUI] Creating overlay...")
+
+	-- Use the main SanrioTycoonUI ScreenGui instead of creating PetDetailsUILayer
+	local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+	if not screenGui then
+		screenGui = Services.Players.LocalPlayer.PlayerGui:WaitForChild("SanrioTycoonUI", 5)
+		if not screenGui then
+			warn("[PetDetailsUI] SanrioTycoonUI ScreenGui not found!")
+			return
+		end
+	end
+	print("[PetDetailsUI] Using SanrioTycoonUI ScreenGui")
     
     -- Create overlay
     self._overlay = Instance.new("Frame")
