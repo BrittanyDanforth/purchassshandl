@@ -183,6 +183,32 @@ function NotificationSystem:Show(message: string, options: Types.NotificationCon
         return ""
     end
     
+    -- Safety check: If message is a table, try to extract the real message
+    if type(message) == "table" then
+        local extractedMessage = message.message or message.text or message.error or message.msg
+        if extractedMessage then
+            warn("[NotificationSystem] Show() was called with a table. Extracted message:", extractedMessage)
+            message = tostring(extractedMessage)
+        else
+            -- Try to find any string value in the table
+            for key, value in pairs(message) do
+                if type(value) == "string" then
+                    warn("[NotificationSystem] Show() was called with a table. Using field '" .. tostring(key) .. "':", value)
+                    message = value
+                    break
+                end
+            end
+            -- If still no string found, use a generic message
+            if type(message) == "table" then
+                warn("[NotificationSystem] Show() was called with a table but no string message found")
+                message = "Notification received (invalid format)"
+            end
+        end
+    elseif type(message) ~= "string" then
+        warn("[NotificationSystem] Show() was called with non-string message:", type(message))
+        message = tostring(message)
+    end
+    
     options = options or {}
     
     -- Create notification data
@@ -368,37 +394,50 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     content.BackgroundTransparency = 1
     content.Parent = frame
     
+    -- Add UIListLayout for automatic positioning
+    local contentLayout = Instance.new("UIListLayout")
+    contentLayout.FillDirection = Enum.FillDirection.Vertical
+    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    contentLayout.Padding = UDim.new(0, 3)
+    contentLayout.Parent = content
+    
+    -- Add padding
+    local contentPadding = Instance.new("UIPadding")
+    contentPadding.PaddingTop = UDim.new(0, 5)
+    contentPadding.PaddingBottom = UDim.new(0, 5)
+    contentPadding.PaddingLeft = UDim.new(0, 5)
+    contentPadding.PaddingRight = UDim.new(0, 5)
+    contentPadding.Parent = content
+    
     -- Title (if provided)
-    local messageY = 0
     if notification.title then
         local title = Instance.new("TextLabel")
         title.Name = "Title"
-        title.Size = UDim2.new(1, -10, 0, 20)
-        title.Position = UDim2.new(0, 0, 0, 5)
+        title.Size = UDim2.new(1, 0, 0, 20)
         title.BackgroundTransparency = 1
         title.Text = tostring(notification.title or "Notification")
         title.TextColor3 = self._config.COLORS.Text
         title.TextXAlignment = Enum.TextXAlignment.Left
         title.TextScaled = true
         title.Font = self._config.FONTS.Secondary
+        title.LayoutOrder = 1
         title.Parent = content
-        
-        messageY = 25
     end
     
     -- Message
     local message = Instance.new("TextLabel")
     message.Name = "Message"
-    message.Size = UDim2.new(1, -10, 1, -messageY - 10)
-    message.Position = UDim2.new(0, 0, 0, messageY)
+    message.Size = UDim2.new(1, 0, 0, 0)
+    message.AutomaticSize = Enum.AutomaticSize.Y
     message.BackgroundTransparency = 1
-            message.Text = tostring(notification.message or "")
+    message.Text = tostring(notification.message or "")
     message.TextColor3 = self._config.COLORS.TextSecondary
     message.TextXAlignment = Enum.TextXAlignment.Left
     message.TextWrapped = true
     message.TextScaled = false
     message.TextSize = 14
     message.Font = self._config.FONTS.Primary
+    message.LayoutOrder = 2
     message.Parent = content
     
     -- Dismiss button (if dismissible)
