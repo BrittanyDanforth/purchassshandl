@@ -44,7 +44,7 @@ type SortType = "Rarity" | "Level" | "Power" | "Recent" | "Name"
 -- ========================================
 
 local GRID_PADDING = 10
-local CARD_SIZE = Vector2.new(120, 160) -- Increased height for stats
+local CARD_SIZE = Vector2.new(120, 140) -- Reduced height - no stats display
 local CARDS_PER_ROW = 5
 local SCROLL_THRESHOLD = 5 -- Cards to preload above/below viewport
 local SEARCH_DEBOUNCE = 0.3
@@ -177,7 +177,7 @@ function InventoryUI.new(dependencies)
     self.VirtualScrollEnabled = true
     self.VisibleCardPool = {}  -- Pool of reusable card frames
     self.ActiveCards = {}  -- Currently visible cards mapped to data
-    self.CardHeight = 150  -- Height of each card
+    self.CardHeight = 140  -- Height of each card (reduced - no stats)
     self.CardPadding = 10  -- Padding between cards
     self.ColumnsPerRow = 5  -- Number of columns
     self.VisibleRows = 4  -- Number of visible rows
@@ -1554,13 +1554,14 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         lockIndicator.Parent = card
     end
     
-    -- Pet name
+    -- Pet name (centered at bottom)
     local nameLabel = self._uiFactory:CreateLabel(card, {
         text = petInstance.nickname or petData.name or petData.displayName or "Unknown",
         size = UDim2.new(1, -10, 0, 25),
         position = UDim2.new(0, 5, 1, -30),
         textScaled = true,
-        font = self._config.FONTS.Primary
+        font = self._config.FONTS.Primary,
+        textXAlignment = Enum.TextXAlignment.Center
     })
     
     -- Variant effect
@@ -1866,7 +1867,7 @@ function InventoryUI:GetPooledCard()
     
     -- No cards in pool, create a new one (without data)
     local card = Instance.new("Frame")
-    card.Size = UDim2.new(0, self.CardHeight, 0, self.CardHeight)
+    card.Size = UDim2.new(0, 120, 0, self.CardHeight)
     card.BackgroundColor3 = self._config.COLORS.White or Color3.new(1, 1, 1)
     card.BorderSizePixel = 0
     
@@ -1896,8 +1897,8 @@ function InventoryUI:GetPooledCard()
     
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "NameLabel"
-    nameLabel.Size = UDim2.new(1, -10, 0, 30)
-    nameLabel.Position = UDim2.new(0, 5, 1, -35)
+    nameLabel.Size = UDim2.new(1, -10, 0, 25)
+    nameLabel.Position = UDim2.new(0, 5, 1, -30)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Font = self._config.FONTS.Primary
     nameLabel.TextScaled = true
@@ -1915,85 +1916,7 @@ function InventoryUI:GetPooledCard()
     levelLabel.TextColor3 = Color3.new(1, 1, 1)
     levelLabel.Parent = card
     
-    -- Add stats container
-    local statsContainer = Instance.new("Frame")
-    statsContainer.Name = "StatsContainer"
-    statsContainer.Size = UDim2.new(1, -10, 0, 40)
-    statsContainer.Position = UDim2.new(0, 5, 1, -75)
-    statsContainer.BackgroundTransparency = 1
-    statsContainer.Parent = card
-    
-    -- Power stat
-    local powerFrame = Instance.new("Frame")
-    powerFrame.Name = "PowerFrame"
-    powerFrame.Size = UDim2.new(1, 0, 0, 20)
-    powerFrame.Position = UDim2.new(0, 0, 0, 0)
-    powerFrame.BackgroundTransparency = 1
-    powerFrame.Parent = statsContainer
-    
-    local powerIcon = Instance.new("ImageLabel")
-    powerIcon.Name = "PowerIcon"
-    powerIcon.Size = UDim2.new(0, 16, 0, 16)
-    powerIcon.Position = UDim2.new(0, 0, 0, 2)
-    powerIcon.BackgroundTransparency = 1
-    powerIcon.Image = "rbxassetid://7072718362" -- Sword icon
-    powerIcon.ImageColor3 = self._config.COLORS.Accent
-    powerIcon.Parent = powerFrame
-    
-    local powerLabel = Instance.new("TextLabel")
-    powerLabel.Name = "PowerLabel"
-    powerLabel.Size = UDim2.new(1, -20, 1, 0)
-    powerLabel.Position = UDim2.new(0, 20, 0, 0)
-    powerLabel.BackgroundTransparency = 1
-    powerLabel.Font = self._config.FONTS.Primary
-    powerLabel.TextScaled = true
-    powerLabel.TextColor3 = self._config.COLORS.Text
-    powerLabel.TextXAlignment = Enum.TextXAlignment.Left
-    powerLabel.Text = "Power: 0"
-    powerLabel.Parent = powerFrame
-    
-    -- Additional stats (coins multiplier)
-    local coinsFrame = Instance.new("Frame")
-    coinsFrame.Name = "CoinsFrame"
-    coinsFrame.Size = UDim2.new(1, 0, 0, 20)
-    coinsFrame.Position = UDim2.new(0, 0, 0, 20)
-    coinsFrame.BackgroundTransparency = 1
-    coinsFrame.Parent = statsContainer
-    
-    local coinsIcon = Instance.new("TextLabel")
-    coinsIcon.Name = "CoinsIcon"
-    coinsIcon.Size = UDim2.new(0, 16, 0, 16)
-    coinsIcon.Position = UDim2.new(0, 0, 0, 2)
-    coinsIcon.BackgroundTransparency = 1
-    coinsIcon.Text = "💰"
-    coinsIcon.TextScaled = true
-    coinsIcon.Parent = coinsFrame
-    
-    local coinsLabel = Instance.new("TextLabel")
-    coinsLabel.Name = "CoinsLabel"
-    coinsLabel.Size = UDim2.new(1, -20, 1, 0)
-    coinsLabel.Position = UDim2.new(0, 20, 0, 0)
-    coinsLabel.BackgroundTransparency = 1
-    coinsLabel.Font = self._config.FONTS.Primary
-    coinsLabel.TextScaled = true
-    coinsLabel.TextColor3 = self._config.COLORS.Text
-    coinsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    coinsLabel.Text = "Coins: +0%"
-    coinsLabel.Parent = coinsFrame
-    
-    -- Ability label (if pet has abilities)
-    local abilityLabel = Instance.new("TextLabel")
-    abilityLabel.Name = "AbilityLabel"
-    abilityLabel.Size = UDim2.new(1, 0, 0, 15)
-    abilityLabel.Position = UDim2.new(0, 0, 1, -15)
-    abilityLabel.BackgroundTransparency = 1
-    abilityLabel.Font = self._config.FONTS.Primary
-    abilityLabel.TextScaled = true
-    abilityLabel.TextColor3 = self._config.COLORS.Secondary
-    abilityLabel.TextXAlignment = Enum.TextXAlignment.Center
-    abilityLabel.Text = ""
-    abilityLabel.Visible = false
-    abilityLabel.Parent = statsContainer
+    -- No stats display on cards - keeping them simple and clean
     self._utilities.CreateCorner(levelLabel, 4)
     
     local button = Instance.new("TextButton")
@@ -2064,86 +1987,7 @@ function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, p
         levelLabel.Text = "Lv." .. tostring(petInstance.level or 1)
     end
     
-    -- Update stats
-    local statsContainer = card:FindFirstChild("StatsContainer")
-    if statsContainer then
-        local powerLabel = statsContainer:FindFirstChild("PowerFrame") and statsContainer.PowerFrame:FindFirstChild("PowerLabel")
-        if powerLabel then
-            -- Calculate total power from pet stats
-            local power = 0
-            if petInstance.stats and petInstance.stats.power then
-                power = petInstance.stats.power
-            elseif petData.baseStats and petData.baseStats.power then
-                -- Fallback to base stats with level multiplier
-                local level = petInstance.level or 1
-                power = math.floor(petData.baseStats.power * (1 + (level - 1) * 0.1))
-            else
-                -- Default power calculation
-                power = 100 * (petInstance.level or 1)
-            end
-            powerLabel.Text = "Power: " .. self._utilities.FormatNumber(power)
-        end
-        
-        -- Update coins multiplier
-        local coinsLabel = statsContainer:FindFirstChild("CoinsFrame") and statsContainer.CoinsFrame:FindFirstChild("CoinsLabel")
-        if coinsLabel then
-            local coinsMultiplier = 0
-            if petInstance.stats and petInstance.stats.coins then
-                coinsMultiplier = petInstance.stats.coins
-            elseif petData.baseStats and petData.baseStats.coins then
-                coinsMultiplier = petData.baseStats.coins
-            end
-            
-            -- Show as percentage
-            if coinsMultiplier > 0 then
-                coinsLabel.Text = "Coins: +" .. tostring(math.floor(coinsMultiplier)) .. "%"
-            else
-                coinsLabel.Text = "Coins: +0%"
-            end
-        end
-        
-        local abilityLabel = statsContainer:FindFirstChild("AbilityLabel")
-        if abilityLabel then
-            -- Show first ability if available
-            if petData.abilities then
-                if type(petData.abilities) == "table" then
-                    -- Handle both array and dictionary formats
-                    local abilityText = nil
-                    if #petData.abilities > 0 then
-                        -- Array format
-                        local firstAbility = petData.abilities[1]
-                        if type(firstAbility) == "table" and firstAbility.name then
-                            abilityText = firstAbility.name
-                        elseif type(firstAbility) == "string" then
-                            abilityText = firstAbility
-                        end
-                    else
-                        -- Dictionary format
-                        local firstKey = next(petData.abilities)
-                        if firstKey then
-                            local ability = petData.abilities[firstKey]
-                            if type(ability) == "table" and ability.name then
-                                abilityText = ability.name
-                            else
-                                abilityText = firstKey
-                            end
-                        end
-                    end
-                    
-                    if abilityText then
-                        abilityLabel.Text = "🌟 " .. abilityText
-                        abilityLabel.Visible = true
-                    else
-                        abilityLabel.Visible = false
-                    end
-                else
-                    abilityLabel.Visible = false
-                end
-            else
-                abilityLabel.Visible = false
-            end
-        end
-    end
+    -- No stats update needed - cards don't display stats anymore
     
     -- Update click handler
     local button = card:FindFirstChild("ClickButton")
@@ -2185,6 +2029,9 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
     local oldLocked = card:FindFirstChild("LockedIndicator")
     if oldLocked then oldLocked:Destroy() end
     
+    local oldVariant = card:FindFirstChild("VariantBadge")
+    if oldVariant then oldVariant:Destroy() end
+    
     -- Add equipped indicator
     if petInstance.equipped then
         local equipped = Instance.new("ImageLabel")
@@ -2208,6 +2055,45 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
         locked.ImageColor3 = self._config.COLORS.Warning
         locked.Parent = card
     end
+    
+    -- Add variant badge
+    if petInstance.variant and petInstance.variant ~= "normal" then
+        local variantBadge = Instance.new("Frame")
+        variantBadge.Name = "VariantBadge"
+        variantBadge.Size = UDim2.new(0, 30, 0, 30)
+        variantBadge.Position = UDim2.new(1, -35, 1, -35)
+        variantBadge.BackgroundColor3 = self:GetVariantColor(petInstance.variant)
+        variantBadge.ZIndex = card.ZIndex + 3
+        variantBadge.Parent = card
+        
+        self._utilities.CreateCorner(variantBadge, 15)
+        
+        local variantIcon = Instance.new("TextLabel")
+        variantIcon.Size = UDim2.new(1, 0, 1, 0)
+        variantIcon.BackgroundTransparency = 1
+        variantIcon.Text = "✨"
+        variantIcon.TextScaled = true
+        variantIcon.TextColor3 = self._config.COLORS.White
+        variantIcon.ZIndex = card.ZIndex + 4
+        variantIcon.Parent = variantBadge
+    end
+end
+
+function InventoryUI:GetVariantColor(variant: string): Color3
+    if not variant then return self._config.COLORS.Dark end
+    
+    local variantColors = {
+        normal = self._config.COLORS.Dark,
+        shiny = Color3.fromRGB(255, 255, 150),  -- Light yellow
+        golden = Color3.fromRGB(255, 215, 0),    -- Gold
+        rainbow = Color3.fromRGB(255, 100, 255), -- Pink/Purple
+        dark = Color3.fromRGB(50, 0, 50),        -- Dark purple
+        neon = Color3.fromRGB(0, 255, 255),      -- Cyan
+        crystal = Color3.fromRGB(150, 200, 255), -- Light blue
+        shadow = Color3.fromRGB(30, 30, 30),     -- Very dark
+    }
+    
+    return variantColors[variant:lower()] or self._config.COLORS.Warning
 end
 
 function InventoryUI:SetupVirtualScrolling()
