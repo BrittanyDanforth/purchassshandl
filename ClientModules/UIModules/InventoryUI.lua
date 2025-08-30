@@ -176,6 +176,28 @@ function InventoryUI.new(dependencies)
     self.DeleteSelectedLabel = nil
     self.DeleteOverlay = nil
     
+    -- Real-time Stats Tracking System
+    self._realtimeStats = {
+        -- Current values
+        totalPets = 0,
+        equippedPets = 0,
+        displayedPets = 0,
+        maxStorage = 500,
+        
+        -- Animation states
+        animatingValues = {},
+        targetValues = {},
+        
+        -- Update tracking
+        lastUpdate = 0,
+        pendingUpdates = {},
+        updateThread = nil
+    }
+    
+    -- Stats update queue for batching
+    self._statsUpdateQueue = {}
+    self._statsUpdateTimer = nil
+    
     -- State
     self.IsRefreshing = false
     self.CurrentFilter = FILTER_TYPE.ALL
@@ -448,10 +470,28 @@ function InventoryUI:FetchPlayerData()
         
         if pets then
             local petCount = 0
-            for _ in pairs(pets) do
+            local equippedCount = 0
+            for _, pet in pairs(pets) do
                 petCount = petCount + 1
+                if pet.equipped then
+                    equippedCount = equippedCount + 1
+                end
             end
-            print("[InventoryUI] Fetched pets count:", petCount)
+            print("[InventoryUI] Fetched pets count:", petCount, "Equipped:", equippedCount)
+            
+            -- Initialize real-time stats without animation
+            self._realtimeStats.totalPets = petCount
+            self._realtimeStats.equippedPets = equippedCount
+            self._realtimeStats.animatingValues.totalPets = petCount
+            self._realtimeStats.animatingValues.equippedPets = equippedCount
+            
+            -- Render initial values immediately
+            if self.StatsLabels.Equipped then
+                self.StatsLabels.Equipped.Text = equippedCount .. "/6"
+            end
+            if self.StatsLabels.PetCount then
+                self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. self._realtimeStats.maxStorage
+            end
         else
             warn("[InventoryUI] No pets field in player data!")
             if result and type(result) == "table" then
@@ -774,6 +814,10 @@ function InventoryUI:CreateStatsBar()
     -- Equipped count
     local equippedFrame = self:CreateStatDisplay(statsBar, "Equipped", "0/6", self._config.COLORS.Success)
     self.StatsLabels.Equipped = equippedFrame:FindFirstChild("ValueLabel")
+    
+    -- Showing count (filtered pets)
+    local showingFrame = self:CreateStatDisplay(statsBar, "Showing", "0", self._config.COLORS.Secondary)
+    self.StatsLabels.Showing = showingFrame:FindFirstChild("ValueLabel")
     
     -- Storage bar
     local storageFrame = self:CreateStorageBar(statsBar)
@@ -3159,57 +3203,166 @@ function InventoryUI:RefreshStats()
     self:UpdateStats(pets)
 end
 
+-- ========================================
+-- REAL-TIME STATS SYSTEM
+-- ========================================
+
+function InventoryUI:QueueStatsUpdate(statType: string, value: number)
+    -- Queue the update
+    self._statsUpdateQueue[statType] = value
+    
+    -- Process queue if not already processing
+    if not self._statsUpdateTimer then
+        self._statsUpdateTimer = task.defer(function()
+            self:ProcessStatsQueue()
+            self._statsUpdateTimer = nil
+        end)
+    end
+end
+
+function InventoryUI:ProcessStatsQueue()
+    for statType, targetValue in pairs(self._statsUpdateQueue) do
+        self:AnimateStatChange(statType, targetValue)
+    end
+    self._statsUpdateQueue = {}
+end
+
+function InventoryUI:AnimateStatChange(statType: string, targetValue: number)
+    local stats = self._realtimeStats
+    
+    -- Store target value
+    stats.targetValues[statType] = targetValue
+    
+    -- Get current displayed value
+    local currentValue = stats.animatingValues[statType] or stats[statType] or 0
+    
+    -- Skip if already at target
+    if math.abs(currentValue - targetValue) < 0.01 then
+        return
+    end
+    
+    -- Cancel existing animation
+    if stats.updateThread and stats.updateThread[statType] then
+        task.cancel(stats.updateThread[statType])
+    end
+    
+    -- Initialize animation tracking
+    stats.updateThread = stats.updateThread or {}
+    stats.animatingValues[statType] = currentValue
+    
+    -- Smooth animation
+    local startTime = tick()
+    local duration = 0.3
+    local startValue = currentValue
+    
+    stats.updateThread[statType] = task.spawn(function()
+        while true do
+            local elapsed = tick() - startTime
+            local progress = math.min(elapsed / duration, 1)
+            
+            -- Smooth easing
+            local easedProgress = 1 - (1 - progress) ^ 3
+            local newValue = startValue + (targetValue - startValue) * easedProgress
+            
+            -- Update animated value
+            stats.animatingValues[statType] = newValue
+            
+            -- Update UI
+            self:RenderStatValue(statType, newValue)
+            
+            if progress >= 1 then
+                stats[statType] = targetValue
+                stats.animatingValues[statType] = targetValue
+                break
+            end
+            
+            task.wait()
+        end
+        
+        stats.updateThread[statType] = nil
+    end)
+end
+
+function InventoryUI:RenderStatValue(statType: string, value: number)
+    if statType == "equippedPets" and self.StatsLabels.Equipped then
+        local displayValue = math.floor(value + 0.5)
+        self.StatsLabels.Equipped.Text = displayValue .. "/6"
+        
+        -- Pulse effect on change
+        if self._lastEquippedValue ~= displayValue then
+            self._lastEquippedValue = displayValue
+            
+            -- Create glow effect
+            local parent = self.StatsLabels.Equipped.Parent
+            local glow = Instance.new("Frame")
+            glow.Name = "StatGlow"
+            glow.Size = UDim2.new(1, 10, 1, 10)
+            glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+            glow.AnchorPoint = Vector2.new(0.5, 0.5)
+            glow.BackgroundColor3 = self._config.COLORS.Success
+            glow.BackgroundTransparency = 0.7
+            glow.ZIndex = parent.ZIndex - 1
+            glow.Parent = parent
+            
+            self._utilities.CreateCorner(glow, 8)
+            
+            -- Animate glow
+            self._utilities.Tween(glow, {
+                Size = UDim2.new(1, 20, 1, 20),
+                BackgroundTransparency = 1
+            }, TweenInfo.new(0.4, Enum.EasingStyle.Quad))
+            
+            game:GetService("Debris"):AddItem(glow, 0.5)
+        end
+        
+    elseif statType == "totalPets" and self.StatsLabels.PetCount then
+        local displayValue = math.floor(value + 0.5)
+        self.StatsLabels.PetCount.Text = "Pets: " .. displayValue .. "/" .. self._realtimeStats.maxStorage
+        
+    elseif statType == "displayedPets" and self.StatsLabels.Showing then
+        local displayValue = math.floor(value + 0.5)
+        self.StatsLabels.Showing.Text = "Showing: " .. displayValue
+    end
+end
+
 function InventoryUI:UpdateStats(pets: table)
     print("[InventoryUI] UpdateStats called with", #pets, "pets")
+    
+    -- Count equipped pets from displayed list
     local equippedCount = 0
     for _, petInfo in ipairs(pets) do
         if petInfo.pet.equipped then
             equippedCount = equippedCount + 1
         end
     end
-    print("[InventoryUI] Equipped count calculated:", equippedCount)
     
-    local maxStorage = self._dataCache and self._dataCache:Get("maxPetStorage") or 500
-    
-    if self.StatsLabels.PetCount then
-        self.StatsLabels.PetCount.Text = "Pets: " .. #pets .. "/" .. maxStorage
-    end
-    
-    if self.StatsLabels.Equipped then
-        local oldText = self.StatsLabels.Equipped.Text
-        local newText = equippedCount .. "/6"
-        self.StatsLabels.Equipped.Text = newText
-        print("[InventoryUI] Updated equipped count to:", newText)
-        
-        -- Add scale animation if the count changed
-        if oldText ~= newText then
-            -- Scale up
-            self._utilities.Tween(self.StatsLabels.Equipped, {
-                Size = UDim2.new(1, 10, 1, 0)
-            }, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
-            
-            -- Scale back down after a moment
-            task.wait(0.1)
-            self._utilities.Tween(self.StatsLabels.Equipped, {
-                Size = UDim2.new(1, -70, 1, 0)
-            }, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
-        end
-    end
-    
-    -- Update storage with total pets count, not filtered count
-    if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
-        -- Get total pet count from player data
-        local totalPets = 0
-        if self._dataCache then
-            local playerData = self._dataCache:Get("playerData")
-            if playerData and playerData.pets then
-                for _ in pairs(playerData.pets) do
-                    totalPets = totalPets + 1
-                end
+    -- Get total pet count from data cache
+    local totalPets = 0
+    if self._dataCache then
+        local playerData = self._dataCache:Get("playerData")
+        if playerData and playerData.pets then
+            for _ in pairs(playerData.pets) do
+                totalPets = totalPets + 1
             end
         end
+    end
+    
+    -- Queue smooth updates
+    self:QueueStatsUpdate("equippedPets", equippedCount)
+    self:QueueStatsUpdate("totalPets", totalPets)
+    self:QueueStatsUpdate("displayedPets", #pets)
+    
+    -- Update storage bar if exists
+    if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
         self.StorageBars[self.StatsLabels.Storage].updateFunc(totalPets)
     end
+end
+
+-- Direct stat update for immediate changes
+function InventoryUI:UpdateSingleStat(statType: string, delta: number)
+    local currentValue = self._realtimeStats[statType] or 0
+    local newValue = math.max(0, currentValue + delta)
+    self:QueueStatsUpdate(statType, newValue)
 end
 
 function InventoryUI:ShowEmptyState()
@@ -4157,6 +4310,9 @@ function InventoryUI:OnSearchChanged(text: string)
 end
 
 function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolean)
+    -- Update visual card immediately for responsiveness
+    local cardUpdated = false
+    
     if self.VirtualScrollEnabled then
         -- Virtual scrolling mode - update the data and visible cards
         if self.VisiblePets then
@@ -4171,11 +4327,12 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
         -- Update any visible cards
         for index, card in pairs(self.ActiveCards) do
             if card.Name == "PetCard_" .. uniqueId then
+                cardUpdated = true
                 card:SetAttribute("Equipped", equipped)
                 
                 local indicator = card:FindFirstChild("EquippedIndicator")
                 if equipped and not indicator then
-                    -- Add equipped indicator
+                    -- Add equipped indicator with animation
                     indicator = Instance.new("ImageLabel")
                     indicator.Name = "EquippedIndicator"
                     indicator.Size = UDim2.new(0, 30, 0, 30)
@@ -4183,9 +4340,19 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
                     indicator.BackgroundTransparency = 1
                     indicator.Image = "rbxassetid://7734053426" -- Checkmark icon
                     indicator.ImageColor3 = self._config.COLORS.Success
+                    indicator.ImageTransparency = 1
                     indicator.Parent = card
+                    
+                    -- Animate in
+                    self._utilities.Tween(indicator, {
+                        ImageTransparency = 0
+                    }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
                 elseif not equipped and indicator then
-                    indicator:Destroy()
+                    -- Animate out then destroy
+                    self._utilities.Tween(indicator, {
+                        ImageTransparency = 1
+                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+                    game:GetService("Debris"):AddItem(indicator, 0.2)
                 end
                 break
             end
@@ -4194,11 +4361,12 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
         -- Traditional mode - use cache
         for _, card in ipairs(self.PetCardCache) do
             if card.Name == "PetCard_" .. uniqueId then
+                cardUpdated = true
                 card:SetAttribute("Equipped", equipped)
                 
                 local indicator = card:FindFirstChild("EquippedIndicator")
                 if equipped and not indicator then
-                    -- Add equipped indicator
+                    -- Add equipped indicator with animation
                     indicator = Instance.new("ImageLabel")
                     indicator.Name = "EquippedIndicator"
                     indicator.Size = UDim2.new(0, 24, 0, 24)
@@ -4206,9 +4374,19 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
                     indicator.BackgroundTransparency = 1
                     indicator.Image = "rbxassetid://7072717697"
                     indicator.ImageColor3 = self._config.COLORS.Success
+                    indicator.ImageTransparency = 1
                     indicator.Parent = card
+                    
+                    -- Animate in
+                    self._utilities.Tween(indicator, {
+                        ImageTransparency = 0
+                    }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
                 elseif not equipped and indicator then
-                    indicator:Destroy()
+                    -- Animate out then destroy
+                    self._utilities.Tween(indicator, {
+                        ImageTransparency = 1
+                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+                    game:GetService("Debris"):AddItem(indicator, 0.2)
                 end
                 
                 break
@@ -4216,23 +4394,24 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
         end
     end
     
-    -- Update the equipped count in stats display
+    -- Immediate stats update using real-time system
+    local delta = equipped and 1 or -1
+    self:UpdateSingleStat("equippedPets", delta)
+    
+    -- Update data cache
     local playerData = self._dataCache:Get("playerData")
     if playerData and playerData.pets then
-        -- First update the pet's equipped status in the cache
         for _, pet in pairs(playerData.pets) do
             if pet.uniqueId == uniqueId then
                 pet.equipped = equipped
                 break
             end
         end
-        
-        -- Now format pets properly for UpdateStats
-        local pets = {}
-        for _, pet in pairs(playerData.pets) do
-            table.insert(pets, {pet = pet})
-        end
-        self:UpdateStats(pets)
+    end
+    
+    -- Visual feedback
+    if cardUpdated and self._soundSystem then
+        self._soundSystem:PlayUISound(equipped and "Equip" or "Unequip")
     end
 end
 
