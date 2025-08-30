@@ -257,6 +257,76 @@ function ShopUI:Close()
 end
 
 -- ========================================
+-- WINDOW MANAGER INTEGRATION
+-- ========================================
+
+function ShopUI:Initialize()
+    -- This function just builds the UI but doesn't show it
+    if not self.Frame then
+        self:CreateUI()
+    end
+end
+
+function ShopUI:AnimateOpen()
+    -- Called by WindowManager to play the open animation
+    if not self.Frame then self:Initialize() end
+    
+    self.Frame.Visible = true
+    self.Frame.BackgroundTransparency = 1
+    
+    -- Animate in
+    local originalPosition = self.Frame.Position or UDim2.new(0.5, 0, 0.5, 0)
+    self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
+    
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 0,
+        Position = originalPosition
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    self._isOpen = true
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Open")
+    end
+end
+
+function ShopUI:AnimateClose()
+    -- Called by WindowManager to play the close animation
+    if not self.Frame then return end
+    
+    -- Animate out
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+    
+    -- Note: We don't wait here, WindowManager handles the timing
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Close")
+    end
+    
+    -- Fire event
+    if self._eventBus then
+        self._eventBus:Fire("ShopClosed", {})
+    end
+end
+
+function ShopUI:OnReady()
+    -- Called by WindowManager AFTER the open animation is finished
+    -- This is the safe place to load data!
+    self:LoadShopData()
+end
+
+function ShopUI:OnClosed()
+    -- Called by WindowManager after close animation completes
+    self.Frame.Visible = false
+    self._isOpen = false
+end
+
+-- ========================================
 -- UI CREATION
 -- ========================================
 

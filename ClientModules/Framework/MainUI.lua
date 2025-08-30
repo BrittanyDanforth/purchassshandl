@@ -76,6 +76,7 @@ function MainUI.new(dependencies)
     self._animationSystem = dependencies.AnimationSystem
     self._notificationSystem = dependencies.NotificationSystem
     self._soundSystem = dependencies.SoundSystem
+    self._windowManager = dependencies.WindowManager
     self._config = dependencies.Config or Config
     self._utilities = dependencies.Utilities or Utilities
     
@@ -347,22 +348,12 @@ function MainUI:SetupNavButtonInteractions(button: TextButton, navData: Navigati
         -- Remove tooltip
         self:RemoveNavTooltip(navData.Name)
         
-        -- Debounce navigation clicks
-        if self._navigationDebounce then
-            return
-        end
-        self._navigationDebounce = true
-        
-        -- Handle click
+        -- Handle click (WindowManager will handle debouncing)
         if navData.Callback then
             navData.Callback()
         elseif navData.Module then
             self:OpenModule(navData.Module)
         end
-        
-        -- Reset debounce after a short delay
-        task.wait(0.2)
-        self._navigationDebounce = false
         
         -- Fire event
         if self._eventBus then
@@ -781,6 +772,24 @@ function MainUI:OpenModule(moduleName: string)
         return
     end
     
+    -- Use WindowManager if available for proper transition handling
+    if self._windowManager then
+        -- Initialize module if needed
+        if not moduleState.isInitialized then
+            self:InitializeModule(moduleName)
+        end
+        
+        -- Let WindowManager handle the transition
+        if moduleState.instance then
+            self._windowManager:OpenWindow(moduleState.instance)
+            moduleState.isOpen = true
+            self._currentModule = moduleName
+        end
+        
+        return
+    end
+    
+    -- Fallback to old behavior if WindowManager not available
     -- Close current module if different with animation
     if self._currentModule and self._currentModule ~= moduleName then
         -- Fade out current module
