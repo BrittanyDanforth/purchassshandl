@@ -385,8 +385,14 @@ function InventoryUI:FetchPlayerData()
         end
         
         -- Update state manager
-        if self._stateManager and self._stateManager.SetState then
-            self._stateManager:SetState({playerData = result})
+        if self._stateManager then
+            if self._stateManager.SetState then
+                self._stateManager:SetState({playerData = result})
+            elseif self._stateManager.Set then
+                self._stateManager:Set({playerData = result})
+            elseif self._stateManager.Update then
+                self._stateManager:Update({playerData = result})
+            end
         end
         
         -- Fire event
@@ -2230,7 +2236,16 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     
     -- Fallback to state manager if needed
     if not pets and self._stateManager then
-        local state = self._stateManager:GetState()
+        -- StateManager might use Get instead of GetState
+        local state = nil
+        if self._stateManager.GetState then
+            state = self._stateManager:GetState()
+        elseif self._stateManager.Get then
+            state = self._stateManager:Get()
+        elseif self._stateManager.GetData then
+            state = self._stateManager:GetData()
+        end
+        
         if state and state.playerData and state.playerData.pets then
             pets = state.playerData.pets
         end
