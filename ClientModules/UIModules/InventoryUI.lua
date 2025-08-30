@@ -905,106 +905,126 @@ end
 
 function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options: {string}, 
                                    size: UDim2, position: UDim2, callback: (string) -> ())
-    local dropdown = self._uiFactory:CreateFrame(parent, {
-        name = placeholder .. "Dropdown",
-        size = size,
-        position = position,
-        backgroundColor = self._config.COLORS.White,
-        zIndex = self._config.ZINDEX and self._config.ZINDEX.Default or 10,
-    })
+    -- Create main dropdown frame
+    local dropdown = Instance.new("Frame")
+    dropdown.Name = placeholder .. "Dropdown"
+    dropdown.Size = size
+    dropdown.Position = position
+    dropdown.BackgroundColor3 = self._config.COLORS.White
+    dropdown.ZIndex = 10
+    dropdown.Parent = parent
     
     self._utilities.CreateCorner(dropdown, 8)
     self._utilities.CreateStroke(dropdown, self._config.COLORS.Primary, 2)
     
-    local button = self._uiFactory:CreateButton(dropdown, {
-        text = placeholder,
-        size = UDim2.new(1, 0, 1, 0),
-        font = self._config.FONTS.Primary,
-        textColor = self._config.COLORS.Dark,
-    })
+    -- Create the main button
+    local button = Instance.new("TextButton")
+    button.Name = "DropdownButton"
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = placeholder
+    button.Font = self._config.FONTS.Primary
+    button.TextColor3 = self._config.COLORS.Dark
+    button.TextScaled = true
+    button.Parent = dropdown
     
-    local arrow = self._uiFactory:CreateLabel(dropdown, {
-        text = "▼",
-        size = UDim2.new(0, 20, 1, 0),
-        position = UDim2.new(1, -25, 0, 0),
-        textColor = self._config.COLORS.TextSecondary
-    })
+    -- Add text size constraint
+    local textConstraint = Instance.new("UITextSizeConstraint")
+    textConstraint.MaxTextSize = 18
+    textConstraint.MinTextSize = 12
+    textConstraint.Parent = button
     
-    -- This Janitor will manage the "open" state of the dropdown
-    local openStateJanitor = nil
+    -- Arrow label
+    local arrow = Instance.new("TextLabel")
+    arrow.Name = "Arrow"
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -25, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = self._config.COLORS.TextSecondary
+    arrow.TextScaled = true
+    arrow.Font = Enum.Font.SourceSans
+    arrow.Parent = dropdown
     
-    local function CloseDropdown()
-        if openStateJanitor then
-            -- Destroying the janitor cleans up the options frame and the click connection
-            openStateJanitor:Destroy()
-            openStateJanitor = nil
-            -- Make sure the ZIndex goes back to normal
-            dropdown.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Default or 10
-        end
+    -- Options frame (hidden by default)
+    local optionsFrame = Instance.new("Frame")
+    optionsFrame.Name = "OptionsFrame"
+    optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10)
+    optionsFrame.Position = UDim2.new(0, 0, 1, 5)
+    optionsFrame.BackgroundColor3 = self._config.COLORS.White
+    optionsFrame.ZIndex = 300
+    optionsFrame.Visible = false
+    optionsFrame.Parent = dropdown
+    
+    self._utilities.CreateCorner(optionsFrame, 8)
+    self._utilities.CreateStroke(optionsFrame, self._config.COLORS.Primary, 2)
+    
+    -- Create option buttons
+    for i, option in ipairs(options) do
+        local optionButton = Instance.new("TextButton")
+        optionButton.Name = "Option" .. i
+        optionButton.Size = UDim2.new(1, -10, 0, 30)
+        optionButton.Position = UDim2.new(0, 5, 0, (i-1) * 30 + 5)
+        optionButton.BackgroundColor3 = self._config.COLORS.White
+        optionButton.Text = option
+        optionButton.TextColor3 = self._config.COLORS.Dark
+        optionButton.Font = self._config.FONTS.Primary
+        optionButton.TextScaled = true
+        optionButton.Parent = optionsFrame
+        
+        -- Add text size constraint
+        local optionConstraint = Instance.new("UITextSizeConstraint")
+        optionConstraint.MaxTextSize = 16
+        optionConstraint.MinTextSize = 10
+        optionConstraint.Parent = optionButton
+        
+        -- Option button click
+        optionButton.MouseButton1Click:Connect(function()
+            print("[InventoryUI] Selected option:", option)
+            button.Text = option
+            optionsFrame.Visible = false
+            dropdown.ZIndex = 10
+            if callback then
+                callback(option)
+            end
+        end)
+        
+        -- Hover effects
+        optionButton.MouseEnter:Connect(function()
+            optionButton.BackgroundColor3 = self._config.COLORS.Surface
+        end)
+        
+        optionButton.MouseLeave:Connect(function()
+            optionButton.BackgroundColor3 = self._config.COLORS.White
+        end)
     end
     
-    self._janitor:Add(button.MouseButton1Click:Connect(function()
-        if openStateJanitor then
-            -- If it's open, close it
-            CloseDropdown()
-        else
-            -- If it's closed, open it
-            openStateJanitor = Janitor.new() -- Create a NEW janitor for this open session
-            
-            -- Raise the ZIndex so it appears on top of other elements
-            dropdown.ZIndex = self._config.ZINDEX and self._config.ZINDEX.Dropdown or 300
-            
-            local optionsFrame = self._uiFactory:CreateFrame(dropdown, {
-                name = "OptionsFrame",
-                size = UDim2.new(1, 0, 0, #options * 30 + 10),
-                position = UDim2.new(0, 0, 1, 5),
-                backgroundColor = self._config.COLORS.White,
-                zIndex = dropdown.ZIndex,
-            })
-            -- Give the frame to the janitor. When the janitor is destroyed, the frame is destroyed.
-            openStateJanitor:Add(optionsFrame)
-            
-            self._utilities.CreateCorner(optionsFrame, 8)
-            self._utilities.CreateStroke(optionsFrame, self._config.COLORS.Primary, 2)
-            
-            for i, option in ipairs(options) do
-                local optionButton = self._uiFactory:CreateButton(optionsFrame, {
-                    text = option,
-                    size = UDim2.new(1, -10, 0, 30),
-                    position = UDim2.new(0, 5, 0, (i-1) * 30 + 5),
-                    backgroundColor = self._config.COLORS.White,
-                    textColor = self._config.COLORS.Dark,
-                    callback = function()
-                        button.Text = option
-                        CloseDropdown() -- Close after selection
-                        if callback then
-                            callback(option)
-                        end
-                    end
-                })
-                -- Add hover effects
-                openStateJanitor:Add(optionButton.MouseEnter:Connect(function() 
-                    optionButton.BackgroundColor3 = self._config.COLORS.Surface 
-                end))
-                openStateJanitor:Add(optionButton.MouseLeave:Connect(function() 
-                    optionButton.BackgroundColor3 = self._config.COLORS.White 
-                end))
-            end
-            
-            -- Give the "click anywhere else to close" connection to the janitor
-            task.wait() -- Wait one frame before connecting to avoid closing instantly
-            openStateJanitor:Add(Services.UserInputService.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    CloseDropdown()
-                end
-            end))
-        end
-    end))
-    
-    -- IMPORTANT: Add a function to the main janitor to clean up THIS dropdown if the whole inventory closes
-    self._janitor:Add(function()
-        CloseDropdown()
+    -- Main button click
+    local isOpen = false
+    button.MouseButton1Click:Connect(function()
+        print("[InventoryUI] Dropdown clicked, isOpen:", isOpen)
+        isOpen = not isOpen
+        optionsFrame.Visible = isOpen
+        dropdown.ZIndex = isOpen and 300 or 10
+        arrow.Text = isOpen and "▲" or "▼"
     end)
+    
+    -- Click outside to close
+    local clickConnection
+    clickConnection = Services.UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and isOpen then
+            task.wait() -- Wait a frame to not close immediately
+            if isOpen then
+                isOpen = false
+                optionsFrame.Visible = false
+                dropdown.ZIndex = 10
+                arrow.Text = "▼"
+            end
+        end
+    end)
+    
+    -- Clean up on destroy
+    self._janitor:Add(clickConnection)
     
     return dropdown
 end
@@ -2463,12 +2483,14 @@ function InventoryUI:MatchesSearch(petInstance: PetInstance, petData: table): bo
 end
 
 function InventoryUI:UpdateStats(pets: table)
+    print("[InventoryUI] UpdateStats called with", #pets, "pets")
     local equippedCount = 0
     for _, petInfo in ipairs(pets) do
         if petInfo.pet.equipped then
             equippedCount = equippedCount + 1
         end
     end
+    print("[InventoryUI] Equipped count calculated:", equippedCount)
     
     local maxStorage = self._dataCache and self._dataCache:Get("maxPetStorage") or 500
     
@@ -2477,7 +2499,8 @@ function InventoryUI:UpdateStats(pets: table)
     end
     
     if self.StatsLabels.Equipped then
-        self.StatsLabels.Equipped.Text = "Equipped: " .. equippedCount .. "/6"
+        self.StatsLabels.Equipped.Text = equippedCount .. "/6"
+        print("[InventoryUI] Updated equipped count to:", equippedCount .. "/6")
     end
     
     if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
