@@ -911,7 +911,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         end
     end
     
-    button.MouseButton1Click:Connect(function()
+    self._janitor:Add(button.MouseButton1Click:Connect(function()
         if openStateJanitor then
             -- If it's open, close it
             CloseDropdown()
@@ -967,7 +967,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
                 end
             end))
         end
-    end)
+    end))
     
     -- IMPORTANT: Add a function to the main janitor to clean up THIS dropdown if the whole inventory closes
     self._janitor:Add(function()
@@ -1258,7 +1258,7 @@ function InventoryUI:CreatePetGrid(parent: Frame)
                 scrollFrame.CanvasPosition = Vector2.new(newPosition.X, math.min(maxY, newPosition.Y - 2))
             end
         end
-    end)
+    end))
     
     -- Track scrolling for momentum
     local lastTime = tick()
@@ -3340,12 +3340,32 @@ function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
 end
 
 function InventoryUI:RemovePetCard(uniqueId: string)
+    print("[InventoryUI] Removing pet card:", uniqueId)
+    
+    -- Remove from data cache first
+    if self._dataCache and self._dataCache.Get then
+        local playerData = self._dataCache:Get("playerData") or {}
+        if playerData.pets and playerData.pets[uniqueId] then
+            playerData.pets[uniqueId] = nil
+            if self._dataCache.Set then
+                self._dataCache:Set("playerData", playerData)
+            end
+        end
+    end
+    
     if self.VirtualScrollEnabled then
         -- Virtual scrolling mode - remove from data and refresh if visible
         if self.VisiblePets then
             for i, petInfo in ipairs(self.VisiblePets) do
                 if petInfo.pet.uniqueId == uniqueId then
                     table.remove(self.VisiblePets, i)
+                    
+                    -- Also remove from active cards if visible
+                    if self.ActiveCards[uniqueId] then
+                        local card = self.ActiveCards[uniqueId]
+                        self.ActiveCards[uniqueId] = nil
+                        self:ReturnCardToPool(card)
+                    end
                     
                     -- Recalculate canvas size
                     local totalRows = math.ceil(#self.VisiblePets / self.ColumnsPerRow)
@@ -3368,6 +3388,10 @@ function InventoryUI:RemovePetCard(uniqueId: string)
             end
         end
     end
+    
+    -- Also trigger a full refresh after a short delay to ensure consistency
+    task.wait(0.1)
+    self:RefreshInventory()
 end
 
 function InventoryUI:UpdatePetCardLevel(uniqueId: string, newLevel: number)

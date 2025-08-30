@@ -1439,24 +1439,29 @@ function PetDetailsUI:ExecuteDelete()
                 self._soundSystem:PlayUISound("Delete")
             end
             
-            -- Close the details window
-            self:Close()
+            -- Store the pet ID before closing
+            local deletedPetId = self._currentPetInstance.uniqueId
             
-            -- Fire event to update inventory
+            -- Fire event to update inventory BEFORE closing
             if self._eventBus then
-                self._eventBus:Fire("PetDeleted", self._currentPetInstance.uniqueId)
+                self._eventBus:Fire("PetDeleted", {uniqueId = deletedPetId})
                 -- Also fire inventory refresh
                 self._eventBus:Fire("RefreshInventory")
             end
             
             -- Update data cache to remove the pet
-            if self._dataCache then
-                local playerData = self._dataCache:Get() or {}
-                if playerData.pets and playerData.pets[self._currentPetInstance.uniqueId] then
-                    playerData.pets[self._currentPetInstance.uniqueId] = nil
-                    self._dataCache:Set(playerData)
+            if self._dataCache and self._dataCache.Get then
+                local playerData = self._dataCache:Get("playerData") or self._dataCache:Get() or {}
+                if playerData.pets and playerData.pets[deletedPetId] then
+                    playerData.pets[deletedPetId] = nil
+                    if self._dataCache.Set then
+                        self._dataCache:Set("playerData", playerData)
+                    end
                 end
             end
+            
+            -- Close the details window AFTER firing events
+            self:Close()
         else
             -- Show error
             local errorMsg = response and response.error or "Failed to delete pet"
