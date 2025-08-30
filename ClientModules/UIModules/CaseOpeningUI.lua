@@ -246,6 +246,12 @@ function CaseOpeningUI:CreateOverlay()
 end
 
 function CaseOpeningUI:CreateContainer()
+    -- Clean up any existing container
+    if self._container then
+        self._container:Destroy()
+        self._container = nil
+    end
+    
     -- Main container
     self._container = Instance.new("Frame")
     self._container.Name = "CaseContainer"
@@ -280,7 +286,7 @@ function CaseOpeningUI:CreateContainer()
     
     -- Add animated gradient effect
     task.spawn(function()
-        while self._container.Parent do
+        while self._container and self._container.Parent do
             Services.TweenService:Create(gradient, TweenInfo.new(5, Enum.EasingStyle.Linear), {
                 Rotation = gradient.Rotation + 360
             }):Play()
