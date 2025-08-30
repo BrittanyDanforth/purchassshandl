@@ -1365,6 +1365,21 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     
     self.PetGrid = scrollFrame
     
+    -- Add scroll detection for non-virtual scrolling
+    self._janitor:Add(scrollFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        self.IsScrolling = true
+        
+        -- Clear scrolling flag after a delay
+        if self.ScrollDebounce then
+            task.cancel(self.ScrollDebounce)
+        end
+        self.ScrollDebounce = task.delay(0.2, function()
+            self.IsScrolling = false
+            -- Refresh VFX after scrolling stops
+            self:RefreshVisibleVFX()
+        end)
+    end))
+    
     -- Add responsive grid layout
     local function updateGridLayout()
         local frameWidth = self.PetGrid.AbsoluteSize.X
@@ -1497,10 +1512,13 @@ end
 -- PET CARD CREATION
 -- ========================================
 
-function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInstance, petData: table): Frame?
-    if not petInstance or not petData then
+function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInstance, templateData: table): Frame?
+    if not petInstance or not templateData then
         return nil
     end
+    
+    -- For clarity, rename templateData to petData internally
+    local petData = templateData
     
     -- Create card container
     local card = Instance.new("Frame")
@@ -1598,8 +1616,11 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         textXAlignment = Enum.TextXAlignment.Center
     })
     
+    -- Store data as attributes for later VFX refresh
+    card:SetAttribute("PetInstance", petInstance)
+    card:SetAttribute("PetData", petData)
+    
     -- Apply premium VFX for variants and high rarity pets
-    print("[InventoryUI] About to apply VFX - PetInstance:", petInstance and petInstance.uniqueId, "PetData:", petData and petData.name)
     self:ApplyPremiumVFX(card, petInstance, petData)
     
     -- Click handler
@@ -1900,33 +1921,39 @@ end
 
 function InventoryUI:ApplyPremiumVFX(card: Frame, petInstance: PetInstance, petData: table)
     local imageContainer = card:FindFirstChild("ImageContainer")
-    if not imageContainer then 
-        print("[InventoryUI] No ImageContainer found for VFX")
-        return 
-    end
+    if not imageContainer then return end
     
     -- Safety check for nil petData
-    if not petData then 
-        print("[InventoryUI] No petData provided for VFX")
-        return 
-    end
+    if not petData then return end
     
-    print("[InventoryUI] Applying VFX - Variant:", petInstance and petInstance.variant, "Rarity:", petData.rarity)
+    -- Skip VFX during scrolling to prevent lag
+    if self.IsScrolling then return end
     
     -- Clean up existing VFX
     self:CleanupVFX(card)
     
     -- Apply variant-based VFX
     if petInstance and petInstance.variant then
-        print("[InventoryUI] Applying variant VFX:", petInstance.variant)
         self:ApplyVariantVFX(card, petInstance.variant)
     end
     
     -- Apply rarity-based VFX
     local rarity = petData.rarity or 1
     if rarity >= 4 then -- Epic and above
-        print("[InventoryUI] Applying rarity VFX for rarity:", rarity)
         self:ApplyRarityVFX(card, rarity)
+    end
+end
+
+function InventoryUI:RefreshVisibleVFX()
+    -- Apply VFX to all visible cards after scrolling stops
+    for _, child in ipairs(self.PetGrid:GetChildren()) do
+        if child:IsA("Frame") and child.Name:match("^PetCard_") then
+            local petInstance = child:GetAttribute("PetInstance")
+            local petData = child:GetAttribute("PetData")
+            if petInstance and petData then
+                self:ApplyPremiumVFX(child, petInstance, petData)
+            end
+        end
     end
 end
 
@@ -2611,7 +2638,6 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
     end
     
     -- Apply premium VFX for variants and high rarity pets
-    print("[InventoryUI] About to apply VFX - PetInstance:", petInstance and petInstance.uniqueId, "PetData:", petData and petData.name)
     self:ApplyPremiumVFX(card, petInstance, petData)
 end
 
@@ -2669,7 +2695,18 @@ function InventoryUI:SetupVirtualScrolling()
     
     -- Set up scroll listener
     self.ScrollConnection = self._janitor:Add(self.PetGrid:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        self.IsScrolling = true
         self:OnVirtualScroll()
+        
+        -- Clear scrolling flag after a delay
+        if self.ScrollDebounce then
+            task.cancel(self.ScrollDebounce)
+        end
+        self.ScrollDebounce = task.delay(0.2, function()
+            self.IsScrolling = false
+            -- Refresh VFX after scrolling stops
+            self:RefreshVisibleVFX()
+        end)
     end))
 end
 
