@@ -109,21 +109,51 @@ local SORT_FUNCTIONS = {
         return (a.level or 1) > (b.level or 1)
     end,
     Power = function(a, b, aData, bData)
-        -- Calculate power based on level and base stats if not directly available
-        local aPower = a.power
-        if not aPower and aData and aData.baseStats then
-            -- Use base power multiplied by level as a fallback
-            aPower = (aData.baseStats.power or 100) * (a.level or 1)
-        elseif not aPower then
-            -- Final fallback: use level * 100
-            aPower = (a.level or 1) * 100
+        -- Calculate power based on multiple factors
+        local function calculatePower(pet, petData)
+            -- Direct power value if exists
+            if pet.power and type(pet.power) == "number" then
+                return pet.power
+            end
+            
+            -- Calculate from stats if available
+            if pet.stats then
+                -- Common stat names for power calculation
+                local attack = pet.stats.attack or pet.stats.damage or pet.stats.atk or 0
+                local defense = pet.stats.defense or pet.stats.def or 0
+                local health = pet.stats.health or pet.stats.hp or 0
+                local speed = pet.stats.speed or pet.stats.spd or 0
+                
+                -- Calculate combined power
+                return (attack * 2) + defense + (health / 10) + speed
+            end
+            
+            -- Try baseStats from template data
+            if petData and petData.baseStats then
+                local basePower = petData.baseStats.power or petData.baseStats.attack or 100
+                return basePower * (pet.level or 1)
+            end
+            
+            -- Fallback: use rarity and level
+            local rarityMultiplier = 1
+            if petData and petData.rarity then
+                rarityMultiplier = petData.rarity
+            elseif pet.rarity then
+                rarityMultiplier = pet.rarity
+            end
+            
+            return (pet.level or 1) * 100 * rarityMultiplier
         end
         
-        local bPower = b.power
-        if not bPower and bData and bData.baseStats then
-            bPower = (bData.baseStats.power or 100) * (b.level or 1)
-        elseif not bPower then
-            bPower = (b.level or 1) * 100
+        local aPower = calculatePower(a, aData)
+        local bPower = calculatePower(b, bData)
+        
+        -- Debug logging for first comparison only
+        if _G._powerSortDebug ~= false then
+            print(string.format("[Power Sort] Pet A: %s (Power: %d) vs Pet B: %s (Power: %d)", 
+                a.nickname or (aData and aData.name) or "Unknown", aPower,
+                b.nickname or (bData and bData.name) or "Unknown", bPower))
+            _G._powerSortDebug = false -- Only log once
         end
         
         return aPower > bPower
@@ -1082,6 +1112,12 @@ function InventoryUI:CreateControls()
             print("[InventoryUI] Sort dropdown selected:", option)
             self.CurrentSort = option
             self.CurrentPage = 1  -- Reset to first page
+            
+            -- Reset power sort debug flag
+            if option == "Power" then
+                _G._powerSortDebug = true
+            end
+            
             self:RefreshInventory()
         end
     )
@@ -3240,8 +3276,17 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
         if #petsArray > 0 then
             local firstPet = petsArray[1]
             print("[InventoryUI] First pet data - power:", firstPet.pet.power, "level:", firstPet.pet.level)
-            if firstPet.data and firstPet.data.baseStats then
-                print("[InventoryUI] First pet baseStats - power:", firstPet.data.baseStats.power)
+            if firstPet.data then
+                print("[InventoryUI] Pet template data keys:")
+                for k, v in pairs(firstPet.data) do
+                    print("  ", k, "=", type(v) == "table" and "{...}" or tostring(v))
+                end
+                if firstPet.data.baseStats then
+                    print("[InventoryUI] Pet baseStats:")
+                    for k, v in pairs(firstPet.data.baseStats) do
+                        print("    ", k, "=", v)
+                    end
+                end
             end
         end
         
