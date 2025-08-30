@@ -1230,7 +1230,7 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     local isScrolling = false
     
     -- Smooth momentum scrolling
-    scrollConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+    scrollConnection = self._janitor:Add(game:GetService("RunService").Heartbeat:Connect(function(dt)
         if velocity.Magnitude > 0.1 and not isScrolling then
             -- Apply momentum
             local newPosition = scrollFrame.CanvasPosition + velocity * dt * 60
