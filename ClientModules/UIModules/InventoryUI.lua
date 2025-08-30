@@ -378,14 +378,25 @@ function InventoryUI:FetchPlayerData()
     if success and result then
         print("[InventoryUI] Successfully fetched player data")
         print("[InventoryUI] Player data structure:", result)
-        if result.pets then
+        
+        -- Check for pets in various possible locations
+        local pets = result.pets or (result.playerData and result.playerData.pets)
+        
+        if pets then
             local petCount = 0
-            for _ in pairs(result.pets) do
+            for _ in pairs(pets) do
                 petCount = petCount + 1
             end
             print("[InventoryUI] Fetched pets count:", petCount)
         else
             warn("[InventoryUI] No pets field in player data!")
+            if result and type(result) == "table" then
+                local keys = {}
+                for k, v in pairs(result) do
+                    table.insert(keys, tostring(k) .. " (" .. type(v) .. ")")
+                end
+                print("[InventoryUI] Data structure keys:", table.concat(keys, ", "))
+            end
         end
         
         -- Update various caches

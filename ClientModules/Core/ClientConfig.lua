@@ -179,6 +179,7 @@ ClientConfig.SOUNDS = {
 	Error = "rbxassetid://2767090",        -- Error sound
 	Notification = "rbxassetid://179235828", -- Notification sound (working)
 	Warning = "rbxassetid://2767090",       -- Warning sound
+	Delete = "rbxassetid://6026984224",     -- Delete sound (using close/switch sound)
 
 	-- Game Sounds
 	CaseOpen = "rbxassetid://511340819",  -- Case open/snap sound (working)
