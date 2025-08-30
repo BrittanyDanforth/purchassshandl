@@ -3371,6 +3371,16 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
             end
         end
     end
+    
+    -- Update the equipped count in stats display
+    local playerData = self._dataCache:Get("playerData")
+    if playerData and playerData.pets then
+        local pets = {}
+        for _, pet in pairs(playerData.pets) do
+            table.insert(pets, pet)
+        end
+        self:UpdateStats(pets)
+    end
 end
 
 function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
