@@ -1502,6 +1502,44 @@ function PetDetailsUI:OnEquipClicked()
 		if success and result then
 			-- Only update local state if server confirms success
 			if type(result) == "table" and result.success then
+				-- Additional validation for equip
+				local wasEquipped = self._currentPetInstance.equipped
+				if not wasEquipped then
+					-- Double check we're not over limit
+					local playerData = self._dataCache and self._dataCache:Get("playerData")
+					local equippedCount = 0
+					if playerData and playerData.pets then
+						for _, petData in pairs(playerData.pets) do
+							if petData.equipped then
+								equippedCount = equippedCount + 1
+							end
+						end
+					end
+					
+					if equippedCount >= 6 then
+						-- Server said success but we're at max - reject it
+						if self._notificationSystem then
+							self._notificationSystem:Show({
+								title = "Maximum Pets Equipped",
+								message = "You already have 6 pets equipped. Please unequip one first.",
+								type = "error",
+								duration = 3
+							})
+						end
+						
+						-- Reset button state
+						self:UpdateEquipButton()
+						self._buttonStates.equip.isLoading = false
+						
+						-- Play error sound
+						if self._soundSystem then
+							self._soundSystem:PlayUISound("Error")
+						end
+						
+						return
+					end
+				end
+				
 				-- Update local state
 				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
 				self:UpdateEquipButton()
@@ -1546,16 +1584,22 @@ function PetDetailsUI:OnEquipClicked()
 						-- Server allowed it but we shouldn't update locally
 						if self._notificationSystem then
 							self._notificationSystem:Show({
-								title = "Error",
-								message = "Maximum pets equipped. Server error - please refresh.",
+								title = "Maximum Pets Equipped",
+								message = "You already have 6 pets equipped. Please unequip one first.",
 								type = "error",
 								duration = 3
 							})
 						end
 						
-						-- Reset button state
+						-- Reset button state without updating equipped status
 						self:UpdateEquipButton()
 						self._buttonStates.equip.isLoading = false
+						
+						-- Play error sound
+						if self._soundSystem then
+							self._soundSystem:PlayUISound("Error")
+						end
+						
 						return
 					end
 				end

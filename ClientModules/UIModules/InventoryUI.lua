@@ -539,7 +539,9 @@ function InventoryUI:FetchPlayerData()
                 end
                 
                 -- Force render the total pets update
-                self:RenderStatUpdate("totalPets", petCount)
+                if self.RenderStatUpdate then
+                    self:RenderStatUpdate("totalPets", petCount)
+                end
             else
                 -- Subsequent updates - use animated update
                 local petDelta = petCount - self._realtimeStats.totalPets
@@ -4629,6 +4631,15 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
     end
     
     -- Immediate stats update using real-time system
+    -- But first check if we should actually update (prevent going over 6)
+    local currentEquipped = self._realtimeStats.equippedPets or 0
+    
+    if equipped and currentEquipped >= 6 then
+        -- Don't update if trying to equip when at max
+        warn("[InventoryUI] Blocked equip update - already at max (6/6)")
+        return
+    end
+    
     local delta = equipped and 1 or -1
     self:UpdateSingleStat("equippedPets", delta)
     
