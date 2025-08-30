@@ -3025,7 +3025,19 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
                 
                 -- Apply filters
                 local filterFunc = FILTER_DEFINITIONS[self.CurrentFilter]
-                if filterFunc and filterFunc(petData, templateData) then
+                local passesFilter = true
+                
+                -- Debug: Log filter lookup
+                if not filterFunc and self.CurrentFilter ~= "All" then
+                    warn("[InventoryUI] No filter function found for:", self.CurrentFilter)
+                end
+                
+                -- If filter function exists, use it; otherwise default to showing all
+                if filterFunc then
+                    passesFilter = filterFunc(petData, templateData)
+                end
+                
+                if passesFilter then
                     -- Apply search filter
                     if self.SearchText == "" or self:MatchesSearch(petData, templateData) then
                         table.insert(petsArray, {pet = petData, data = templateData})
