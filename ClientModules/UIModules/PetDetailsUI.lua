@@ -620,6 +620,14 @@ function PetDetailsUI:CreateRightSide(parent: Frame)
 end
 
 function PetDetailsUI:CreateTabs(parent: Frame, tabs: table)
+	-- Initialize tab frames table if not exists
+	if not self._tabFrames then
+		self._tabFrames = {}
+	end
+	
+	-- Initialize active tab to first tab
+	self._activeTab = tabs[1].name
+	
 	-- Tab buttons container
 	local tabButtonsFrame = Instance.new("Frame")
 	tabButtonsFrame.Size = UDim2.new(1, 0, 0, TAB_HEIGHT)
@@ -676,7 +684,12 @@ function PetDetailsUI:CreateTabs(parent: Frame, tabs: table)
 end
 
 function PetDetailsUI:SwitchTab(tabName: string)
-	if self._activeTab == tabName then return end
+	print("[PetDetailsUI] SwitchTab called:", tabName, "Current active tab:", self._activeTab)
+	
+	if self._activeTab == tabName then 
+		print("[PetDetailsUI] Already on this tab, returning")
+		return 
+	end
 
 	self._activeTab = tabName
 

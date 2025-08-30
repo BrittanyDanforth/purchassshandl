@@ -1052,8 +1052,14 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         if isOpen then
             -- Parent the options to the main ScreenGui to ensure it's on top
             optionsFrame.Parent = screenGui
+            
+            -- Wait a frame for absolute position to update
+            task.wait()
+            
             local dropdownPos = dropdown.AbsolutePosition
-            optionsFrame.Position = UDim2.new(0, dropdownPos.X, 0, dropdownPos.Y + dropdown.AbsoluteSize.Y + 5)
+            local dropdownSize = dropdown.AbsoluteSize
+            optionsFrame.Position = UDim2.new(0, dropdownPos.X, 0, dropdownPos.Y + dropdownSize.Y + 5)
+            print("[InventoryUI] Dropdown position:", dropdownPos, "Size:", dropdownSize)
             
             -- Opening animation
             dropdown.ZIndex = 998
