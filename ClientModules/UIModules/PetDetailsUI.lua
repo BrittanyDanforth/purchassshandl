@@ -1439,64 +1439,49 @@ function PetDetailsUI:OnEquipClicked()
 		-- Always reset loading state first
 		self._buttonStates.equip.isLoading = false
 		
-		-- SIMPLE APPROACH: Just check the count again after server response
+		-- Handle server response
 		if success and serverResponse then
-			-- Re-check equipped count to see what actually happened
-			local newEquippedCount = self:GetEquippedCount()
-			
-			-- Simple logic: 
-			-- If we tried to equip and count didn't go up, it failed
-			-- If we tried to unequip and count didn't go down, it failed
-			local expectedChange = isEquipping and 1 or -1
-			local actualChange = newEquippedCount - equippedCount
-			
-			if actualChange == expectedChange then
-				-- Success! Update our local state
-				self._currentPetInstance.equipped = isEquipping
-				self:UpdateEquipButton()
-				
-				-- Show success message
-				self._notificationSystem:Show({
-					title = "Success",
-					message = isEquipping and "Pet equipped!" or "Pet unequipped!",
-					type = "success",
-					duration = 3
-				})
-				
-				-- Fire event
-				self._eventBus:Fire(isEquipping and "PetEquipped" or "PetUnequipped", {
-					uniqueId = self._currentPetInstance.uniqueId
-				})
-			else
-				-- Failed - reset everything
-				self:UpdateEquipButton()
-				
-				-- Show appropriate error
-				if isEquipping and newEquippedCount >= 6 then
-					self._notificationSystem:Show({
-						title = "Maximum Equipped",
-						message = "You already have 6 pets equipped.",
-						type = "error",
-						duration = 3
-					})
-				else
-					self._notificationSystem:Show({
-						title = "Error",
-						message = "Failed to update pet status",
-						type = "error",
-						duration = 3
-					})
-				end
-			end
-		else
-			-- Server error
+			-- Success! Update our local state
+			self._currentPetInstance.equipped = isEquipping
 			self:UpdateEquipButton()
+			
+			-- Show success message
 			self._notificationSystem:Show({
-				title = "Error",
-				message = "Failed to contact server",
-				type = "error",
+				title = "Success",
+				message = isEquipping and "Pet equipped!" or "Pet unequipped!",
+				type = "success",
 				duration = 3
 			})
+			
+			-- Fire event
+			self._eventBus:Fire(isEquipping and "PetEquipped" or "PetUnequipped", {
+				uniqueId = self._currentPetInstance.uniqueId
+			})
+			
+			-- Notify inventory to refresh count
+			if self._eventBus then
+				self._eventBus:Fire("RefreshEquippedCount")
+			end
+		else
+			-- Server error or rejection
+			self:UpdateEquipButton()
+			
+			-- Show appropriate error
+			if isEquipping and equippedCount >= 6 then
+				self._notificationSystem:Show({
+					title = "Maximum Equipped",
+					message = "You already have 6 pets equipped.",
+					type = "error",
+					duration = 3
+				})
+			else
+				self._notificationSystem:Show({
+					title = "Error",
+					message = serverResponse or "Failed to update pet status",
+					type = "error",
+					duration = 3
+				})
+			end
 		end
 	end)
 end

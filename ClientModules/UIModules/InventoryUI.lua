@@ -452,6 +452,10 @@ function InventoryUI:SetupEventListeners()
         self:UpdatePetCardEquipStatus(data.uniqueId, false)
     end))
     
+    self._janitor:Add(self._eventBus:On("RefreshEquippedCount", function()
+        self:RefreshEquippedCount()
+    end))
+    
     self._janitor:Add(self._eventBus:On("PetLocked", function(data)
         self:UpdatePetCardLockStatus(data.uniqueId, true)
     end))
