@@ -1952,11 +1952,40 @@ function InventoryUI:GetPooledCard()
     powerLabel.Text = "Power: 0"
     powerLabel.Parent = powerFrame
     
+    -- Additional stats (coins multiplier)
+    local coinsFrame = Instance.new("Frame")
+    coinsFrame.Name = "CoinsFrame"
+    coinsFrame.Size = UDim2.new(1, 0, 0, 20)
+    coinsFrame.Position = UDim2.new(0, 0, 0, 20)
+    coinsFrame.BackgroundTransparency = 1
+    coinsFrame.Parent = statsContainer
+    
+    local coinsIcon = Instance.new("TextLabel")
+    coinsIcon.Name = "CoinsIcon"
+    coinsIcon.Size = UDim2.new(0, 16, 0, 16)
+    coinsIcon.Position = UDim2.new(0, 0, 0, 2)
+    coinsIcon.BackgroundTransparency = 1
+    coinsIcon.Text = "💰"
+    coinsIcon.TextScaled = true
+    coinsIcon.Parent = coinsFrame
+    
+    local coinsLabel = Instance.new("TextLabel")
+    coinsLabel.Name = "CoinsLabel"
+    coinsLabel.Size = UDim2.new(1, -20, 1, 0)
+    coinsLabel.Position = UDim2.new(0, 20, 0, 0)
+    coinsLabel.BackgroundTransparency = 1
+    coinsLabel.Font = self._config.FONTS.Primary
+    coinsLabel.TextScaled = true
+    coinsLabel.TextColor3 = self._config.COLORS.Text
+    coinsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    coinsLabel.Text = "Coins: +0%"
+    coinsLabel.Parent = coinsFrame
+    
     -- Ability label (if pet has abilities)
     local abilityLabel = Instance.new("TextLabel")
     abilityLabel.Name = "AbilityLabel"
-    abilityLabel.Size = UDim2.new(1, 0, 0, 20)
-    abilityLabel.Position = UDim2.new(0, 0, 0, 25)
+    abilityLabel.Size = UDim2.new(1, 0, 0, 15)
+    abilityLabel.Position = UDim2.new(0, 0, 1, -15)
     abilityLabel.BackgroundTransparency = 1
     abilityLabel.Font = self._config.FONTS.Primary
     abilityLabel.TextScaled = true
@@ -2040,20 +2069,76 @@ function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, p
     if statsContainer then
         local powerLabel = statsContainer:FindFirstChild("PowerFrame") and statsContainer.PowerFrame:FindFirstChild("PowerLabel")
         if powerLabel then
-            -- Calculate total power (base power * level multiplier)
-            local basePower = petData.baseStats and petData.baseStats.power or 100
-            local level = petInstance.level or 1
-            local totalPower = math.floor(basePower * (1 + (level - 1) * 0.1))
-            powerLabel.Text = "Power: " .. tostring(totalPower)
+            -- Calculate total power from pet stats
+            local power = 0
+            if petInstance.stats and petInstance.stats.power then
+                power = petInstance.stats.power
+            elseif petData.baseStats and petData.baseStats.power then
+                -- Fallback to base stats with level multiplier
+                local level = petInstance.level or 1
+                power = math.floor(petData.baseStats.power * (1 + (level - 1) * 0.1))
+            else
+                -- Default power calculation
+                power = 100 * (petInstance.level or 1)
+            end
+            powerLabel.Text = "Power: " .. self._utilities.FormatNumber(power)
+        end
+        
+        -- Update coins multiplier
+        local coinsLabel = statsContainer:FindFirstChild("CoinsFrame") and statsContainer.CoinsFrame:FindFirstChild("CoinsLabel")
+        if coinsLabel then
+            local coinsMultiplier = 0
+            if petInstance.stats and petInstance.stats.coins then
+                coinsMultiplier = petInstance.stats.coins
+            elseif petData.baseStats and petData.baseStats.coins then
+                coinsMultiplier = petData.baseStats.coins
+            end
+            
+            -- Show as percentage
+            if coinsMultiplier > 0 then
+                coinsLabel.Text = "Coins: +" .. tostring(math.floor(coinsMultiplier)) .. "%"
+            else
+                coinsLabel.Text = "Coins: +0%"
+            end
         end
         
         local abilityLabel = statsContainer:FindFirstChild("AbilityLabel")
         if abilityLabel then
             -- Show first ability if available
-            if petData.abilities and next(petData.abilities) then
-                local firstAbility = next(petData.abilities)
-                abilityLabel.Text = firstAbility
-                abilityLabel.Visible = true
+            if petData.abilities then
+                if type(petData.abilities) == "table" then
+                    -- Handle both array and dictionary formats
+                    local abilityText = nil
+                    if #petData.abilities > 0 then
+                        -- Array format
+                        local firstAbility = petData.abilities[1]
+                        if type(firstAbility) == "table" and firstAbility.name then
+                            abilityText = firstAbility.name
+                        elseif type(firstAbility) == "string" then
+                            abilityText = firstAbility
+                        end
+                    else
+                        -- Dictionary format
+                        local firstKey = next(petData.abilities)
+                        if firstKey then
+                            local ability = petData.abilities[firstKey]
+                            if type(ability) == "table" and ability.name then
+                                abilityText = ability.name
+                            else
+                                abilityText = firstKey
+                            end
+                        end
+                    end
+                    
+                    if abilityText then
+                        abilityLabel.Text = "🌟 " .. abilityText
+                        abilityLabel.Visible = true
+                    else
+                        abilityLabel.Visible = false
+                    end
+                else
+                    abilityLabel.Visible = false
+                end
             else
                 abilityLabel.Visible = false
             end
