@@ -135,47 +135,51 @@ function PetDetailsUI:SetupEventListeners()
     if not self._eventBus then return end
     
     -- Listen for show pet details requests
-    self._eventBus:On("ShowPetDetails", function(data)
+    self._janitor:Add(self._eventBus:On("ShowPetDetails", function(data)
+        print("[PetDetailsUI] ShowPetDetails event received")
         if data.petInstance and data.petData then
+            print("[PetDetailsUI] Opening pet details for:", data.petInstance.uniqueId)
             self:Open(data.petInstance, data.petData)
+        else
+            warn("[PetDetailsUI] Missing pet data in ShowPetDetails event")
         end
-    end)
+    end))
     
     -- Listen for pet updates
-    self._eventBus:On("PetEquipped", function(data)
+    self._janitor:Add(self._eventBus:On("PetEquipped", function(data)
         if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
             self._currentPetInstance.equipped = true
             self:UpdateEquipButton()
         end
-    end)
+    end))
     
-    self._eventBus:On("PetUnequipped", function(data)
+    self._janitor:Add(self._eventBus:On("PetUnequipped", function(data)
         if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
             self._currentPetInstance.equipped = false
             self:UpdateEquipButton()
         end
-    end)
+    end))
     
-    self._eventBus:On("PetLocked", function(data)
+    self._janitor:Add(self._eventBus:On("PetLocked", function(data)
         if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
             self._currentPetInstance.locked = true
             self:UpdateLockButton()
         end
-    end)
+    end))
     
-    self._eventBus:On("PetUnlocked", function(data)
+    self._janitor:Add(self._eventBus:On("PetUnlocked", function(data)
         if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
             self._currentPetInstance.locked = false
             self:UpdateLockButton()
         end
-    end)
+    end))
     
-    self._eventBus:On("PetRenamed", function(data)
+    self._janitor:Add(self._eventBus:On("PetRenamed", function(data)
         if self._currentPetInstance and self._currentPetInstance.uniqueId == data.uniqueId then
             self._currentPetInstance.nickname = data.newName
             self:UpdatePetName()
         end
-    end)
+    end))
 end
 
 -- ========================================
@@ -190,13 +194,32 @@ function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
     self._currentPetData = petData
     self._isOpen = true
     
-    -- Create UI
-    self:CreateOverlay()
-    self:CreateDetailsWindow()
+    -- Create UI with error handling
+    local success, err = pcall(function()
+        self:CreateOverlay()
+        self:CreateDetailsWindow()
+    end)
+    
+    if not success then
+        warn("[PetDetailsUI] Failed to create UI:", err)
+        self._isOpen = false
+        -- Clean up any partial UI
+        if self._overlay then
+            self._overlay:Destroy()
+            self._overlay = nil
+        end
+        return
+    end
     
     -- Register with window manager (if method exists)
     if self._windowManager and self._windowManager.RegisterOverlay then
-        self._windowManager:RegisterOverlay(self._overlay, "PetDetailsOverlay")
+        -- Wrap in pcall to catch any DisplayOrder errors
+        local success, err = pcall(function()
+            self._windowManager:RegisterOverlay(self._overlay, "PetDetailsOverlay")
+        end)
+        if not success then
+            warn("[PetDetailsUI] Failed to register overlay:", err)
+        end
     end
     
     -- Play sound
