@@ -712,8 +712,11 @@ end
 -- ========================================
 
 function PetDetailsUI:ShowPetStats(parent: Frame)
+    print("[PetDetailsUI] ShowPetStats called, parent:", parent)
+    
     -- Validate data
     if not self._currentPetInstance or not self._currentPetData then
+        warn("[PetDetailsUI] No pet data available for stats!")
         local errorLabel = self._uiFactory:CreateLabel(parent, {
             text = "Pet data unavailable",
             size = UDim2.new(1, 0, 0, 50),
@@ -723,6 +726,20 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
         return
     end
     
+    print("[PetDetailsUI] Showing stats for pet:", self._currentPetInstance.uniqueId)
+    
+    -- Test label to ensure rendering works
+    local testLabel = Instance.new("TextLabel")
+    testLabel.Size = UDim2.new(1, 0, 0, 30)
+    testLabel.Position = UDim2.new(0, 0, 0, 0)
+    testLabel.BackgroundColor3 = Color3.new(1, 0, 0)
+    testLabel.Text = "STATS TAB TEST"
+    testLabel.TextScaled = true
+    testLabel.TextColor3 = Color3.new(1, 1, 1)
+    testLabel.Parent = parent
+    testLabel.Visible = true
+    print("[PetDetailsUI] Test label created in parent:", parent)
+    
     -- Ensure required fields exist
     local petInstance = self._currentPetInstance
     petInstance.level = petInstance.level or 1
@@ -731,10 +748,18 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
     petInstance.speed = petInstance.speed or 0
     petInstance.luck = petInstance.luck or 0
     
-    local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
-        size = UDim2.new(1, 0, 1, 0),
-        position = UDim2.new(0, 0, 0, 0)
-    })
+    -- Create scrolling frame manually to avoid UIFactory issues
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -10, 1, -40)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 35)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.ScrollBarImageColor3 = self._config.COLORS.Primary
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.Parent = parent
+    
+    print("[PetDetailsUI] ScrollFrame created manually")
     
     local container = Instance.new("Frame")
     container.Size = UDim2.new(1, -10, 0, 500)
@@ -873,36 +898,47 @@ function PetDetailsUI:CreateStatRow(parent: Frame, statName: string, value: stri
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -20, 0, 40)
     frame.Position = UDim2.new(0, 10, 0, yPos)
-    frame.BackgroundColor3 = self._config.COLORS.White
+    frame.BackgroundColor3 = self._config.COLORS.White or Color3.new(1, 1, 1)
     frame.Parent = parent
     
-    self._utilities.CreateCorner(frame, 8)
+    if self._utilities and self._utilities.CreateCorner then
+        self._utilities.CreateCorner(frame, 8)
+    end
     
-    -- Icon
-    local iconLabel = self._uiFactory:CreateLabel(frame, {
-        text = icon,
-        size = UDim2.new(0, 40, 1, 0),
-        position = UDim2.new(0, 5, 0, 0),
-        textSize = 20
-    })
+    -- Icon - create manually
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Text = icon
+    iconLabel.Size = UDim2.new(0, 40, 1, 0)
+    iconLabel.Position = UDim2.new(0, 5, 0, 0)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.TextScaled = true
+    iconLabel.TextColor3 = self._config.COLORS.Text or Color3.new(0, 0, 0)
+    iconLabel.Parent = frame
     
-    -- Stat name
-    local nameLabel = self._uiFactory:CreateLabel(frame, {
-        text = statName,
-        size = UDim2.new(0.4, -50, 1, 0),
-        position = UDim2.new(0, 45, 0, 0),
-        textXAlignment = Enum.TextXAlignment.Left
-    })
+    -- Stat name - create manually
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Text = statName
+    nameLabel.Size = UDim2.new(0.4, -50, 1, 0)
+    nameLabel.Position = UDim2.new(0, 45, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextScaled = true
+    nameLabel.TextColor3 = self._config.COLORS.TextSecondary or Color3.new(0.5, 0.5, 0.5)
+    nameLabel.Parent = frame
     
-    -- Value
-    local valueLabel = self._uiFactory:CreateLabel(frame, {
-        text = value,
-        size = UDim2.new(0.4, 0, 1, 0),
-        position = UDim2.new(0.5, 0, 0, 0),
-        textXAlignment = Enum.TextXAlignment.Right,
-        textColor = color or self._config.COLORS.Dark,
-        font = self._config.FONTS.Secondary
-    })
+    -- Value - create manually
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Text = value
+    valueLabel.Size = UDim2.new(0.4, 0, 1, 0)
+    valueLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.TextScaled = true
+    valueLabel.TextColor3 = color or self._config.COLORS.Dark or Color3.new(0, 0, 0)
+    valueLabel.Font = self._config.FONTS and self._config.FONTS.Secondary or Enum.Font.SourceSans
+    valueLabel.Parent = frame
+    
+    print("[PetDetailsUI] Created stat row:", statName, "=", value)
     
     return frame
 end
