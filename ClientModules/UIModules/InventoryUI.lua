@@ -108,8 +108,25 @@ local SORT_FUNCTIONS = {
     Level = function(a, b)
         return (a.level or 1) > (b.level or 1)
     end,
-    Power = function(a, b)
-        return (a.power or 0) > (b.power or 0)
+    Power = function(a, b, aData, bData)
+        -- Calculate power based on level and base stats if not directly available
+        local aPower = a.power
+        if not aPower and aData and aData.baseStats then
+            -- Use base power multiplied by level as a fallback
+            aPower = (aData.baseStats.power or 100) * (a.level or 1)
+        elseif not aPower then
+            -- Final fallback: use level * 100
+            aPower = (a.level or 1) * 100
+        end
+        
+        local bPower = b.power
+        if not bPower and bData and bData.baseStats then
+            bPower = (bData.baseStats.power or 100) * (b.level or 1)
+        elseif not bPower then
+            bPower = (b.level or 1) * 100
+        end
+        
+        return aPower > bPower
     end,
     Recent = function(a, b)
         return (a.obtained or 0) > (b.obtained or 0)
@@ -913,6 +930,7 @@ function InventoryUI:CreateControls()
     self.SortDropdown = self:CreateDropdown(controlsBar, "Sort by", sortOptions, 
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 220, 0.5, -17.5),
         function(option)
+            print("[InventoryUI] Sort dropdown selected:", option)
             self.CurrentSort = option
             self:RefreshInventory()
         end
@@ -2558,6 +2576,17 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     -- Sort pets
     local sortFunc = SORT_FUNCTIONS[self.CurrentSort]
     if sortFunc then
+        print("[InventoryUI] Sorting pets by:", self.CurrentSort, "Function exists:", sortFunc ~= nil)
+        
+        -- Debug first pet to see data structure
+        if #petsArray > 0 then
+            local firstPet = petsArray[1]
+            print("[InventoryUI] First pet data - power:", firstPet.pet.power, "level:", firstPet.pet.level)
+            if firstPet.data and firstPet.data.baseStats then
+                print("[InventoryUI] First pet baseStats - power:", firstPet.data.baseStats.power)
+            end
+        end
+        
         table.sort(petsArray, function(a, b)
             return sortFunc(a.pet, b.pet, a.data, b.data)
         end)
