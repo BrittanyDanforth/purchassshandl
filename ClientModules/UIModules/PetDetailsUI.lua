@@ -418,6 +418,35 @@ function PetDetailsUI:CreateHeader()
 
 	self._utilities.CreateCorner(header, 20)
 
+	-- Premium gradient effect
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 255))
+	})
+	gradient.Rotation = 45
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.8),
+		NumberSequenceKeypoint.new(0.5, 0.9),
+		NumberSequenceKeypoint.new(1, 0.95)
+	})
+	gradient.Parent = header
+
+	-- Animated shimmer effect
+	task.spawn(function()
+		while header.Parent do
+			self._utilities.Tween(gradient, {
+				Rotation = 90
+			}, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+			task.wait(3)
+			self._utilities.Tween(gradient, {
+				Rotation = 0
+			}, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+			task.wait(3)
+		end
+	end)
+
 	-- Fix bottom corners
 	local cornerFix = Instance.new("Frame")
 	cornerFix.Size = UDim2.new(1, 0, 0, 20)
@@ -427,7 +456,7 @@ function PetDetailsUI:CreateHeader()
 	cornerFix.ZIndex = 201
 	cornerFix.Parent = header
 
-	-- Pet name
+	-- Pet name with rarity glow
 	local petName = self._currentPetInstance.nickname or 
 		self._currentPetData.displayName or 
 		"Unknown Pet"
@@ -438,10 +467,39 @@ function PetDetailsUI:CreateHeader()
 		position = UDim2.new(0, 20, 0, 0),
 		font = self._config.FONTS.Display,
 		textColor = self._config.COLORS.White,
-		textSize = 20,
+		textSize = 24,
 		textXAlignment = Enum.TextXAlignment.Left,
 		zIndex = 203
 	})
+	
+	-- Add text stroke for premium feel
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.new(0, 0, 0)
+	stroke.Thickness = 2
+	stroke.Transparency = 0.5
+	stroke.Parent = nameLabel
+	
+	-- Rarity badge
+	local rarityBadge = Instance.new("Frame")
+	rarityBadge.Name = "RarityBadge"
+	rarityBadge.Size = UDim2.new(0, 80, 0, 24)
+	rarityBadge.Position = UDim2.new(0, 20, 1, -35)
+	rarityBadge.BackgroundColor3 = self:GetRarityColor(self._currentPetData.rarity)
+	rarityBadge.ZIndex = 203
+	rarityBadge.Parent = header
+	
+	self._utilities.CreateCorner(rarityBadge, 12)
+	
+	-- Rarity text
+	local rarityText = Instance.new("TextLabel")
+	rarityText.Size = UDim2.new(1, 0, 1, 0)
+	rarityText.BackgroundTransparency = 1
+	rarityText.Text = self:GetRarityName(self._currentPetData.rarity)
+	rarityText.TextColor3 = Color3.new(1, 1, 1)
+	rarityText.TextScaled = true
+	rarityText.Font = self._config.FONTS.Secondary
+	rarityText.ZIndex = 204
+	rarityText.Parent = rarityBadge
 
 	-- Close button
 	local closeButton = self._uiFactory:CreateButton(header, {
@@ -494,8 +552,24 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
 
 	self._utilities.CreateCorner(petDisplay, 12)
 
-	-- Pet image
+	-- Add ViewportFrame for 3D pet display
+	local viewportFrame = Instance.new("ViewportFrame")
+	viewportFrame.Name = "PetViewport"
+	viewportFrame.Size = UDim2.new(0.9, 0, 0.9, 0)
+	viewportFrame.Position = UDim2.new(0.05, 0, 0.05, 0)
+	viewportFrame.BackgroundTransparency = 1
+	viewportFrame.ZIndex = 203
+	viewportFrame.Parent = petDisplay
+
+	-- Camera for viewport
+	local camera = Instance.new("Camera")
+	camera.CFrame = CFrame.new(Vector3.new(0, 0, 5), Vector3.new(0, 0, 0))
+	camera.FieldOfView = 40
+	viewportFrame.CurrentCamera = camera
+
+	-- Pet image (fallback if no 3D model)
 	local petImage = Instance.new("ImageLabel")
+	petImage.Name = "PetImage"
 	petImage.Size = UDim2.new(0.8, 0, 0.8, 0)
 	petImage.Position = UDim2.new(0.1, 0, 0.1, 0)
 	petImage.BackgroundTransparency = 1
@@ -582,8 +656,58 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
 end
 
 function PetDetailsUI:CreateActionButtons(parent: Frame)
+	-- Helper function to create premium button
+	local function createPremiumButton(config)
+		local button = self._uiFactory:CreateButton(parent, config)
+		
+		-- Add premium gradient
+		local gradient = Instance.new("UIGradient")
+		gradient.Color = ColorSequence.new(Color3.new(1, 1, 1))
+		gradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.7),
+			NumberSequenceKeypoint.new(0.5, 0.8),
+			NumberSequenceKeypoint.new(1, 0.9)
+		})
+		gradient.Rotation = -45
+		gradient.Parent = button
+		
+		-- Add stroke for depth
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.new(0, 0, 0)
+		stroke.Transparency = 0.8
+		stroke.Thickness = 1
+		stroke.Parent = button
+		
+		-- Hover animations
+		button.MouseEnter:Connect(function()
+			if not button:GetAttribute("IsLoading") then
+				self._utilities.Tween(button, {
+					Size = UDim2.new(1, 6, 0, BUTTON_HEIGHT + 4)
+				}, TweenInfo.new(0.15, Enum.EasingStyle.Back))
+				
+				self._utilities.Tween(stroke, {
+					Transparency = 0.6,
+					Thickness = 2
+				}, TweenInfo.new(0.15))
+			end
+		end)
+		
+		button.MouseLeave:Connect(function()
+			self._utilities.Tween(button, {
+				Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
+			}, TweenInfo.new(0.15, Enum.EasingStyle.Quad))
+			
+			self._utilities.Tween(stroke, {
+				Transparency = 0.8,
+				Thickness = 1
+			}, TweenInfo.new(0.15))
+		end)
+		
+		return button
+	end
+	
 	-- FIXED: Equip button at position 0,0 (top of actions frame)
-	self._equipButton = self._uiFactory:CreateButton(parent, {
+	self._equipButton = createPremiumButton({
 		text = self._currentPetInstance.equipped and "Unequip" or "Equip",
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 		position = UDim2.new(0, 0, 0, 0), -- FIXED: Position at 0,0
@@ -601,7 +725,7 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 	self._equipButton:SetAttribute("OriginalText", self._equipButton.Text)
 
 	-- FIXED: Lock button below equip button with proper spacing
-	self._lockButton = self._uiFactory:CreateButton(parent, {
+	self._lockButton = createPremiumButton({
 		text = self._currentPetInstance.locked and "Unlock" or "Lock",
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 		position = UDim2.new(0, 0, 0, BUTTON_HEIGHT + BUTTON_SPACING), -- FIXED: Proper spacing
@@ -618,11 +742,8 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 	self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
 	self._lockButton:SetAttribute("OriginalText", self._lockButton.Text)
 
-	-- Store original color
-	self._lockButton:SetAttribute("OriginalColor", self._lockButton.BackgroundColor3)
-
-	-- Delete button
-	self._deleteButton = self._uiFactory:CreateButton(parent, {
+	-- Delete button with premium style
+	self._deleteButton = createPremiumButton({
 		text = "Delete Pet",
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 		position = UDim2.new(0, 0, 0, (BUTTON_HEIGHT + BUTTON_SPACING) * 2), -- Below lock button
@@ -635,6 +756,18 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 
 	-- Store original color
 	self._deleteButton:SetAttribute("OriginalColor", self._deleteButton.BackgroundColor3)
+	
+	-- Add lock icon to lock button
+	local lockIcon = Instance.new("ImageLabel")
+	lockIcon.Name = "LockIcon"
+	lockIcon.Size = UDim2.new(0, 20, 0, 20)
+	lockIcon.Position = UDim2.new(0, 10, 0.5, -10)
+	lockIcon.BackgroundTransparency = 1
+	lockIcon.Image = self._currentPetInstance.locked and "rbxassetid://3926307971" or "rbxassetid://3926308476"
+	lockIcon.ImageRectOffset = self._currentPetInstance.locked and Vector2.new(4, 684) or Vector2.new(764, 244)
+	lockIcon.ImageRectSize = self._currentPetInstance.locked and Vector2.new(36, 36) or Vector2.new(36, 36)
+	lockIcon.ZIndex = 207
+	lockIcon.Parent = self._lockButton
 end
 
 function PetDetailsUI:CreateRightSide(parent: Frame)
@@ -1990,6 +2123,38 @@ function PetDetailsUI:Destroy()
 	self._lockButton = nil
 	self._renameDialog = nil
 	self._tabFrames = {}
+end
+
+-- ========================================
+-- HELPER METHODS
+-- ========================================
+
+function PetDetailsUI:GetRarityColor(rarity: number): Color3
+	local rarityColors = {
+		[1] = Color3.fromRGB(156, 156, 156), -- Common (Gray)
+		[2] = Color3.fromRGB(92, 184, 92),   -- Uncommon (Green)
+		[3] = Color3.fromRGB(91, 192, 222),  -- Rare (Blue)
+		[4] = Color3.fromRGB(155, 89, 182),  -- Epic (Purple)
+		[5] = Color3.fromRGB(255, 152, 0),   -- Legendary (Orange)
+		[6] = Color3.fromRGB(255, 0, 127),   -- Mythical (Pink)
+		[7] = Color3.fromRGB(255, 215, 0),   -- Divine (Gold)
+		[8] = Color3.fromRGB(0, 255, 255),   -- Celestial (Cyan)
+	}
+	return rarityColors[rarity] or Color3.fromRGB(156, 156, 156)
+end
+
+function PetDetailsUI:GetRarityName(rarity: number): string
+	local rarityNames = {
+		[1] = "Common",
+		[2] = "Uncommon",
+		[3] = "Rare",
+		[4] = "Epic",
+		[5] = "Legendary",
+		[6] = "Mythical",
+		[7] = "Divine",
+		[8] = "Celestial"
+	}
+	return rarityNames[rarity] or "Unknown"
 end
 
 return PetDetailsUI

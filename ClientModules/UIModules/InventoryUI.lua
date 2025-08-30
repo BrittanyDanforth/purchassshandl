@@ -112,12 +112,17 @@ local SORT_FUNCTIONS = {
         -- Calculate power based on multiple factors
         local function calculatePower(pet, petData)
             -- Direct power value if exists
-            if pet.power and type(pet.power) == "number" then
-                return pet.power
+            if pet.calculatedPower then
+                return pet.calculatedPower
             end
             
+            local power = 0
+            
+            -- Try direct power value
+            if pet.power and type(pet.power) == "number" and pet.power > 0 then
+                power = pet.power
             -- Calculate from stats if available
-            if pet.stats then
+            elseif pet.stats then
                 -- Common stat names for power calculation
                 local attack = pet.stats.attack or pet.stats.damage or pet.stats.atk or 0
                 local defense = pet.stats.defense or pet.stats.def or 0
@@ -125,24 +130,26 @@ local SORT_FUNCTIONS = {
                 local speed = pet.stats.speed or pet.stats.spd or 0
                 
                 -- Calculate combined power
-                return (attack * 2) + defense + (health / 10) + speed
-            end
-            
+                power = (attack * 2) + defense + (health / 10) + speed
             -- Try baseStats from template data
-            if petData and petData.baseStats then
+            elseif petData and petData.baseStats then
                 local basePower = petData.baseStats.power or petData.baseStats.attack or 100
-                return basePower * (pet.level or 1)
+                power = basePower * (pet.level or 1)
+            else
+                -- Fallback: use rarity and level
+                local rarityMultiplier = 1
+                if petData and petData.rarity then
+                    rarityMultiplier = petData.rarity
+                elseif pet.rarity then
+                    rarityMultiplier = pet.rarity
+                end
+                
+                power = (pet.level or 1) * 100 * rarityMultiplier
             end
             
-            -- Fallback: use rarity and level
-            local rarityMultiplier = 1
-            if petData and petData.rarity then
-                rarityMultiplier = petData.rarity
-            elseif pet.rarity then
-                rarityMultiplier = pet.rarity
-            end
-            
-            return (pet.level or 1) * 100 * rarityMultiplier
+            -- Cache the calculated power
+            pet.calculatedPower = power
+            return power
         end
         
         local aPower = calculatePower(a, aData)
@@ -3272,27 +3279,35 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     if sortFunc then
         print("[InventoryUI] Sorting pets by:", self.CurrentSort, "Function exists:", sortFunc ~= nil)
         
-        -- Debug first pet to see data structure
-        if #petsArray > 0 then
-            local firstPet = petsArray[1]
-            print("[InventoryUI] First pet data - power:", firstPet.pet.power, "level:", firstPet.pet.level)
-            if firstPet.data then
-                print("[InventoryUI] Pet template data keys:")
-                for k, v in pairs(firstPet.data) do
-                    print("  ", k, "=", type(v) == "table" and "{...}" or tostring(v))
-                end
-                if firstPet.data.baseStats then
-                    print("[InventoryUI] Pet baseStats:")
-                    for k, v in pairs(firstPet.data.baseStats) do
-                        print("    ", k, "=", v)
-                    end
-                end
+        -- Debug pets before and after sorting
+        if #petsArray > 0 and self.CurrentSort == "Power" then
+            print("[InventoryUI] Before Power sort - First 3 pets:")
+            for i = 1, math.min(3, #petsArray) do
+                local pet = petsArray[i]
+                print(string.format("  %d. %s (power: %s, level: %d)", 
+                    i, 
+                    pet.data and pet.data.name or "Unknown",
+                    tostring(pet.pet.power),
+                    pet.pet.level or 1))
             end
         end
         
         table.sort(petsArray, function(a, b)
             return sortFunc(a.pet, b.pet, a.data, b.data)
         end)
+        
+        -- Debug pets after sorting
+        if #petsArray > 0 and self.CurrentSort == "Power" then
+            print("[InventoryUI] After Power sort - First 3 pets:")
+            for i = 1, math.min(3, #petsArray) do
+                local pet = petsArray[i]
+                print(string.format("  %d. %s (power: %s, level: %d)", 
+                    i, 
+                    pet.data and pet.data.name or "Unknown",
+                    tostring(pet.pet.power),
+                    pet.pet.level or 1))
+            end
+        end
     end
     
     return petsArray
@@ -3478,6 +3493,18 @@ end
 function InventoryUI:UpdateSingleStat(statType: string, delta: number)
     local currentValue = self._realtimeStats[statType] or 0
     local newValue = math.max(0, currentValue + delta)
+    
+    -- Special validation for equipped pets - NEVER exceed 6
+    if statType == "equippedPets" then
+        newValue = math.min(6, newValue)
+        
+        -- Additional safety: if we're trying to increase beyond 6, ignore it
+        if delta > 0 and currentValue >= 6 then
+            warn("[InventoryUI] Attempted to equip beyond limit (6). Current:", currentValue)
+            return
+        end
+    end
+    
     self:QueueStatsUpdate(statType, newValue)
 end
 

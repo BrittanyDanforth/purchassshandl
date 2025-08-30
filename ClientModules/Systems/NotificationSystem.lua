@@ -775,7 +775,7 @@ function NotificationSystem:CreateContainers()
         screenGui.Name = "NotificationGui"
         screenGui.ResetOnSpawn = false
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        screenGui.DisplayOrder = 10
+        screenGui.DisplayOrder = 999 -- Maximum display order to ensure notifications appear on top
         screenGui.Parent = Services.PlayerGui
     end
     
