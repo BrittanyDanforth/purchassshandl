@@ -255,23 +255,39 @@ function InventoryUI:SetupEventListeners()
     end))
     
     -- Listen for pet equip/unequip events
-    self._janitor:Add(self._eventBus:On("PetEquipped", function(uniqueId)
-        print("[InventoryUI] PetEquipped event received for:", uniqueId)
-        if self.Frame and self.Frame.Visible then
-            -- Update just the card and stats without full refresh
-            self:UpdatePetCardEquipStatus(uniqueId, true)
-            -- Fetch fresh data for accurate count
-            self:RefreshStats()
+    self._janitor:Add(self._eventBus:On("PetEquipped", function(data)
+        local success, err = pcall(function()
+            -- FIX: Check if data is a table and has the uniqueId
+            local uniqueId = type(data) == "table" and data.uniqueId or data
+            if not uniqueId then return end
+            
+            print("[InventoryUI] PetEquipped event received for:", uniqueId)
+            if self.Frame and self.Frame.Visible then
+                -- Update just the card and stats without full refresh
+                self:UpdatePetCardEquipStatus(uniqueId, true)
+                -- No need to call RefreshStats() here, UpdatePetCardEquipStatus already handles it
+            end
+        end)
+        if not success then
+            warn("[InventoryUI] Error in PetEquipped handler:", err)
         end
     end))
     
-    self._janitor:Add(self._eventBus:On("PetUnequipped", function(uniqueId)
-        print("[InventoryUI] PetUnequipped event received for:", uniqueId)
-        if self.Frame and self.Frame.Visible then
-            -- Update just the card and stats without full refresh
-            self:UpdatePetCardEquipStatus(uniqueId, false)
-            -- Fetch fresh data for accurate count
-            self:RefreshStats()
+    self._janitor:Add(self._eventBus:On("PetUnequipped", function(data)
+        local success, err = pcall(function()
+            -- FIX: Check if data is a table and has the uniqueId
+            local uniqueId = type(data) == "table" and data.uniqueId or data
+            if not uniqueId then return end
+            
+            print("[InventoryUI] PetUnequipped event received for:", uniqueId)
+            if self.Frame and self.Frame.Visible then
+                -- Update just the card and stats without full refresh
+                self:UpdatePetCardEquipStatus(uniqueId, false)
+                -- No need to call RefreshStats() here, UpdatePetCardEquipStatus already handles it
+            end
+        end)
+        if not success then
+            warn("[InventoryUI] Error in PetUnequipped handler:", err)
         end
     end))
     
@@ -1024,6 +1040,8 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
     -- Main button click
     local isOpen = false
     local isAnimating = false
+    local screenGui = self.Frame:FindFirstAncestorOfClass("ScreenGui") -- Find the top-level GUI
+    
     button.MouseButton1Click:Connect(function()
         if isAnimating then return end
         
@@ -1032,12 +1050,17 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         isOpen = not isOpen
         
         if isOpen then
+            -- Parent the options to the main ScreenGui to ensure it's on top
+            optionsFrame.Parent = screenGui
+            local dropdownPos = dropdown.AbsolutePosition
+            optionsFrame.Position = UDim2.new(0, dropdownPos.X, 0, dropdownPos.Y + dropdown.AbsoluteSize.Y + 5)
+            
             -- Opening animation
             dropdown.ZIndex = 998
             optionsFrame.Visible = true
-            optionsFrame.Size = UDim2.new(1, 0, 0, 0)
+            optionsFrame.Size = UDim2.new(0, dropdown.AbsoluteSize.X, 0, 0) -- Use absolute size
             self._utilities.Tween(optionsFrame, {
-                Size = UDim2.new(1, 0, 0, #options * 30 + 10)
+                Size = UDim2.new(0, dropdown.AbsoluteSize.X, 0, #options * 30 + 10)
             }, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
             arrow.Text = "▲"
             task.wait(0.2)
@@ -1045,11 +1068,14 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         else
             -- Closing animation
             self._utilities.Tween(optionsFrame, {
-                Size = UDim2.new(1, 0, 0, 0)
+                Size = UDim2.new(0, dropdown.AbsoluteSize.X, 0, 0)
             }, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
             arrow.Text = "▼"
             task.wait(0.15)
             optionsFrame.Visible = false
+            optionsFrame.Parent = dropdown -- Parent it back for proper positioning next time
+            optionsFrame.Position = UDim2.new(0, 0, 1, 5) -- Reset position
+            optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10) -- Reset size
             dropdown.ZIndex = 10
             isAnimating = false
         end
@@ -1065,12 +1091,15 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
                 isOpen = false
                 -- Closing animation
                 self._utilities.Tween(optionsFrame, {
-                    Size = UDim2.new(1, 0, 0, 0)
+                    Size = UDim2.new(0, dropdown.AbsoluteSize.X, 0, 0)
                 }, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
                 arrow.Text = "▼"
                 task.spawn(function()
                     task.wait(0.15)
                     optionsFrame.Visible = false
+                    optionsFrame.Parent = dropdown -- Parent it back
+                    optionsFrame.Position = UDim2.new(0, 0, 1, 5) -- Reset position
+                    optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10) -- Reset size
                     dropdown.ZIndex = 10
                     isAnimating = false
                 end)
@@ -2573,8 +2602,24 @@ function InventoryUI:UpdateStats(pets: table)
     end
     
     if self.StatsLabels.Equipped then
-        self.StatsLabels.Equipped.Text = equippedCount .. "/6"
-        print("[InventoryUI] Updated equipped count to:", equippedCount .. "/6")
+        local oldText = self.StatsLabels.Equipped.Text
+        local newText = equippedCount .. "/6"
+        self.StatsLabels.Equipped.Text = newText
+        print("[InventoryUI] Updated equipped count to:", newText)
+        
+        -- Add scale animation if the count changed
+        if oldText ~= newText then
+            -- Scale up
+            self._utilities.Tween(self.StatsLabels.Equipped, {
+                Size = UDim2.new(1, 10, 1, 0)
+            }, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            -- Scale back down after a moment
+            task.wait(0.1)
+            self._utilities.Tween(self.StatsLabels.Equipped, {
+                Size = UDim2.new(1, -70, 1, 0)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
+        end
     end
     
     if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
@@ -2777,10 +2822,47 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
         end
     })
     
+    -- Advanced select options (second row)
+    local advancedSelectFrame = self._uiFactory:CreateFrame(content, {
+        size = UDim2.new(1, -40, 0, 40),
+        position = UDim2.new(0, 20, 0, 50),
+        backgroundColor = self._config.COLORS.Background
+    })
+    
+    local selectExceptLegend = self._uiFactory:CreateButton(advancedSelectFrame, {
+        text = "All Except Legendary+",
+        size = UDim2.new(0, 150, 1, 0),
+        position = UDim2.new(0, 0, 0, 0),
+        backgroundColor = self._config.COLORS.Warning,
+        callback = function()
+            self:SelectAllExceptRarity(4) -- Exclude Legendary and above
+        end
+    })
+    
+    local selectExceptMythic = self._uiFactory:CreateButton(advancedSelectFrame, {
+        text = "All Except Mythic",
+        size = UDim2.new(0, 140, 1, 0),
+        position = UDim2.new(0, 160, 0, 0),
+        backgroundColor = self._config.COLORS.Warning,
+        callback = function()
+            self:SelectAllExceptRarity(5) -- Exclude Mythic
+        end
+    })
+    
+    local lockAllButton = self._uiFactory:CreateButton(advancedSelectFrame, {
+        text = "Lock Selected",
+        size = UDim2.new(0, 120, 1, 0),
+        position = UDim2.new(0, 310, 0, 0),
+        backgroundColor = self._config.COLORS.Info,
+        callback = function()
+            self:LockSelectedPets()
+        end
+    })
+    
     -- Pet selection grid
     local scrollFrame = self._uiFactory:CreateScrollingFrame(content, {
-        size = UDim2.new(1, 0, 1, -150),
-        position = UDim2.new(0, 0, 0, 100)
+        size = UDim2.new(1, 0, 1, -200),  -- Adjusted for extra row
+        position = UDim2.new(0, 0, 0, 150)  -- Moved down for extra row
     })
     
     local gridLayout = Instance.new("UIGridLayout")
@@ -2880,6 +2962,7 @@ function InventoryUI:CreateDeleteSelectionCard(parent: ScrollingFrame, petInstan
     card.Name = petInstance.uniqueId
     card.BackgroundColor3 = self._config.COLORS.Surface
     card.BorderSizePixel = 0
+    card:SetAttribute("Rarity", petData.rarity or 1)  -- Store rarity for filtering
     card.Parent = parent
     
     self._utilities.CreateCorner(card, 8)
@@ -2987,6 +3070,68 @@ function InventoryUI:DeselectAllPets()
     end
     
     self:UpdateDeleteCount()
+end
+
+function InventoryUI:SelectAllExceptRarity(minRarity: number)
+    self.SelectedForDeletion = {}
+    
+    if self.DeleteSelectionGrid then
+        -- Get all pet cards
+        for _, card in ipairs(self.DeleteSelectionGrid:GetChildren()) do
+            if card:IsA("Frame") then
+                local petRarity = card:GetAttribute("Rarity") or 1
+                
+                if petRarity < minRarity then
+                    -- Select pets below the specified rarity
+                    self.SelectedForDeletion[card.Name] = true
+                    local indicator = card:FindFirstChild("SelectIndicator")
+                    if indicator then
+                        indicator.BackgroundTransparency = 0.7
+                    end
+                else
+                    -- Deselect pets at or above the specified rarity
+                    local indicator = card:FindFirstChild("SelectIndicator")
+                    if indicator then
+                        indicator.BackgroundTransparency = 1
+                    end
+                end
+            end
+        end
+    end
+    
+    self:UpdateDeleteCount()
+end
+
+function InventoryUI:LockSelectedPets()
+    if not next(self.SelectedForDeletion) then
+        self._notificationSystem:Show({
+            message = "No pets selected to lock!",
+            type = "warning",
+            duration = 2
+        })
+        return
+    end
+    
+    local count = 0
+    for uniqueId in pairs(self.SelectedForDeletion) do
+        -- Send lock request to server
+        if self._remoteManager then
+            self._remoteManager:FireServer("TogglePetLock", {uniqueId = uniqueId, locked = true})
+            count = count + 1
+        end
+    end
+    
+    self._notificationSystem:Show({
+        message = string.format("Locked %d pets!", count),
+        type = "success",
+        duration = 2
+    })
+    
+    -- Close the mass delete window since locked pets can't be deleted
+    if self.DeleteOverlay then
+        self.DeleteOverlay:Destroy()
+        self.DeleteOverlay = nil
+    end
 end
 
 function InventoryUI:UpdateDeleteCount()
