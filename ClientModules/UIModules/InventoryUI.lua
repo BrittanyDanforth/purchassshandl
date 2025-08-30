@@ -1901,11 +1901,14 @@ function InventoryUI:ApplyPremiumVFX(card: Frame, petInstance: PetInstance, petD
     local imageContainer = card:FindFirstChild("ImageContainer")
     if not imageContainer then return end
     
+    -- Safety check for nil petData
+    if not petData then return end
+    
     -- Clean up existing VFX
     self:CleanupVFX(card)
     
     -- Apply variant-based VFX
-    if petInstance.variant then
+    if petInstance and petInstance.variant then
         self:ApplyVariantVFX(card, petInstance.variant)
     end
     
@@ -2585,13 +2588,14 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
         
         self._utilities.CreateCorner(variantBadge, 15)
         
-        local variantIcon = Instance.new("TextLabel")
-        variantIcon.Size = UDim2.new(1, 0, 1, 0)
+        local variantIcon = Instance.new("ImageLabel")
+        variantIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
+        variantIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
+        variantIcon.AnchorPoint = Vector2.new(0.5, 0.5)
         variantIcon.BackgroundTransparency = 1
-        variantIcon.Text = "✨"
-        variantIcon.TextScaled = true
-        variantIcon.TextColor3 = self._config.COLORS.White
-        variantIcon.ZIndex = card.ZIndex + 4
+        variantIcon.Image = self:GetVariantIcon(petInstance.variant)
+        variantIcon.ImageColor3 = self._config.COLORS.White
+        variantIcon.ScaleType = Enum.ScaleType.Fit
         variantIcon.Parent = variantBadge
     end
     
@@ -2614,6 +2618,23 @@ function InventoryUI:GetVariantColor(variant: string): Color3
     }
     
     return variantColors[variant:lower()] or self._config.COLORS.Warning
+end
+
+function InventoryUI:GetVariantIcon(variant: string): string
+    if not variant then return "" end
+    
+    -- Use specific Roblox asset icons for each variant type (no emojis!)
+    local variantIcons = {
+        shiny = "rbxassetid://7734021494",     -- Star icon
+        golden = "rbxassetid://7734053495",    -- Crown icon  
+        rainbow = "rbxassetid://7734053039",   -- Rainbow icon
+        dark = "rbxassetid://7734021827",      -- Moon icon
+        neon = "rbxassetid://7734022107",      -- Lightning icon
+        crystal = "rbxassetid://7734010405",   -- Diamond icon
+        shadow = "rbxassetid://7734021769",    -- Ghost icon
+    }
+    
+    return variantIcons[variant:lower()] or "rbxassetid://7733960981" -- Default special icon
 end
 
 function InventoryUI:SetupVirtualScrolling()
@@ -3049,8 +3070,19 @@ function InventoryUI:UpdateStats(pets: table)
         end
     end
     
+    -- Update storage with total pets count, not filtered count
     if self.StatsLabels.Storage and self.StorageBars and self.StorageBars[self.StatsLabels.Storage] then
-        self.StorageBars[self.StatsLabels.Storage].updateFunc(#pets)
+        -- Get total pet count from player data
+        local totalPets = 0
+        if self._dataCache then
+            local playerData = self._dataCache:Get("playerData")
+            if playerData and playerData.pets then
+                for _ in pairs(playerData.pets) do
+                    totalPets = totalPets + 1
+                end
+            end
+        end
+        self.StorageBars[self.StatsLabels.Storage].updateFunc(totalPets)
     end
 end
 

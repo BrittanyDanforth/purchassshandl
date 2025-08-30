@@ -1058,10 +1058,9 @@ end
 
 function PetDetailsUI:ShowPetInfo(parent: Frame)
 	-- Create scrolling frame like Stats tab
-	local scrollFrame = self:CreateScrollingFrame(parent, {
+	local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
 		size = UDim2.new(1, 0, 1, 0),
-		canvasSize = UDim2.new(0, 0, 0, 0), -- Will be set automatically
-		scrollBarThickness = 6
+		position = UDim2.new(0, 0, 0, 0)
 	})
 	
 	local infoFrame = Instance.new("Frame")
