@@ -254,6 +254,27 @@ function InventoryUI:SetupEventListeners()
         end
     end))
     
+    -- Listen for pet equip/unequip events
+    self._janitor:Add(self._eventBus:On("PetEquipped", function(uniqueId)
+        print("[InventoryUI] PetEquipped event received for:", uniqueId)
+        if self.Frame and self.Frame.Visible then
+            -- Update just the card and stats without full refresh
+            self:UpdatePetCardEquipStatus(uniqueId, true)
+            -- Fetch fresh data for accurate count
+            self:RefreshStats()
+        end
+    end))
+    
+    self._janitor:Add(self._eventBus:On("PetUnequipped", function(uniqueId)
+        print("[InventoryUI] PetUnequipped event received for:", uniqueId)
+        if self.Frame and self.Frame.Visible then
+            -- Update just the card and stats without full refresh
+            self:UpdatePetCardEquipStatus(uniqueId, false)
+            -- Fetch fresh data for accurate count
+            self:RefreshStats()
+        end
+    end))
+    
     -- Listen for remote inventory updates from server
     if self._remoteManager then
         self._remoteManager:On("InventoryUpdated", function(data)
@@ -952,7 +973,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
     optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30 + 10)
     optionsFrame.Position = UDim2.new(0, 0, 1, 5)
     optionsFrame.BackgroundColor3 = self._config.COLORS.White
-    optionsFrame.ZIndex = 300
+    optionsFrame.ZIndex = 999  -- Very high to ensure it's on top
     optionsFrame.Visible = false
     optionsFrame.Parent = dropdown
     
@@ -970,6 +991,7 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
         optionButton.TextColor3 = self._config.COLORS.Dark
         optionButton.Font = self._config.FONTS.Primary
         optionButton.TextScaled = true
+        optionButton.ZIndex = 999  -- Match parent ZIndex
         optionButton.Parent = optionsFrame
         
         -- Add text size constraint
@@ -1001,24 +1023,57 @@ function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options:
     
     -- Main button click
     local isOpen = false
+    local isAnimating = false
     button.MouseButton1Click:Connect(function()
+        if isAnimating then return end
+        
         print("[InventoryUI] Dropdown clicked, isOpen:", isOpen)
+        isAnimating = true
         isOpen = not isOpen
-        optionsFrame.Visible = isOpen
-        dropdown.ZIndex = isOpen and 300 or 10
-        arrow.Text = isOpen and "▲" or "▼"
+        
+        if isOpen then
+            -- Opening animation
+            dropdown.ZIndex = 998
+            optionsFrame.Visible = true
+            optionsFrame.Size = UDim2.new(1, 0, 0, 0)
+            self._utilities.Tween(optionsFrame, {
+                Size = UDim2.new(1, 0, 0, #options * 30 + 10)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out))
+            arrow.Text = "▲"
+            task.wait(0.2)
+            isAnimating = false
+        else
+            -- Closing animation
+            self._utilities.Tween(optionsFrame, {
+                Size = UDim2.new(1, 0, 0, 0)
+            }, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
+            arrow.Text = "▼"
+            task.wait(0.15)
+            optionsFrame.Visible = false
+            dropdown.ZIndex = 10
+            isAnimating = false
+        end
     end)
     
     -- Click outside to close
     local clickConnection
     clickConnection = Services.UserInputService.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and isOpen then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and isOpen and not isAnimating then
             task.wait() -- Wait a frame to not close immediately
-            if isOpen then
+            if isOpen and not isAnimating then
+                isAnimating = true
                 isOpen = false
-                optionsFrame.Visible = false
-                dropdown.ZIndex = 10
+                -- Closing animation
+                self._utilities.Tween(optionsFrame, {
+                    Size = UDim2.new(1, 0, 0, 0)
+                }, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.In))
                 arrow.Text = "▼"
+                task.spawn(function()
+                    task.wait(0.15)
+                    optionsFrame.Visible = false
+                    dropdown.ZIndex = 10
+                    isAnimating = false
+                end)
             end
         end
     end)
@@ -2482,6 +2537,25 @@ function InventoryUI:MatchesSearch(petInstance: PetInstance, petData: table): bo
     return petName:find(searchLower, 1, true) ~= nil
 end
 
+function InventoryUI:RefreshStats()
+    -- Fetch fresh player data to get accurate equipped count
+    print("[InventoryUI] Refreshing stats...")
+    
+    local playerData = self._dataCache and self._dataCache:Get("playerData")
+    if not playerData or not playerData.pets then
+        print("[InventoryUI] No player data available for stats refresh")
+        return
+    end
+    
+    -- Convert pets object to array
+    local pets = {}
+    for _, pet in pairs(playerData.pets) do
+        table.insert(pets, {pet = pet})
+    end
+    
+    self:UpdateStats(pets)
+end
+
 function InventoryUI:UpdateStats(pets: table)
     print("[InventoryUI] UpdateStats called with", #pets, "pets")
     local equippedCount = 0
@@ -3398,9 +3472,18 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
     -- Update the equipped count in stats display
     local playerData = self._dataCache:Get("playerData")
     if playerData and playerData.pets then
+        -- First update the pet's equipped status in the cache
+        for _, pet in pairs(playerData.pets) do
+            if pet.uniqueId == uniqueId then
+                pet.equipped = equipped
+                break
+            end
+        end
+        
+        -- Now format pets properly for UpdateStats
         local pets = {}
         for _, pet in pairs(playerData.pets) do
-            table.insert(pets, pet)
+            table.insert(pets, {pet = pet})
         end
         self:UpdateStats(pets)
     end
