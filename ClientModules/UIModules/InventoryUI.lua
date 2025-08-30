@@ -250,6 +250,9 @@ function InventoryUI.new(dependencies)
     -- Set up event listeners
     self:SetupEventListeners()
     
+    -- Initialize VFX system
+    self:InitializeVFXSystem()
+    
     return self
 end
 
@@ -1542,104 +1545,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     petImage.ScaleType = Enum.ScaleType.Fit
     petImage.Parent = imageContainer
     
-    -- Add rarity effects for high-tier pets
-    local rarity = petData.rarity or 1
-    
-    -- Legendary (rarity 5) - Shimmer effect
-    if rarity >= 5 then
-        -- Create shimmer overlay
-        local shimmer = Instance.new("ImageLabel")
-        shimmer.Name = "ShimmerEffect"
-        shimmer.Size = UDim2.new(1.5, 0, 1.5, 0)
-        shimmer.Position = UDim2.new(-0.25, 0, -0.25, 0)
-        shimmer.BackgroundTransparency = 1
-        shimmer.Image = "rbxasset://textures/ui/LuaApp/graphic/shimmer_wide.png"
-        shimmer.ImageTransparency = 0.7
-        shimmer.ImageColor3 = Color3.fromRGB(255, 215, 0) -- Gold shimmer
-        shimmer.ZIndex = petImage.ZIndex + 1
-        shimmer.Parent = imageContainer
-        
-        -- Animate shimmer
-        local shimmerTween = self._utilities.Tween(shimmer, {
-            Position = UDim2.new(0.75, 0, -0.25, 0)
-        }, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1))
-    end
-    
-    -- Mythical (rarity 6) - Particle aura
-    if rarity >= 6 then
-        -- Create particle container
-        local particleContainer = Instance.new("Frame")
-        particleContainer.Name = "ParticleAura"
-        particleContainer.Size = UDim2.new(1, 20, 1, 20)
-        particleContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
-        particleContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-        particleContainer.BackgroundTransparency = 1
-        particleContainer.ZIndex = petImage.ZIndex - 1
-        particleContainer.Parent = imageContainer
-        
-        -- Spawn particles
-        task.spawn(function()
-            while card.Parent do
-                local particle = Instance.new("Frame")
-                particle.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
-                particle.Position = UDim2.new(math.random(), 0, 1, 0)
-                particle.BackgroundColor3 = Color3.fromRGB(200, 100, 255) -- Purple particles
-                particle.BorderSizePixel = 0
-                particle.Parent = particleContainer
-                
-                local corner = Instance.new("UICorner")
-                corner.CornerRadius = UDim.new(0.5, 0)
-                corner.Parent = particle
-                
-                -- Float up animation
-                self._utilities.Tween(particle, {
-                    Position = UDim2.new(particle.Position.X.Scale + (math.random() - 0.5) * 0.2, 0, -0.2, 0),
-                    BackgroundTransparency = 1,
-                    Size = UDim2.new(0, 0, 0, 0)
-                }, TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
-                
-                game:GetService("Debris"):AddItem(particle, 2)
-                task.wait(0.3)
-            end
-        end)
-    end
-    
-    -- Secret (rarity 7+) - Rainbow gradient
-    if rarity >= 7 then
-        -- Create rainbow gradient overlay
-        local rainbowFrame = Instance.new("Frame")
-        rainbowFrame.Name = "RainbowEffect"
-        rainbowFrame.Size = UDim2.new(1, 4, 1, 4)
-        rainbowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-        rainbowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        rainbowFrame.BackgroundTransparency = 0.8
-        rainbowFrame.ZIndex = petImage.ZIndex + 2
-        rainbowFrame.Parent = imageContainer
-        
-        local rainbowGradient = Instance.new("UIGradient")
-        rainbowGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-            ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 165, 0)),
-            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 255, 0)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 0)),
-            ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
-            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(75, 0, 130)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(238, 130, 238))
-        })
-        rainbowGradient.Parent = rainbowFrame
-        
-        self._utilities.CreateCorner(rainbowFrame, 8)
-        
-        -- Animate rainbow rotation
-        task.spawn(function()
-            while card.Parent do
-                self._utilities.Tween(rainbowGradient, {
-                    Rotation = rainbowGradient.Rotation + 360
-                }, TweenInfo.new(3, Enum.EasingStyle.Linear))
-                task.wait(3)
-            end
-        end)
-    end
+
     
     -- Level badge
     local levelBadge = Instance.new("Frame")
@@ -1692,10 +1598,8 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
         textXAlignment = Enum.TextXAlignment.Center
     })
     
-    -- Variant effect
-    if petInstance.variant then
-        self:ApplyVariantEffect(card, petInstance.variant)
-    end
+    -- Apply premium VFX for variants and high rarity pets
+    self:ApplyPremiumVFX(card, petInstance, petData)
     
     -- Click handler
     local button = Instance.new("TextButton")
@@ -1948,37 +1852,522 @@ function InventoryUI:UpdatePetCard(card: Frame, petInstance: PetInstance, petDat
     end
 end
 
-function InventoryUI:ApplyVariantEffect(card: Frame, variant: string)
+-- ========================================
+-- PREMIUM VFX SYSTEM
+-- ========================================
+
+-- VFX Performance settings
+local VFX_SETTINGS = {
+    MAX_PARTICLES_PER_CARD = 10,
+    MAX_VFX_PER_SCREEN = 20,
+    VFX_UPDATE_RATE = 1/60, -- 60 FPS
+    VFX_DISTANCE_CULLING = true,
+    VFX_QUALITY_LEVELS = {
+        LOW = {particles = 5, updateRate = 1/30},
+        MEDIUM = {particles = 10, updateRate = 1/45},
+        HIGH = {particles = 15, updateRate = 1/60}
+    }
+}
+
+function InventoryUI:InitializeVFXSystem()
+    -- Track active VFX for performance management
+    self.ActiveVFX = self.ActiveVFX or {}
+    self.VFXCount = 0
+    self.VFXQuality = "HIGH"
+    
+    -- Monitor performance and adjust quality
+    task.spawn(function()
+        while self.Frame and self.Frame.Parent do
+            local fps = 1 / game:GetService("RunService").Heartbeat:Wait()
+            
+            -- Auto-adjust quality based on FPS
+            if fps < 30 and self.VFXQuality ~= "LOW" then
+                self.VFXQuality = "LOW"
+                self:UpdateAllVFXQuality()
+            elseif fps > 45 and fps < 55 and self.VFXQuality ~= "MEDIUM" then
+                self.VFXQuality = "MEDIUM"
+                self:UpdateAllVFXQuality()
+            elseif fps > 55 and self.VFXQuality ~= "HIGH" then
+                self.VFXQuality = "HIGH"
+                self:UpdateAllVFXQuality()
+            end
+            
+            task.wait(1) -- Check every second
+        end
+    end)
+end
+
+function InventoryUI:ApplyPremiumVFX(card: Frame, petInstance: PetInstance, petData: table)
     local imageContainer = card:FindFirstChild("ImageContainer")
     if not imageContainer then return end
     
-    if variant == "shiny" then
-        -- Add sparkle effect
-        if self._particleSystem then
-            self._particleSystem:CreateSparkleLoop(imageContainer, {
-                rate = 0.5,
-                lifetime = 2,
-                size = NumberSequence.new(0.2)
-            })
-        end
-    elseif variant == "golden" then
-        -- Add golden glow
-        local glow = Instance.new("ImageLabel")
-        glow.Size = UDim2.new(1.2, 0, 1.2, 0)
-        glow.Position = UDim2.new(0.5, 0, 0.5, 0)
-        glow.AnchorPoint = Vector2.new(0.5, 0.5)
-        glow.BackgroundTransparency = 1
-        glow.Image = "rbxassetid://5028857084"
-        glow.ImageColor3 = Color3.fromRGB(255, 215, 0)
-        glow.ImageTransparency = 0.5
-        glow.ZIndex = -1
-        glow.Parent = imageContainer
-    elseif variant == "rainbow" then
-        -- Add rainbow effect
-        if self._effectsLibrary then
-            self._effectsLibrary:CreateRainbowEffect(imageContainer)
+    -- Clean up existing VFX
+    self:CleanupVFX(card)
+    
+    -- Apply variant-based VFX
+    if petInstance.variant then
+        self:ApplyVariantVFX(card, petInstance.variant)
+    end
+    
+    -- Apply rarity-based VFX
+    local rarity = petData.rarity or 1
+    if rarity >= 4 then -- Epic and above
+        self:ApplyRarityVFX(card, rarity)
+    end
+end
+
+function InventoryUI:CleanupVFX(card: Frame)
+    -- Clean up any existing VFX to prevent memory leaks
+    local vfxToClean = {"RainbowShimmer", "ParticleEmitter", "GoldenAura", "ShinySparkles", "NebulaEffect"}
+    
+    for _, vfxName in ipairs(vfxToClean) do
+        local vfx = card:FindFirstChild(vfxName, true)
+        if vfx then
+            vfx:Destroy()
         end
     end
+end
+
+function InventoryUI:ApplyVariantVFX(card: Frame, variant: string)
+    local imageContainer = card:FindFirstChild("ImageContainer")
+    if not imageContainer then return end
+    
+    if variant == "rainbow" then
+        self:CreateRainbowShimmerVFX(imageContainer)
+    elseif variant == "shiny" then
+        self:CreateShinySparkleVFX(imageContainer)
+    elseif variant == "golden" then
+        self:CreateGoldenAuraVFX(imageContainer)
+    end
+end
+
+function InventoryUI:CreateRainbowShimmerVFX(container: Frame)
+    -- PREMIUM Rainbow Shimmer Effect
+    local shimmerContainer = Instance.new("Frame")
+    shimmerContainer.Name = "RainbowShimmer"
+    shimmerContainer.Size = UDim2.new(1.1, 0, 1.1, 0)
+    shimmerContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shimmerContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    shimmerContainer.BackgroundTransparency = 1
+    shimmerContainer.ZIndex = 10
+    shimmerContainer.Parent = container
+    
+    -- Create multiple shimmer layers for depth
+    for i = 1, 3 do
+        local shimmer = Instance.new("ImageLabel")
+        shimmer.Name = "ShimmerLayer" .. i
+        shimmer.Size = UDim2.new(2, 0, 2, 0)
+        shimmer.Position = UDim2.new(-0.5 + (i-1) * 0.1, 0, -0.5, 0)
+        shimmer.BackgroundTransparency = 1
+        shimmer.Image = "rbxasset://textures/ui/LuaApp/graphic/shimmer_wide.png"
+        shimmer.ImageTransparency = 0.9 - (i * 0.1)
+        shimmer.ScaleType = Enum.ScaleType.Tile
+        shimmer.TileSize = UDim2.new(0.3, 0, 0.3, 0)
+        shimmer.Parent = shimmerContainer
+        
+        -- Animated rainbow gradient
+        local gradient = Instance.new("UIGradient")
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
+            ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17, 1, 1)),
+            ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5, 1, 1)),
+            ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)),
+            ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)),
+            ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1))
+        })
+        gradient.Rotation = i * 30
+        gradient.Parent = shimmer
+        
+        -- Animate the shimmer movement and rotation
+        task.spawn(function()
+            while shimmer.Parent do
+                -- Move shimmer across
+                self._utilities.Tween(shimmer, {
+                    Position = UDim2.new(0.5 + (i-1) * 0.1, 0, -0.5, 0)
+                }, TweenInfo.new(3 + i * 0.5, Enum.EasingStyle.Linear))
+                
+                -- Rotate gradient
+                self._utilities.Tween(gradient, {
+                    Rotation = gradient.Rotation + 360
+                }, TweenInfo.new(4 + i * 0.5, Enum.EasingStyle.Linear))
+                
+                task.wait(3 + i * 0.5)
+                shimmer.Position = UDim2.new(-0.5 + (i-1) * 0.1, 0, -0.5, 0)
+            end
+        end)
+    end
+    
+    -- Add sparkle particles
+    self:AddSparkleParticles(shimmerContainer, {
+        color = ColorSequence.new(Color3.new(1, 1, 1)),
+        rate = 3,
+        lifetime = 1.5,
+        speed = 20,
+        spread = 45
+    })
+end
+
+function InventoryUI:CreateShinySparkleVFX(container: Frame)
+    -- Diamond Sparkle Burst Effect
+    local sparkleContainer = Instance.new("Frame")
+    sparkleContainer.Name = "ShinySparkles"
+    sparkleContainer.Size = UDim2.new(1, 0, 1, 0)
+    sparkleContainer.BackgroundTransparency = 1
+    sparkleContainer.Parent = container
+    
+    -- Create sparkle burst pattern
+    task.spawn(function()
+        while sparkleContainer.Parent do
+            for i = 1, 5 do
+                task.wait(0.1)
+                local sparkle = Instance.new("ImageLabel")
+                sparkle.Size = UDim2.new(0, 0, 0, 0)
+                sparkle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+                sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+                sparkle.BackgroundTransparency = 1
+                sparkle.Image = "rbxasset://textures/particles/sparkles_main.dds"
+                sparkle.ImageColor3 = Color3.fromHSV(0, 0, 1) -- Pure white
+                sparkle.ZIndex = 15
+                sparkle.Parent = sparkleContainer
+                
+                -- Random rotation
+                sparkle.Rotation = math.random(0, 360)
+                
+                -- Burst animation
+                local size = math.random(15, 25)
+                self._utilities.Tween(sparkle, {
+                    Size = UDim2.new(0, size, 0, size),
+                    ImageTransparency = 0
+                }, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+                
+                task.wait(0.2)
+                
+                -- Fade out with rotation
+                self._utilities.Tween(sparkle, {
+                    Size = UDim2.new(0, size * 1.5, 0, size * 1.5),
+                    ImageTransparency = 1,
+                    Rotation = sparkle.Rotation + math.random(90, 180)
+                }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+                
+                game:GetService("Debris"):AddItem(sparkle, 0.7)
+            end
+            task.wait(math.random() * 0.5 + 0.5)
+        end
+    end)
+end
+
+function InventoryUI:CreateGoldenAuraVFX(container: Frame)
+    -- Golden Pulsing Aura
+    local auraContainer = Instance.new("Frame")
+    auraContainer.Name = "GoldenAura"
+    auraContainer.Size = UDim2.new(1, 0, 1, 0)
+    auraContainer.BackgroundTransparency = 1
+    auraContainer.Parent = container
+    
+    -- Create multiple aura layers
+    for i = 1, 2 do
+        local aura = Instance.new("ImageLabel")
+        aura.Name = "AuraLayer" .. i
+        aura.Size = UDim2.new(1.3 + i * 0.1, 0, 1.3 + i * 0.1, 0)
+        aura.Position = UDim2.new(0.5, 0, 0.5, 0)
+        aura.AnchorPoint = Vector2.new(0.5, 0.5)
+        aura.BackgroundTransparency = 1
+        aura.Image = "rbxassetid://5028857084" -- Glow image
+        aura.ImageColor3 = Color3.fromRGB(255, 215, 0)
+        aura.ImageTransparency = 0.7 + i * 0.1
+        aura.ZIndex = -i
+        aura.Parent = auraContainer
+        
+        -- Pulse animation
+        task.spawn(function()
+            while aura.Parent do
+                self._utilities.Tween(aura, {
+                    Size = UDim2.new(1.4 + i * 0.1, 0, 1.4 + i * 0.1, 0),
+                    ImageTransparency = 0.5 + i * 0.1
+                }, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                
+                task.wait(1.5)
+                
+                self._utilities.Tween(aura, {
+                    Size = UDim2.new(1.3 + i * 0.1, 0, 1.3 + i * 0.1, 0),
+                    ImageTransparency = 0.7 + i * 0.1
+                }, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                
+                task.wait(1.5)
+            end
+        end)
+    end
+end
+
+function InventoryUI:ApplyRarityVFX(card: Frame, rarity: number)
+    local imageContainer = card:FindFirstChild("ImageContainer")
+    if not imageContainer then return end
+    
+    if rarity >= 4 and rarity < 5 then
+        -- Epic: Rising particles
+        self:CreateRisingParticlesVFX(imageContainer, {
+            color = Color3.fromRGB(148, 0, 211), -- Purple
+            rate = 2,
+            size = 4
+        })
+    elseif rarity >= 5 and rarity < 6 then
+        -- Legendary: Golden light rays
+        self:CreateLightRaysVFX(imageContainer, Color3.fromRGB(255, 215, 0))
+    elseif rarity >= 6 then
+        -- Mythic: Cosmic nebula
+        self:CreateCosmicNebulaVFX(imageContainer)
+    end
+end
+
+function InventoryUI:CreateRisingParticlesVFX(container: Frame, config: table)
+    local particleContainer = Instance.new("Frame")
+    particleContainer.Name = "ParticleEmitter"
+    particleContainer.Size = UDim2.new(1, 0, 1, 0)
+    particleContainer.BackgroundTransparency = 1
+    particleContainer.ClipsDescendants = true
+    particleContainer.Parent = container
+    
+    task.spawn(function()
+        while particleContainer.Parent do
+            for i = 1, config.rate or 2 do
+                local particle = Instance.new("Frame")
+                particle.Size = UDim2.new(0, config.size or 4, 0, config.size or 4)
+                particle.Position = UDim2.new(math.random(), 0, 1.1, 0)
+                particle.BackgroundColor3 = config.color or Color3.new(1, 1, 1)
+                particle.BorderSizePixel = 0
+                particle.Parent = particleContainer
+                
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0.5, 0)
+                corner.Parent = particle
+                
+                -- Add glow
+                local glow = Instance.new("ImageLabel")
+                glow.Size = UDim2.new(3, 0, 3, 0)
+                glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+                glow.AnchorPoint = Vector2.new(0.5, 0.5)
+                glow.BackgroundTransparency = 1
+                glow.Image = "rbxassetid://5028857084"
+                glow.ImageColor3 = config.color or Color3.new(1, 1, 1)
+                glow.ImageTransparency = 0.7
+                glow.Parent = particle
+                
+                -- Float up with wobble
+                local wobbleAmount = math.random() * 0.2 - 0.1
+                self._utilities.Tween(particle, {
+                    Position = UDim2.new(particle.Position.X.Scale + wobbleAmount, 0, -0.1, 0),
+                    Size = UDim2.new(0, 0, 0, 0)
+                }, TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+                
+                self._utilities.Tween(glow, {
+                    ImageTransparency = 1
+                }, TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+                
+                game:GetService("Debris"):AddItem(particle, 3)
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+function InventoryUI:CreateLightRaysVFX(container: Frame, color: Color3)
+    -- Legendary Light Rays Effect
+    local raysContainer = Instance.new("Frame")
+    raysContainer.Name = "LightRays"
+    raysContainer.Size = UDim2.new(1, 0, 1, 0)
+    raysContainer.BackgroundTransparency = 1
+    raysContainer.ClipsDescendants = false
+    raysContainer.Parent = container
+    
+    -- Create rotating light rays
+    for i = 1, 6 do
+        local ray = Instance.new("Frame")
+        ray.Name = "Ray" .. i
+        ray.Size = UDim2.new(0, 2, 1, 0)
+        ray.Position = UDim2.new(0.5, 0, 0.5, 0)
+        ray.AnchorPoint = Vector2.new(0.5, 0.5)
+        ray.BackgroundColor3 = color
+        ray.BorderSizePixel = 0
+        ray.Rotation = i * 60
+        ray.Parent = raysContainer
+        
+        -- Add gradient for fade effect
+        local gradient = Instance.new("UIGradient")
+        gradient.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.3, 0.7),
+            NumberSequenceKeypoint.new(0.5, 0.5),
+            NumberSequenceKeypoint.new(0.7, 0.7),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+        gradient.Rotation = 90
+        gradient.Parent = ray
+        
+        -- Animate the ray
+        task.spawn(function()
+            while ray.Parent do
+                -- Pulse animation
+                self._utilities.Tween(ray, {
+                    Size = UDim2.new(0, 3, 1.2, 0),
+                    BackgroundTransparency = 0.3
+                }, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                
+                task.wait(2)
+                
+                self._utilities.Tween(ray, {
+                    Size = UDim2.new(0, 2, 1, 0),
+                    BackgroundTransparency = 0.5
+                }, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                
+                task.wait(2)
+            end
+        end)
+    end
+    
+    -- Rotate the entire container slowly
+    task.spawn(function()
+        while raysContainer.Parent do
+            self._utilities.Tween(raysContainer, {
+                Rotation = raysContainer.Rotation + 360
+            }, TweenInfo.new(20, Enum.EasingStyle.Linear))
+            task.wait(20)
+        end
+    end)
+end
+
+function InventoryUI:CreateCosmicNebulaVFX(container: Frame)
+    -- Mythic Cosmic Nebula Effect
+    local nebulaContainer = Instance.new("Frame")
+    nebulaContainer.Name = "NebulaEffect"
+    nebulaContainer.Size = UDim2.new(1.5, 0, 1.5, 0)
+    nebulaContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+    nebulaContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    nebulaContainer.BackgroundTransparency = 1
+    nebulaContainer.ZIndex = -1
+    nebulaContainer.Parent = container
+    
+    -- Create swirling nebula layers
+    for i = 1, 3 do
+        local nebula = Instance.new("ImageLabel")
+        nebula.Name = "NebulaLayer" .. i
+        nebula.Size = UDim2.new(1.2 + i * 0.1, 0, 1.2 + i * 0.1, 0)
+        nebula.Position = UDim2.new(0.5, 0, 0.5, 0)
+        nebula.AnchorPoint = Vector2.new(0.5, 0.5)
+        nebula.BackgroundTransparency = 1
+        nebula.Image = "rbxasset://textures/particles/smoke_main.dds"
+        nebula.ImageTransparency = 0.7 + i * 0.05
+        nebula.Parent = nebulaContainer
+        
+        -- Create cosmic gradient
+        local colors = {
+            Color3.fromRGB(138, 43, 226), -- Blue violet
+            Color3.fromRGB(75, 0, 130),   -- Indigo
+            Color3.fromRGB(238, 130, 238), -- Violet
+            Color3.fromRGB(147, 112, 219), -- Medium purple
+        }
+        
+        nebula.ImageColor3 = colors[math.random(1, #colors)]
+        
+        -- Swirl animation
+        task.spawn(function()
+            local rotationSpeed = 30 + i * 10
+            local scaleVariation = 0.1 + i * 0.05
+            
+            while nebula.Parent do
+                -- Rotate
+                self._utilities.Tween(nebula, {
+                    Rotation = nebula.Rotation + (i % 2 == 0 and 360 or -360)
+                }, TweenInfo.new(rotationSpeed, Enum.EasingStyle.Linear))
+                
+                -- Scale breathing
+                self._utilities.Tween(nebula, {
+                    Size = UDim2.new(1.2 + i * 0.1 + scaleVariation, 0, 1.2 + i * 0.1 + scaleVariation, 0)
+                }, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                
+                task.wait(3)
+                
+                self._utilities.Tween(nebula, {
+                    Size = UDim2.new(1.2 + i * 0.1, 0, 1.2 + i * 0.1, 0)
+                }, TweenInfo.new(3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut))
+                
+                task.wait(rotationSpeed - 3)
+            end
+        end)
+    end
+    
+    -- Add cosmic particles
+    self:AddSparkleParticles(nebulaContainer, {
+        color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 150, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 100, 255))
+        }),
+        rate = 1,
+        lifetime = 4,
+        speed = 10,
+        spread = 360
+    })
+end
+
+function InventoryUI:AddSparkleParticles(container: Frame, config: table)
+    -- Helper function to add sparkle particles
+    task.spawn(function()
+        while container.Parent do
+            for i = 1, config.rate or 1 do
+                local sparkle = Instance.new("ImageLabel")
+                sparkle.Size = UDim2.new(0, 0, 0, 0)
+                sparkle.Position = UDim2.new(0.5, 0, 0.5, 0)
+                sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+                sparkle.BackgroundTransparency = 1
+                sparkle.Image = "rbxasset://textures/particles/sparkles_main.dds"
+                sparkle.ZIndex = 20
+                sparkle.Parent = container
+                
+                -- Apply color
+                if type(config.color) == "userdata" and config.color:IsA("ColorSequence") then
+                    sparkle.ImageColor3 = config.color.Keypoints[1].Value
+                else
+                    sparkle.ImageColor3 = config.color or Color3.new(1, 1, 1)
+                end
+                
+                -- Random spawn position within container
+                local angle = math.rad(math.random(0, 360))
+                local distance = math.random(0, 30)
+                sparkle.Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance)
+                
+                -- Animate
+                local endSize = math.random(8, 12)
+                self._utilities.Tween(sparkle, {
+                    Size = UDim2.new(0, endSize, 0, endSize),
+                    ImageTransparency = 0,
+                    Rotation = math.random(0, 360)
+                }, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+                
+                task.wait(0.3)
+                
+                -- Fade out
+                self._utilities.Tween(sparkle, {
+                    ImageTransparency = 1,
+                    Size = UDim2.new(0, endSize * 0.5, 0, endSize * 0.5),
+                    Position = UDim2.new(
+                        sparkle.Position.X.Scale,
+                        sparkle.Position.X.Offset + math.random(-20, 20),
+                        sparkle.Position.Y.Scale,
+                        sparkle.Position.Y.Offset - math.random(10, 30)
+                    )
+                }, TweenInfo.new(config.lifetime or 1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+                
+                game:GetService("Debris"):AddItem(sparkle, config.lifetime or 1 + 0.3)
+            end
+            task.wait(1 / (config.rate or 1))
+        end
+    end)
+end
+
+function InventoryUI:ApplyVariantEffect(card: Frame, variant: string)
+    -- Redirect to new VFX system
+    self:ApplyVariantVFX(card, variant)
 end
 
 -- ========================================
@@ -2205,6 +2594,9 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
         variantIcon.ZIndex = card.ZIndex + 4
         variantIcon.Parent = variantBadge
     end
+    
+    -- Apply premium VFX for variants and high rarity pets
+    self:ApplyPremiumVFX(card, petInstance, petData)
 end
 
 function InventoryUI:GetVariantColor(variant: string): Color3
