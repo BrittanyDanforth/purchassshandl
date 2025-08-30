@@ -93,6 +93,10 @@ function WindowManager.new(dependencies)
     self._minimizedWindows = {} -- Minimized window positions
     self._activeOverlays = {} -- Modal overlays
     
+    -- Main window module tracking
+    self._currentWindow = nil -- The module of the currently open window (e.g., InventoryUI)
+    self._isTransitioning = false -- Flag to prevent clicks during animation
+    
     -- State
     self._nextWindowId = 0
     self._baseZIndex = self._config.ZINDEX.Window or 50
@@ -921,10 +925,141 @@ if Config.DEBUG.ENABLED then
 end
 
 -- ========================================
+-- MAIN WINDOW TRANSITIONS
+-- ========================================
+
+function WindowManager:OpenWindow(windowModule)
+    -- If we're already animating, ignore the click
+    if self._isTransitioning then
+        if self._debugMode then
+            print("[WindowManager] Transition in progress, ignoring request")
+        end
+        return
+    end
+    
+    -- If the requested window is already open, do nothing
+    if self._currentWindow == windowModule then
+        if self._debugMode then
+            print("[WindowManager] Window already open:", windowModule)
+        end
+        return
+    end
+    
+    -- Start the transition!
+    self._isTransitioning = true
+    
+    if self._debugMode then
+        print("[WindowManager] Starting transition to:", windowModule)
+    end
+    
+    -- Create a coroutine for the transition
+    task.spawn(function()
+        -- If a different window is already open, close it first
+        if self._currentWindow then
+            if self._debugMode then
+                print("[WindowManager] Closing current window")
+            end
+            
+            -- Tell the old window to play its close animation
+            if self._currentWindow.AnimateClose then
+                self._currentWindow:AnimateClose()
+            elseif self._currentWindow.Close then
+                self._currentWindow:Close()
+            end
+            
+            -- Wait for the close animation to finish
+            task.wait(0.3)
+        end
+        
+        -- Now, open the new window
+        self._currentWindow = windowModule
+        
+        if self._currentWindow then
+            if self._debugMode then
+                print("[WindowManager] Opening new window")
+            end
+            
+            -- Initialize if needed
+            if self._currentWindow.Initialize then
+                self._currentWindow:Initialize()
+            end
+            
+            -- Tell the new window to play its open animation
+            if self._currentWindow.AnimateOpen then
+                self._currentWindow:AnimateOpen()
+            elseif self._currentWindow.Open then
+                self._currentWindow:Open()
+            end
+            
+            -- Wait for the open animation to finish
+            task.wait(0.4)
+            
+            -- IMPORTANT: Tell the module it's ready for data loading
+            if self._currentWindow.OnReady then
+                if self._debugMode then
+                    print("[WindowManager] Calling OnReady")
+                end
+                self._currentWindow:OnReady()
+            end
+        end
+        
+        -- Transition is complete, we can accept clicks again
+        self._isTransitioning = false
+        
+        if self._debugMode then
+            print("[WindowManager] Transition complete")
+        end
+    end)
+end
+
+function WindowManager:CloseCurrentWindow()
+    if self._isTransitioning or not self._currentWindow then
+        return
+    end
+    
+    self._isTransitioning = true
+    
+    task.spawn(function()
+        if self._currentWindow then
+            -- Tell window to animate close
+            if self._currentWindow.AnimateClose then
+                self._currentWindow:AnimateClose()
+            elseif self._currentWindow.Close then
+                self._currentWindow:Close()
+            end
+            
+            task.wait(0.3)
+            
+            -- Call OnClosed if available
+            if self._currentWindow.OnClosed then
+                self._currentWindow:OnClosed()
+            end
+            
+            self._currentWindow = nil
+        end
+        
+        self._isTransitioning = false
+    end)
+end
+
+function WindowManager:GetCurrentWindow()
+    return self._currentWindow
+end
+
+function WindowManager:IsTransitioning(): boolean
+    return self._isTransitioning
+end
+
+-- ========================================
 -- CLEANUP
 -- ========================================
 
 function WindowManager:Destroy()
+    -- Close current main window
+    if self._currentWindow then
+        self:CloseCurrentWindow()
+    end
+    
     -- Close all windows
     self:CloseAllWindows()
     
@@ -941,6 +1076,7 @@ function WindowManager:Destroy()
     self._minimizedWindows = {}
     self._activeOverlays = {}
     self._dragStates = {}
+    self._currentWindow = nil
 end
 
 return WindowManager

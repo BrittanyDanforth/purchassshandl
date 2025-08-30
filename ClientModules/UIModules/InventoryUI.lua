@@ -515,88 +515,186 @@ end
 -- ========================================
 
 function InventoryUI:Open()
-    -- Create UI if not already created
-    if not self.Frame then
+    -- 1. If the UI doesn't exist, build it completely.
+    if not self.Frame or not self.Frame.Parent then
         self:CreateUI()
     end
     
-    if self.Frame then
-        -- Smooth fade in animation
-        self.Frame.Visible = true
-        self.Frame.BackgroundTransparency = 1
-        
-        -- Fade in background
-        self._utilities.Tween(self.Frame, {
-            BackgroundTransparency = 0
-        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
-        
-        -- Animate content with slide effect
-        local originalPosition = self.Frame.Position
-        self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
-        
-        self._utilities.Tween(self.Frame, {
-            Position = originalPosition
-        }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
-        
-        -- Always ensure we're on Pets tab first to create PetGrid
-        self:ShowTab("Pets")
-        
-        -- Fetch fresh pet data before displaying
-        task.spawn(function()
-            self:FetchPlayerData()
-            -- Small delay to ensure data is propagated
-            task.wait(0.1)
-            self:RefreshInventory()
-        end)
-        
-        return
+    -- This check is crucial in case CreateUI failed for some reason
+    if not self.Frame then 
+        warn("[InventoryUI] Failed to create UI frame")
+        return 
     end
     
-    -- Set up reactive updates
+    -- 2. Make the UI visible with animations.
+    self.Frame.Visible = true
+    self.Frame.BackgroundTransparency = 1
+    
+    -- Fade in background
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 0
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Animate content with slide effect
+    local originalPosition = self.Frame.Position or UDim2.new(0.5, 0, 0.5, 0)
+    self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
+    
+    self._utilities.Tween(self.Frame, {
+        Position = originalPosition
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    -- 3. Ensure we show the Pets tab first (this creates PetGrid)
+    self:ShowTab("Pets")
+    
+    -- 4. Set up reactive updates if not already done
     if self._dataCache and not self.PetWatcher then
-        -- Check if Watch method exists
         if self._dataCache.Watch then
             self.PetWatcher = self._dataCache:Watch("pets", function()
                 if self.Frame and self.Frame.Visible then
                     self:RefreshInventory()
                 end
             end)
-        else
-            warn("[InventoryUI] DataCache.Watch method not found - reactive updates disabled")
         end
     end
     
-    -- Create UI
-    self:CreateUI()
+    -- 5. NOW that the UI is fully built and visible, refresh the content.
+    -- This completely prevents the race condition.
+    -- Wait for animations to complete before refreshing
+    task.wait(0.4)
     
-    -- Show default tab (Pets) to ensure PetGrid exists
-    self:ShowTab("Pets")
+    -- Fetch fresh data and refresh
+    self:FetchPlayerData()
+    task.wait(0.1) -- Small delay to ensure data is propagated
+    self:RefreshInventory()
     
-    -- Delay initial load to ensure UI is ready
-    task.defer(function()
-        self:RefreshInventory()
-    end)
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Open")
+    end
 end
 
 function InventoryUI:Close()
-    if self.Frame then
-        -- Smooth fade out animation
-        self._utilities.Tween(self.Frame, {
-            BackgroundTransparency = 1,
-            Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
-        }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
-        
-        task.wait(0.3)
-        self.Frame.Visible = false
+    if not self.Frame or not self.Frame.Visible then return end
+    
+    -- Cancel any refresh thread that might be running
+    if self.CurrentRefreshThread then
+        task.cancel(self.CurrentRefreshThread)
+        self.CurrentRefreshThread = nil
+    end
+    
+    -- Animate the frame out
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+    
+    task.wait(0.3)
+    self.Frame.Visible = false
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Close")
     end
     
     -- Clear cached references to prevent stale state
     self.PetGrid = nil
     self.TabFrames = {}
     self.CurrentTab = "Pets"
+end
+
+-- ========================================
+-- WINDOW MANAGER INTEGRATION
+-- ========================================
+
+function InventoryUI:Initialize()
+    -- This function just builds the UI but doesn't show it
+    if not self.Frame then
+        self:CreateUI()
+    end
+end
+
+function InventoryUI:AnimateOpen()
+    -- Called by WindowManager to play the open animation
+    if not self.Frame then self:Initialize() end
     
-    -- Cancel any ongoing refreshes
-    self.IsRefreshing = false
+    self.Frame.Visible = true
+    self.Frame.BackgroundTransparency = 1
+    
+    -- Fade in background
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 0
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Animate content with slide effect
+    local originalPosition = self.Frame.Position or UDim2.new(0.5, 0, 0.5, 0)
+    self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
+    
+    self._utilities.Tween(self.Frame, {
+        Position = originalPosition
+    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    
+    -- Ensure we show the Pets tab first
+    self:ShowTab("Pets")
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Open")
+    end
+end
+
+function InventoryUI:AnimateClose()
+    -- Called by WindowManager to play the close animation
+    if not self.Frame then return end
+    
+    -- Cancel any refresh thread
+    if self.CurrentRefreshThread then
+        task.cancel(self.CurrentRefreshThread)
+        self.CurrentRefreshThread = nil
+    end
+    
+    -- Animate out
+    self._utilities.Tween(self.Frame, {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
+    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+    
+    -- Note: We don't wait here, WindowManager handles the timing
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Close")
+    end
+end
+
+function InventoryUI:OnReady()
+    -- Called by WindowManager AFTER the open animation is finished
+    -- This is the safe place to load data!
+    
+    -- Set up reactive updates if needed
+    if self._dataCache and not self.PetWatcher then
+        if self._dataCache.Watch then
+            self.PetWatcher = self._dataCache:Watch("pets", function()
+                if self.Frame and self.Frame.Visible then
+                    self:RefreshInventory()
+                end
+            end)
+        end
+    end
+    
+    -- Fetch fresh data and refresh
+    self:FetchPlayerData()
+    task.wait(0.1)
+    self:RefreshInventory()
+end
+
+function InventoryUI:OnClosed()
+    -- Called by WindowManager after close animation completes
+    self.Frame.Visible = false
+    
+    -- Clear cached references
+    self.PetGrid = nil
+    self.TabFrames = {}
+    self.CurrentTab = "Pets"
 end
 
 -- ========================================
