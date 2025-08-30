@@ -772,8 +772,17 @@ function MainUI:OpenModule(moduleName: string)
         return
     end
     
+    -- Debug: Check if WindowManager exists
+    if self._debugMode then
+        print("[MainUI] WindowManager exists:", self._windowManager ~= nil)
+    end
+    
     -- Use WindowManager if available for proper transition handling
     if self._windowManager then
+        if self._debugMode then
+            print("[MainUI] Using WindowManager for transition")
+        end
+        
         -- Initialize module if needed
         if not moduleState.isInitialized then
             self:InitializeModule(moduleName)
@@ -787,6 +796,10 @@ function MainUI:OpenModule(moduleName: string)
         end
         
         return
+    end
+    
+    if self._debugMode then
+        print("[MainUI] Falling back to old behavior - no WindowManager")
     end
     
     -- Fallback to old behavior if WindowManager not available
