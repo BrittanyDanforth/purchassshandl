@@ -1508,6 +1508,33 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     end)
 end
 
+function InventoryUI:ClearGrid()
+    if not self.PetGrid then return end
+    
+    -- This loop is now the single source of truth for cleaning the grid.
+    -- It destroys ALL children: pet cards, loading labels, and empty state messages.
+    for _, child in ipairs(self.PetGrid:GetChildren()) do
+        if child:IsA("GuiObject") then
+            -- Don't destroy the UIGridLayout itself
+            if not child:IsA("UIGridLayout") then
+                child:Destroy()
+            end
+        end
+    end
+    
+    -- Also clear the active card cache if using virtual scrolling
+    self.ActiveCards = {}
+    
+    -- Clear the card pool references
+    if self.VirtualScrollEnabled then
+        for _, card in pairs(self.VisibleCardPool) do
+            if card.Parent then
+                card.Parent = nil
+            end
+        end
+    end
+end
+
 -- ========================================
 -- PET CARD CREATION
 -- ========================================
@@ -2765,141 +2792,74 @@ end
 -- ========================================
 
 function InventoryUI:RefreshInventory()
-    -- Prevent rapid refreshes
-    local currentTime = tick()
-    if currentTime - self.LastRefreshTime < self.RefreshCooldown then
-        return
-    end
-    self.LastRefreshTime = currentTime
-    
-    -- Cancel any existing refresh thread
+    -- 1. CANCEL THE PREVIOUS ATTEMPT
+    -- If a refresh is already in progress, cancel it immediately.
+    -- Only the newest request should survive.
     if self.CurrentRefreshThread then
         task.cancel(self.CurrentRefreshThread)
         self.CurrentRefreshThread = nil
     end
     
-    -- Prevent multiple refreshes
-    if self.IsRefreshing then
-        if self._config.DEBUG.ENABLED then
-            print("[InventoryUI] Already refreshing, skipping")
-        end
-        return
-    end
-    self.IsRefreshing = true
-    
-    -- Ensure we have a frame first
-    if not self.Frame or not self.Frame.Parent then
-        warn("[InventoryUI] Frame not found, cannot refresh")
-        self.IsRefreshing = false
-        return
-    end
-    
-    -- Find PetGrid in current tab
-    if not self.PetGrid or not self.PetGrid.Parent then
-        -- Try to find it in the Pets tab
-        local petsTab = self.TabFrames and self.TabFrames["Pets"]
-        if petsTab then
-            self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
-        end
+    -- 2. CREATE A NEW, ISOLATED THREAD FOR THIS REFRESH
+    self.CurrentRefreshThread = task.spawn(function()
+        -- Prevent this new thread from being cancelled immediately
+        task.wait()
         
-        -- If still not found and we're on Pets tab, try to create it
-        if not self.PetGrid and self.CurrentTab == "Pets" then
-            -- Tabs might not be initialized yet
-            if not next(self.TabFrames or {}) then
-                warn("[InventoryUI] Tabs not initialized yet, deferring refresh")
-                self.IsRefreshing = false
-                -- Try again after a short delay
-                task.wait(0.1)
-                self:RefreshInventory()
+        if not self.Frame or not self.Frame.Visible then return end
+        
+        -- Find PetGrid if needed
+        if not self.PetGrid or not self.PetGrid.Parent then
+            -- Try to find it in the Pets tab
+            local petsTab = self.TabFrames and self.TabFrames["Pets"]
+            if petsTab then
+                self.PetGrid = petsTab:FindFirstChild("PetGridScrollFrame")
+            end
+            
+            if not self.PetGrid then
+                warn("[InventoryUI] PetGrid not found, cannot refresh")
                 return
             end
         end
         
-        if not self.PetGrid then
-            warn("[InventoryUI] PetGrid not found, cannot refresh")
-            self.IsRefreshing = false
-            return
-        end
-    end
-    
-    -- Get grid layout
-    local gridLayout = self.PetGrid:FindFirstChildOfClass("UIGridLayout")
-    
-    if self.VirtualScrollEnabled then
-        -- Virtual scrolling mode - return all active cards to pool
-        for index, card in pairs(self.ActiveCards) do
-            self:ReturnCardToPool(card)
-        end
-        self.ActiveCards = {}
+        -- 3. CLEAN THE UI AND SHOW LOADING STATE
+        -- This now happens safely inside the new thread.
+        self:ClearGrid()
         
-        -- Clear any loading/empty state labels
-        for _, child in ipairs(self.PetGrid:GetChildren()) do
-            if child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
-                child:Destroy()
-            end
-        end
-    else
-        -- Traditional mode - destroy all cards
-        for _, child in ipairs(self.PetGrid:GetChildren()) do
-            if child:IsA("Frame") and child.Name:match("^PetCard_") then
-                -- Remove from cache if it exists
-                local cacheIndex = table.find(self.PetCardCache, child)
-                if cacheIndex then
-                    table.remove(self.PetCardCache, cacheIndex)
-                end
-                child:Destroy()
-            elseif child.Name == "LoadingLabel" or child.Name == "EmptyStateFrame" then
-                child:Destroy()
-            elseif child.Name == "Shadow" then
-                -- Clean up any orphaned effects from previous bugs
-                child:Destroy()
-            elseif child.Name:match("^GlowEffect") then
-                -- Clean up any orphaned glow effects
-                child:Destroy()
-            end
-        end
+        local loadingLabel = self._uiFactory:CreateLabel(self.PetGrid, {
+            name = "LoadingLabel",
+            text = "Loading pets...",
+            size = UDim2.new(1, 0, 0, 50),
+            position = UDim2.new(0, 0, 0.5, -25),
+            textScaled = true,
+            backgroundColor = Color3.new(0, 0, 0),
+            backgroundTransparency = 1,
+            textColor = self._config.COLORS.TextSecondary,
+            font = self._config.FONTS.Primary
+        })
         
-        -- Clear the card cache since we destroyed all cards
-        self.PetCardCache = {}
-    end
-    
-    -- Show loading state
-    local loadingLabel = Instance.new("TextLabel")
-    loadingLabel.Name = "LoadingLabel"
-    loadingLabel.Size = UDim2.new(1, 0, 0, 50)
-    loadingLabel.Position = UDim2.new(0, 0, 0.5, -25)
-    loadingLabel.BackgroundTransparency = 1
-    loadingLabel.Text = "Loading pets..."
-    loadingLabel.TextScaled = true
-    loadingLabel.TextColor3 = self._config.COLORS.TextSecondary
-    loadingLabel.Font = self._config.FONTS.Primary
-    loadingLabel.Parent = self.PetGrid
-    
-    -- Process pets data
-    self.CurrentRefreshThread = task.spawn(function()
-        task.wait(0.1) -- Small delay for loading state
+        -- Give the "Loading..." message a moment to appear
+        task.wait(0.1)
         
-        -- Get pet data
+        -- 4. GET DATA AND POPULATE
         local pets = self:GetFilteredAndSortedPets()
         
-        -- Remove loading label
+        -- The grid is guaranteed to be clean, so we just remove the loading label
         if loadingLabel and loadingLabel.Parent then
             loadingLabel:Destroy()
         end
         
-        -- Update stats
+        -- Update the stats display (like equipped count)
         self:UpdateStats(pets)
         
-        -- Create/update pet cards
+        -- Display the results
         if #pets == 0 then
-            self:ShowEmptyState()
+            self:ShowEmptyState() -- This will now only be called once if needed
         else
             self:DisplayPets(pets)
         end
         
-        -- Reset refresh flag
-        self.IsRefreshing = false
-        self.CurrentRefreshThread = nil
+        -- Update refresh tracking
+        self.LastRefreshTime = tick()
     end)
 end
 
