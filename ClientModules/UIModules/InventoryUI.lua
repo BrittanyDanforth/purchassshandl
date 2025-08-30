@@ -372,6 +372,16 @@ function InventoryUI:FetchPlayerData()
     
     if success and result then
         print("[InventoryUI] Successfully fetched player data")
+        print("[InventoryUI] Player data structure:", result)
+        if result.pets then
+            local petCount = 0
+            for _ in pairs(result.pets) do
+                petCount = petCount + 1
+            end
+            print("[InventoryUI] Fetched pets count:", petCount)
+        else
+            warn("[InventoryUI] No pets field in player data!")
+        end
         
         -- Update various caches
         if self._dataCache then
@@ -389,7 +399,8 @@ function InventoryUI:FetchPlayerData()
             if self._stateManager.SetState then
                 self._stateManager:SetState({playerData = result})
             elseif self._stateManager.Set then
-                self._stateManager:Set({playerData = result})
+                -- StateManager.Set expects (path: string, value: any)
+                self._stateManager:Set("playerData", result)
             elseif self._stateManager.Update then
                 self._stateManager:Update({playerData = result})
             end
@@ -2278,7 +2289,12 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
         end
         warn("  - StateManager exists:", self._stateManager ~= nil)
     else
-        print("[InventoryUI] Found pets! Count:", table.maxn(pets))
+        -- Count pets in dictionary
+        local petCount = 0
+        for _ in pairs(pets) do
+            petCount = petCount + 1
+        end
+        print("[InventoryUI] Found pets! Count:", petCount)
     end
     
     if not pets then
