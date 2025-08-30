@@ -618,18 +618,18 @@ function InventoryUI:AnimateOpen()
     self.Frame.Visible = true
     self.Frame.BackgroundTransparency = 1
     
-    -- Fade in background
+    -- Quick fade in (reduced from 0.3 to 0.15)
     self._utilities.Tween(self.Frame, {
         BackgroundTransparency = 0
-    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    }, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
     
-    -- Animate content with slide effect
+    -- Subtle slide effect (reduced distance and time)
     local originalPosition = self.Frame.Position or UDim2.new(0.5, 0, 0.5, 0)
-    self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 1, 100)
+    self.Frame.Position = UDim2.new(originalPosition.X.Scale, originalPosition.X.Offset, 0, 20)
     
     self._utilities.Tween(self.Frame, {
         Position = originalPosition
-    }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
     
     -- Ensure we show the Pets tab first
     self:ShowTab("Pets")
@@ -650,11 +650,11 @@ function InventoryUI:AnimateClose()
         self.CurrentRefreshThread = nil
     end
     
-    -- Animate out
+    -- Quick fade out (reduced from 0.3 to 0.15)
     self._utilities.Tween(self.Frame, {
         BackgroundTransparency = 1,
-        Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
-    }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
+        Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 0, 20)
+    }, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
     
     -- Note: We don't wait here, WindowManager handles the timing
     

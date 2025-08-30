@@ -929,7 +929,7 @@ end
 -- ========================================
 
 function WindowManager:OpenWindow(windowModule)
-    -- If we're already animating, ignore the click
+    -- If we're already in the middle of a transition, absolutely do nothing
     if self._isTransitioning then
         if self._debugMode then
             print("[WindowManager] Transition in progress, ignoring request")
@@ -945,34 +945,39 @@ function WindowManager:OpenWindow(windowModule)
         return
     end
     
-    -- Start the transition!
-    self._isTransitioning = true
-    
-    if self._debugMode then
-        print("[WindowManager] Starting transition to:", windowModule)
-    end
-    
-    -- Create a coroutine for the transition
+    -- The magic is here: Wrap the entire animation sequence in a background thread
     task.spawn(function()
-        -- If a different window is already open, close it first
+        -- 1. IMMEDIATELY block any other transitions
+        self._isTransitioning = true
+        
+        if self._debugMode then
+            print("[WindowManager] Starting transition to:", windowModule)
+        end
+        
+        -- 2. If a window is open, play its close animation
         if self._currentWindow then
             if self._debugMode then
                 print("[WindowManager] Closing current window")
             end
             
-            -- Tell the old window to play its close animation
+            -- The AnimateClose() function should ONLY handle tweens/animations
             if self._currentWindow.AnimateClose then
                 self._currentWindow:AnimateClose()
             elseif self._currentWindow.Close then
                 self._currentWindow:Close()
             end
             
-            -- Don't wait, just continue immediately
+            -- Wait for the animation inside this background thread. This DOES NOT lag the game
+            task.wait(0.15)
+            
+            -- After closing, tell the module its frame is now hidden
+            if self._currentWindow.OnClosed then
+                self._currentWindow:OnClosed()
+            end
         end
         
-        -- Now, open the new window
+        -- 3. Set the new window and play its open animation
         self._currentWindow = windowModule
-        
         if self._currentWindow then
             if self._debugMode then
                 print("[WindowManager] Opening new window")
@@ -983,16 +988,17 @@ function WindowManager:OpenWindow(windowModule)
                 self._currentWindow:Initialize()
             end
             
-            -- Tell the new window to play its open animation
+            -- AnimateOpen() should make the frame visible and start its tweens
             if self._currentWindow.AnimateOpen then
                 self._currentWindow:AnimateOpen()
             elseif self._currentWindow.Open then
                 self._currentWindow:Open()
             end
             
-            -- Don't wait, call OnReady immediately
+            -- Wait for the open animation to finish
+            task.wait(0.2)
             
-            -- IMPORTANT: Tell the module it's ready for data loading
+            -- Tell the module it's fully open and ready for data loading
             if self._currentWindow.OnReady then
                 if self._debugMode then
                     print("[WindowManager] Calling OnReady")
@@ -1001,7 +1007,7 @@ function WindowManager:OpenWindow(windowModule)
             end
         end
         
-        -- Transition is complete, we can accept clicks again
+        -- 4. The transition is complete. Allow new window changes
         self._isTransitioning = false
         
         if self._debugMode then
@@ -1026,7 +1032,7 @@ function WindowManager:CloseCurrentWindow()
                 self._currentWindow:Close()
             end
             
-            task.wait(0.3)
+            task.wait(0.15)
             
             -- Call OnClosed if available
             if self._currentWindow.OnClosed then
