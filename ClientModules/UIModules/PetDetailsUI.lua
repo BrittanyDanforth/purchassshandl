@@ -1380,9 +1380,11 @@ function PetDetailsUI:OnLockClicked()
 	end
 	
 	-- Reset loading state after a short delay
-	task.wait(0.5)
-	self._buttonStates.lock.isLoading = false
-	self:UpdateLockButton()
+	task.spawn(function()
+		task.wait(0.5)
+		self._buttonStates.lock.isLoading = false
+		self:UpdateLockButton()
+	end)
 end
 
 function PetDetailsUI:UpdateEquipButton()
