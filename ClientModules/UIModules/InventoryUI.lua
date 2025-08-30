@@ -198,6 +198,12 @@ function InventoryUI.new(dependencies)
     self._statsUpdateQueue = {}
     self._statsUpdateTimer = nil
     
+    -- Pagination
+    self.CurrentPage = 1
+    self.PetsPerPage = 40
+    self.TotalPages = 1
+    self.PaginationControls = {}
+    
     -- State
     self.IsRefreshing = false
     self.CurrentFilter = FILTER_TYPE.ALL
@@ -490,7 +496,7 @@ function InventoryUI:FetchPlayerData()
                 self.StatsLabels.Equipped.Text = equippedCount .. "/6"
             end
             if self.StatsLabels.PetCount then
-                self.StatsLabels.PetCount.Text = "Pets: " .. petCount .. "/" .. self._realtimeStats.maxStorage
+                self.StatsLabels.PetCount.Text = petCount .. "/" .. self._realtimeStats.maxStorage
             end
         else
             warn("[InventoryUI] No pets field in player data!")
@@ -815,10 +821,6 @@ function InventoryUI:CreateStatsBar()
     local equippedFrame = self:CreateStatDisplay(statsBar, "Equipped", "0/6", self._config.COLORS.Success)
     self.StatsLabels.Equipped = equippedFrame:FindFirstChild("ValueLabel")
     
-    -- Showing count (filtered pets)
-    local showingFrame = self:CreateStatDisplay(statsBar, "Showing", "0", self._config.COLORS.Secondary)
-    self.StatsLabels.Showing = showingFrame:FindFirstChild("ValueLabel")
-    
     -- Storage bar
     local storageFrame = self:CreateStorageBar(statsBar)
     self.StatsLabels.Storage = storageFrame
@@ -1079,6 +1081,7 @@ function InventoryUI:CreateControls()
         function(option)
             print("[InventoryUI] Sort dropdown selected:", option)
             self.CurrentSort = option
+            self.CurrentPage = 1  -- Reset to first page
             self:RefreshInventory()
         end
     )
@@ -1089,6 +1092,7 @@ function InventoryUI:CreateControls()
         UDim2.new(0, 150, 0, 35), UDim2.new(0, 380, 0.5, -17.5),
         function(option)
             self.CurrentFilter = option
+            self.CurrentPage = 1  -- Reset to first page
             self:RefreshInventory()
         end
     )
@@ -1492,10 +1496,17 @@ end
 -- ========================================
 
 function InventoryUI:CreatePetGrid(parent: Frame)
-    -- Create scrolling frame with smooth scrolling
+    -- Create container for grid and pagination
+    local container = Instance.new("Frame")
+    container.Name = "PetGridContainer"
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.Parent = parent
+    
+    -- Create scrolling frame with reduced height for pagination
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "PetGridScrollFrame"
-    scrollFrame.Size = UDim2.new(1, -10, 1, -10)
+    scrollFrame.Size = UDim2.new(1, -10, 1, -50) -- Leave space for pagination
     scrollFrame.Position = UDim2.new(0, 5, 0, 5)
     scrollFrame.BackgroundTransparency = 1
     scrollFrame.BorderSizePixel = 0
@@ -1505,9 +1516,53 @@ function InventoryUI:CreatePetGrid(parent: Frame)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
     scrollFrame.ElasticBehavior = Enum.ElasticBehavior.Always
-    scrollFrame.Parent = parent
+    scrollFrame.Parent = container
     
     self.PetGrid = scrollFrame
+    
+    -- Create pagination controls
+    local paginationFrame = Instance.new("Frame")
+    paginationFrame.Name = "PaginationFrame"
+    paginationFrame.Size = UDim2.new(1, -20, 0, 40)
+    paginationFrame.Position = UDim2.new(0, 10, 1, -45)
+    paginationFrame.BackgroundColor3 = self._config.COLORS.Surface
+    paginationFrame.Parent = container
+    
+    self._utilities.CreateCorner(paginationFrame, 8)
+    
+    -- Previous button
+    local prevButton = self._uiFactory:CreateButton(paginationFrame, {
+        text = "◀",
+        size = UDim2.new(0, 40, 0, 30),
+        position = UDim2.new(0, 10, 0.5, -15),
+        backgroundColor = self._config.COLORS.Primary,
+        callback = function()
+            self:ChangePage(self.CurrentPage - 1)
+        end
+    })
+    self.PaginationControls.PrevButton = prevButton
+    
+    -- Page display
+    local pageLabel = self._uiFactory:CreateLabel(paginationFrame, {
+        text = "Page 1 / 1",
+        size = UDim2.new(1, -120, 1, 0),
+        position = UDim2.new(0.5, -60, 0, 0),
+        font = self._config.FONTS.Primary,
+        textColor = self._config.COLORS.Text
+    })
+    self.PaginationControls.PageLabel = pageLabel
+    
+    -- Next button
+    local nextButton = self._uiFactory:CreateButton(paginationFrame, {
+        text = "▶",
+        size = UDim2.new(0, 40, 0, 30),
+        position = UDim2.new(1, -50, 0.5, -15),
+        backgroundColor = self._config.COLORS.Primary,
+        callback = function()
+            self:ChangePage(self.CurrentPage + 1)
+        end
+    })
+    self.PaginationControls.NextButton = nextButton
     
     -- Add scroll detection for non-virtual scrolling
     self._janitor:Add(scrollFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
@@ -3317,11 +3372,7 @@ function InventoryUI:RenderStatValue(statType: string, value: number)
         
     elseif statType == "totalPets" and self.StatsLabels.PetCount then
         local displayValue = math.floor(value + 0.5)
-        self.StatsLabels.PetCount.Text = "Pets: " .. displayValue .. "/" .. self._realtimeStats.maxStorage
-        
-    elseif statType == "displayedPets" and self.StatsLabels.Showing then
-        local displayValue = math.floor(value + 0.5)
-        self.StatsLabels.Showing.Text = "Showing: " .. displayValue
+        self.StatsLabels.PetCount.Text = displayValue .. "/" .. self._realtimeStats.maxStorage
     end
 end
 
@@ -3365,6 +3416,51 @@ function InventoryUI:UpdateSingleStat(statType: string, delta: number)
     self:QueueStatsUpdate(statType, newValue)
 end
 
+-- ========================================
+-- PAGINATION
+-- ========================================
+
+function InventoryUI:ChangePage(newPage: number)
+    if newPage < 1 or newPage > self.TotalPages then
+        return
+    end
+    
+    self.CurrentPage = newPage
+    self:UpdatePaginationDisplay()
+    self:RefreshInventory()
+    
+    -- Animate page change
+    if self.PetGrid then
+        self.PetGrid.CanvasPosition = Vector2.new(0, 0)
+    end
+    
+    -- Sound feedback
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Click")
+    end
+end
+
+function InventoryUI:UpdatePaginationDisplay()
+    if self.PaginationControls.PageLabel then
+        self.PaginationControls.PageLabel.Text = string.format("Page %d / %d", self.CurrentPage, self.TotalPages)
+    end
+    
+    -- Update button states
+    if self.PaginationControls.PrevButton then
+        self.PaginationControls.PrevButton.BackgroundColor3 = self.CurrentPage <= 1 
+            and self._config.COLORS.Dark 
+            or self._config.COLORS.Primary
+        self.PaginationControls.PrevButton.Active = self.CurrentPage > 1
+    end
+    
+    if self.PaginationControls.NextButton then
+        self.PaginationControls.NextButton.BackgroundColor3 = self.CurrentPage >= self.TotalPages 
+            and self._config.COLORS.Dark 
+            or self._config.COLORS.Primary
+        self.PaginationControls.NextButton.Active = self.CurrentPage < self.TotalPages
+    end
+end
+
 function InventoryUI:ShowEmptyState()
     local emptyLabel = Instance.new("TextLabel")
     emptyLabel.Size = UDim2.new(1, 0, 0, 100)
@@ -3378,12 +3474,38 @@ function InventoryUI:ShowEmptyState()
 end
 
 function InventoryUI:DisplayPets(pets: table)
+    -- Calculate pagination
+    self.TotalPages = math.max(1, math.ceil(#pets / self.PetsPerPage))
+    
+    -- Ensure current page is valid
+    if self.CurrentPage > self.TotalPages then
+        self.CurrentPage = self.TotalPages
+    end
+    if self.CurrentPage < 1 then
+        self.CurrentPage = 1
+    end
+    
+    -- Update pagination display
+    self:UpdatePaginationDisplay()
+    
+    -- Calculate which pets to show on current page
+    local startIndex = (self.CurrentPage - 1) * self.PetsPerPage + 1
+    local endIndex = math.min(startIndex + self.PetsPerPage - 1, #pets)
+    
+    -- Create paginated subset
+    local petsToDisplay = {}
+    for i = startIndex, endIndex do
+        if pets[i] then
+            table.insert(petsToDisplay, pets[i])
+        end
+    end
+    
     if self.VirtualScrollEnabled then
-        -- Virtual scrolling mode
-        self.VisiblePets = pets  -- Store for virtual scrolling
+        -- Virtual scrolling mode with pagination
+        self.VisiblePets = petsToDisplay  -- Store paginated pets for virtual scrolling
         
-        -- Calculate total canvas size
-        local totalRows = math.ceil(#pets / self.ColumnsPerRow)
+        -- Calculate total canvas size for current page
+        local totalRows = math.ceil(#petsToDisplay / self.ColumnsPerRow)
         local canvasHeight = totalRows * (self.CardHeight + self.CardPadding)
         self.PetGrid.CanvasSize = UDim2.new(0, 0, 0, canvasHeight)
         
@@ -3395,8 +3517,8 @@ function InventoryUI:DisplayPets(pets: table)
         -- Initial render
         self:OnVirtualScroll()
     else
-        -- Traditional mode (create all cards)
-        for i, petInfo in ipairs(pets) do
+        -- Traditional mode with pagination
+        for i, petInfo in ipairs(petsToDisplay) do
             local card = self:CreatePetCard(self.PetGrid, petInfo.pet, petInfo.data)
             if card then
                 card.LayoutOrder = i
@@ -3405,6 +3527,9 @@ function InventoryUI:DisplayPets(pets: table)
             end
         end
     end
+    
+    -- Update stats to show total (not just current page)
+    self:UpdateStats(pets)
 end
 
 -- ========================================
