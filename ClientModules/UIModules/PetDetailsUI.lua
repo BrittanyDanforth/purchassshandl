@@ -1394,20 +1394,14 @@ function PetDetailsUI:OnEquipClicked()
 	-- *** NEW AAA FIX STARTS HERE ***
 	-- Check the rules BEFORE sending anything to the server.
 	if isEquipping then
-		-- *** CRITICAL FIX: Get the live count through EventBus ***
+		-- *** CRITICAL FIX: Get the most accurate count possible ***
 		local equippedCount = 0
 		
-		-- First try to get from EventBus (most up-to-date)
-		local liveStats = self._eventBus:Call("GetLiveEquippedCount")
-		if liveStats then
-			equippedCount = liveStats
-		else
-			-- Fallback to data cache if EventBus method not available
-			local playerData = self._dataCache:Get("playerData")
-			if playerData and playerData.pets then
-				for _, petData in pairs(playerData.pets) do
-					if petData.equipped then equippedCount = equippedCount + 1 end
-				end
+		-- Get count from data cache (should be up-to-date from real-time stats)
+		local playerData = self._dataCache:Get("playerData")
+		if playerData and playerData.pets then
+			for _, petData in pairs(playerData.pets) do
+				if petData.equipped then equippedCount = equippedCount + 1 end
 			end
 		end
 		
