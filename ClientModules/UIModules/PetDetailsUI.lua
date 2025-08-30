@@ -1332,62 +1332,57 @@ function PetDetailsUI:OnLockClicked()
 		self._lockButton.Active = false
 	end
 	
-	-- Send request to server
-	task.spawn(function()
-		local success = pcall(function()
-			if self._remoteManager then
-				self._remoteManager:Fire("TogglePetLock", {
-					uniqueId = self._currentPetInstance.uniqueId, 
-					locked = not self._currentPetInstance.locked
-				})
-				return true
-			end
-			return false
-		end)
+	-- Send request to server (Fire is instant, no need for task.spawn)
+	if self._remoteManager then
+		-- Fire the event
+		self._remoteManager:Fire("TogglePetLock", {
+			uniqueId = self._currentPetInstance.uniqueId, 
+			locked = not self._currentPetInstance.locked
+		})
 		
-		if success then
-			-- Update local state immediately (optimistic update)
-			self._currentPetInstance.locked = not self._currentPetInstance.locked
-			self:UpdateLockButton()
-			
-			-- Show notification
-			local message = self._currentPetInstance.locked and 
-				"Pet locked!" or "Pet unlocked!"
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Info",
-					message = message,
-					type = "info",
-					duration = 3
-				})
-			end
-			
-			-- Fire event
-			if self._eventBus then
-				local eventName = self._currentPetInstance.locked and 
-					"PetLocked" or "PetUnlocked"
-				self._eventBus:Fire(eventName, {
-					uniqueId = self._currentPetInstance.uniqueId
-				})
-			end
-		else
-			-- Show error
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Error",
-					message = "Failed to update pet lock status",
-					type = "error",
-					duration = 3
-				})
-			end
-			
-			-- Reset button
-			self:UpdateLockButton()
+		-- Update local state immediately (optimistic update)
+		self._currentPetInstance.locked = not self._currentPetInstance.locked
+		self:UpdateLockButton()
+		
+		-- Show notification
+		local message = self._currentPetInstance.locked and 
+			"Pet locked!" or "Pet unlocked!"
+		if self._notificationSystem then
+			self._notificationSystem:Show({
+				title = "Info",
+				message = message,
+				type = "info",
+				duration = 3
+			})
 		end
 		
-		-- Reset loading state
-		self._buttonStates.lock.isLoading = false
-	end)
+		-- Fire event
+		if self._eventBus then
+			local eventName = self._currentPetInstance.locked and 
+				"PetLocked" or "PetUnlocked"
+			self._eventBus:Fire(eventName, {
+				uniqueId = self._currentPetInstance.uniqueId
+			})
+		end
+	else
+		-- Show error
+		if self._notificationSystem then
+			self._notificationSystem:Show({
+				title = "Error",
+				message = "Failed to update pet lock status - no remote manager",
+				type = "error",
+				duration = 3
+			})
+		end
+		
+		-- Reset button
+		self:UpdateLockButton()
+	end
+	
+	-- Reset loading state after a short delay
+	task.wait(0.5)
+	self._buttonStates.lock.isLoading = false
+	self:UpdateLockButton()
 end
 
 function PetDetailsUI:UpdateEquipButton()
@@ -1741,38 +1736,51 @@ function PetDetailsUI:ConfirmRename(newName: string)
 				})
 			end)
 
-		if success and result and result.success then
-			-- Update local state with filtered name
-			self._currentPetInstance.nickname = filteredName
-			self:UpdatePetName()
+			if success and result and result.success then
+				-- Update local state with filtered name
+				self._currentPetInstance.nickname = filteredName
+				self:UpdatePetName()
 
-			-- Show notification
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Success",
-					message = "Pet renamed successfully!",
-					type = "success",
-					duration = 3
-				})
-			end
+				-- Show notification
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Success",
+						message = "Pet renamed successfully!",
+						type = "success",
+						duration = 3
+					})
+				end
 
-			-- Fire event
-			if self._eventBus then
-				self._eventBus:Fire("PetRenamed", {
-					uniqueId = self._currentPetInstance.uniqueId,
-					newName = newName
-				})
-			end
+				-- Fire event
+				if self._eventBus then
+					self._eventBus:Fire("PetRenamed", {
+						uniqueId = self._currentPetInstance.uniqueId,
+						newName = filteredName
+					})
+				end
 
-			-- Play sound
-			if self._soundSystem then
-				self._soundSystem:PlayUISound("Success")
+				-- Play sound
+				if self._soundSystem then
+					self._soundSystem:PlayUISound("Success")
+				end
+				
+				-- Close dialog on success
+				self:CloseRenameDialog()
+			else
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Error",
+						message = (result and result.message) or "Failed to rename pet",
+						type = "error",
+						duration = 3
+					})
+				end
 			end
 		else
 			if self._notificationSystem then
 				self._notificationSystem:Show({
 					title = "Error",
-					message = result or "Failed to rename pet",
+					message = "No remote manager available",
 					type = "error",
 					duration = 3
 				})
@@ -1781,9 +1789,6 @@ function PetDetailsUI:ConfirmRename(newName: string)
 		
 		-- Reset loading state
 		self._buttonStates.rename.isLoading = false
-	end
-	
-	self:CloseRenameDialog()
 	end)
 end
 
