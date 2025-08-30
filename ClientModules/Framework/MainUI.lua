@@ -770,6 +770,10 @@ function MainUI:RegisterModule(moduleName: string, moduleInstance: table)
 	end
 end
 
+function MainUI:GetModule(moduleName: string)
+	return self._modules[moduleName]
+end
+
 function MainUI:GetScreenGui(): ScreenGui?
 	return self.ScreenGui
 end

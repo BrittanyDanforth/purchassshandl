@@ -1394,11 +1394,20 @@ function PetDetailsUI:OnEquipClicked()
 	-- *** NEW AAA FIX STARTS HERE ***
 	-- Check the rules BEFORE sending anything to the server.
 	if isEquipping then
+		-- *** CRITICAL FIX: Get the live count through EventBus ***
 		local equippedCount = 0
-		local playerData = self._dataCache:Get("playerData")
-		if playerData and playerData.pets then
-			for _, petData in pairs(playerData.pets) do
-				if petData.equipped then equippedCount = equippedCount + 1 end
+		
+		-- First try to get from EventBus (most up-to-date)
+		local liveStats = self._eventBus:Call("GetLiveEquippedCount")
+		if liveStats then
+			equippedCount = liveStats
+		else
+			-- Fallback to data cache if EventBus method not available
+			local playerData = self._dataCache:Get("playerData")
+			if playerData and playerData.pets then
+				for _, petData in pairs(playerData.pets) do
+					if petData.equipped then equippedCount = equippedCount + 1 end
+				end
 			end
 		end
 		
@@ -1407,7 +1416,7 @@ function PetDetailsUI:OnEquipClicked()
 		if equippedCount >= MAX_EQUIPPED then
 			self._notificationSystem:Show({
 				title = "Team Full",
-				message = "You can't equip more than " .. MAX_EQUIPPED .. " pets.",
+				message = "You cannot equip more than " .. MAX_EQUIPPED .. " pets.",
 				type = "error"
 			})
 			self._soundSystem:PlayUISound("Error")

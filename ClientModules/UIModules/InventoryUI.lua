@@ -456,6 +456,11 @@ function InventoryUI:SetupEventListeners()
         self:RefreshEquippedCount()
     end))
     
+    -- Provide live equipped count to other modules
+    self._janitor:Add(self._eventBus:Connect("GetLiveEquippedCount", function()
+        return self:GetEquippedCount()
+    end))
+    
     self._janitor:Add(self._eventBus:On("PetLocked", function(data)
         self:UpdatePetCardLockStatus(data.uniqueId, true)
     end))
@@ -4617,6 +4622,11 @@ function InventoryUI:RefreshEquippedCount()
     -- Update real-time stats
     self._realtimeStats.equippedPets = equippedCount
     self._realtimeStats.animatingValues.equippedPets = equippedCount
+end
+
+function InventoryUI:GetEquippedCount()
+    -- Returns the live equipped count from real-time stats
+    return self._realtimeStats and self._realtimeStats.equippedPets or 0
 end
 
 function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
