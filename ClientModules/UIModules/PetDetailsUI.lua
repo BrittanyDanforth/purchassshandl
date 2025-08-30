@@ -1249,54 +1249,75 @@ function PetDetailsUI:OnEquipClicked()
 		self._equipButton.Active = false
 	end
 
-	-- Send request to server
-	local remote = self._currentPetInstance.equipped and "UnequipPet" or "EquipPet"
+	-- Wrap in pcall to ensure _isUpdating is always reset
+	local success, err = pcall(function()
+		-- Send request to server
+		local remote = self._currentPetInstance.equipped and "UnequipPet" or "EquipPet"
 
-	if self._remoteManager then
-		local success, result = self._remoteManager:InvokeServer(remote, 
-			self._currentPetInstance.uniqueId)
+		if self._remoteManager then
+			local invokeSuccess, result = pcall(function()
+				return self._remoteManager:InvokeServer(remote, 
+					self._currentPetInstance.uniqueId)
+			end)
 
-		if success then
-			-- Update local state
-			self._currentPetInstance.equipped = not self._currentPetInstance.equipped
-			self:UpdateEquipButton()
+			if invokeSuccess and result then
+				-- Update local state
+				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
+				self:UpdateEquipButton()
 
-			-- Show notification
-			local message = self._currentPetInstance.equipped and 
-				"Pet equipped!" or "Pet unequipped!"
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Success",
-					message = message,
-					type = "success",
-					duration = 3
-				})
+				-- Show notification
+				local message = self._currentPetInstance.equipped and 
+					"Pet equipped!" or "Pet unequipped!"
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Success",
+						message = message,
+						type = "success",
+						duration = 3
+					})
+				end
+
+				-- Fire event
+				if self._eventBus then
+					local eventName = self._currentPetInstance.equipped and 
+						"PetEquipped" or "PetUnequipped"
+					self._eventBus:Fire(eventName, {
+						uniqueId = self._currentPetInstance.uniqueId
+					})
+				end
+			else
+				-- Show error
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Error",
+						message = "Failed to update pet",
+						type = "error",
+						duration = 3
+					})
+				end
+
+				-- Reset button
+				self:UpdateEquipButton()
 			end
+		end
+	end)
 
-			-- Fire event
-			if self._eventBus then
-				local eventName = self._currentPetInstance.equipped and 
-					"PetEquipped" or "PetUnequipped"
-				self._eventBus:Fire(eventName, {
-					uniqueId = self._currentPetInstance.uniqueId
-				})
-			end
-		else
-			-- Show error
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Error",
-					message = result or "Failed to update pet",
-					type = "error",
-					duration = 3
-				})
-			end
-
-			-- Reset button
-			self:UpdateEquipButton()
+	if not success then
+		warn("[PetDetailsUI] Equip error:", err)
+		-- Reset button on error
+		self:UpdateEquipButton()
+		
+		if self._notificationSystem then
+			self._notificationSystem:Show({
+				title = "Error",
+				message = "An error occurred while updating equip status",
+				type = "error",
+				duration = 3
+			})
 		end
 	end
 
+	-- ALWAYS reset the flag
 	self._isUpdating = false
 end
 
@@ -1310,54 +1331,76 @@ function PetDetailsUI:OnLockClicked()
 		self._lockButton.Active = false
 	end
 
-	-- Send request to server
-	local remote = self._currentPetInstance.locked and "UnlockPet" or "LockPet"
+	-- Wrap in pcall to ensure _isUpdating is always reset
+	local success, err = pcall(function()
+		-- Send request to server
+		local remote = self._currentPetInstance.locked and "UnlockPet" or "LockPet"
 
-	if self._remoteManager then
-		local success, result = self._remoteManager:InvokeServer(remote, 
-			self._currentPetInstance.uniqueId)
+		if self._remoteManager then
+			-- Try to use InvokeServer but with a timeout
+			local invokeSuccess, result = pcall(function()
+				return self._remoteManager:InvokeServer(remote, 
+					self._currentPetInstance.uniqueId)
+			end)
 
-		if success then
-			-- Update local state
-			self._currentPetInstance.locked = not self._currentPetInstance.locked
-			self:UpdateLockButton()
+			if invokeSuccess and result then
+				-- Update local state
+				self._currentPetInstance.locked = not self._currentPetInstance.locked
+				self:UpdateLockButton()
 
-			-- Show notification
-			local message = self._currentPetInstance.locked and 
-				"Pet locked!" or "Pet unlocked!"
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Info",
-					message = message,
-					type = "info",
-					duration = 3
-				})
+				-- Show notification
+				local message = self._currentPetInstance.locked and 
+					"Pet locked!" or "Pet unlocked!"
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Info",
+						message = message,
+						type = "info",
+						duration = 3
+					})
+				end
+
+				-- Fire event
+				if self._eventBus then
+					local eventName = self._currentPetInstance.locked and 
+						"PetLocked" or "PetUnlocked"
+					self._eventBus:Fire(eventName, {
+						uniqueId = self._currentPetInstance.uniqueId
+					})
+				end
+			else
+				-- Show error
+				if self._notificationSystem then
+					self._notificationSystem:Show({
+						title = "Error",
+						message = "Failed to update pet lock status",
+						type = "error",
+						duration = 3
+					})
+				end
+
+				-- Reset button
+				self:UpdateLockButton()
 			end
+		end
+	end)
 
-			-- Fire event
-			if self._eventBus then
-				local eventName = self._currentPetInstance.locked and 
-					"PetLocked" or "PetUnlocked"
-				self._eventBus:Fire(eventName, {
-					uniqueId = self._currentPetInstance.uniqueId
-				})
-			end
-		else
-			-- Show error
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Error",
-					message = result or "Failed to update pet",
-					type = "error",
-					duration = 3
-				})
-			end
-
-			-- Reset button
-			self:UpdateLockButton()
+	if not success then
+		warn("[PetDetailsUI] Lock error:", err)
+		-- Reset button on error
+		self:UpdateLockButton()
+		
+		if self._notificationSystem then
+			self._notificationSystem:Show({
+				title = "Error",
+				message = "An error occurred while updating lock status",
+				type = "error",
+				duration = 3
+			})
 		end
 	end
 
+	-- ALWAYS reset the flag
 	self._isUpdating = false
 end
 
@@ -1700,12 +1743,14 @@ function PetDetailsUI:ConfirmRename(newName: string)
 	
 	-- Send rename request with proper format
 	if self._remoteManager then
-		local result = self._remoteManager:InvokeServer("RenamePet", {
-			uniqueId = self._currentPetInstance.uniqueId,
-			nickname = filteredName
-		})
+		local success, result = pcall(function()
+			return self._remoteManager:InvokeServer("RenamePet", {
+				uniqueId = self._currentPetInstance.uniqueId,
+				nickname = filteredName
+			})
+		end)
 
-		if result and result.success then
+		if success and result and result.success then
 			-- Update local state with filtered name
 			self._currentPetInstance.nickname = filteredName
 			self:UpdatePetName()
