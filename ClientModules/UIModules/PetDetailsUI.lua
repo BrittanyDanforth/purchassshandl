@@ -60,8 +60,8 @@ type PetData = {
 local WINDOW_SIZE = Vector2.new(700, 500)
 local HEADER_HEIGHT = 60
 local PET_DISPLAY_SIZE = 180
-local BUTTON_HEIGHT = 40
-local BUTTON_SPACING = 10
+local BUTTON_HEIGHT = 45
+local BUTTON_SPACING = 12
 local TAB_HEIGHT = 40
 local ANIMATION_TIME = 0.3
 local RENAME_DIALOG_SIZE = Vector2.new(400, 200)
@@ -418,18 +418,18 @@ function PetDetailsUI:CreateHeader()
 
 	self._utilities.CreateCorner(header, 20)
 
-	-- Premium gradient effect
+	-- Premium gradient effect with subtle styling
 	local gradient = Instance.new("UIGradient")
 	gradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 255))
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(245, 245, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(235, 235, 255))
 	})
-	gradient.Rotation = 45
+	gradient.Rotation = 90
 	gradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.8),
+		NumberSequenceKeypoint.new(0, 0.85),
 		NumberSequenceKeypoint.new(0.5, 0.9),
-		NumberSequenceKeypoint.new(1, 0.95)
+		NumberSequenceKeypoint.new(1, 0.92)
 	})
 	gradient.Parent = header
 
@@ -463,11 +463,11 @@ function PetDetailsUI:CreateHeader()
 
 	local nameLabel = self._uiFactory:CreateLabel(header, {
 		text = petName,
-		size = UDim2.new(1, -100, 1, 0),
-		position = UDim2.new(0, 20, 0, 0),
+		size = UDim2.new(1, -120, 1, 0),
+		position = UDim2.new(0, 30, 0, 0),
 		font = self._config.FONTS.Display,
 		textColor = self._config.COLORS.White,
-		textSize = 24,
+		textSize = 26,
 		textXAlignment = Enum.TextXAlignment.Left,
 		zIndex = 203
 	})
@@ -479,28 +479,7 @@ function PetDetailsUI:CreateHeader()
 	stroke.Transparency = 0.5
 	stroke.Parent = nameLabel
 	
-	-- Rarity badge (positioned to the right of name)
-	local nameSize = nameLabel.TextBounds
-	local rarityBadge = Instance.new("Frame")
-	rarityBadge.Name = "RarityBadge"
-	rarityBadge.Size = UDim2.new(0, 80, 0, 20)
-	rarityBadge.Position = UDim2.new(1, -160, 0.5, -10)  -- Right side of header
-	rarityBadge.BackgroundColor3 = self:GetRarityColor(self._currentPetData.rarity)
-	rarityBadge.ZIndex = 203
-	rarityBadge.Parent = header
-	
-	self._utilities.CreateCorner(rarityBadge, 12)
-	
-	-- Rarity text
-	local rarityText = Instance.new("TextLabel")
-	rarityText.Size = UDim2.new(1, 0, 1, 0)
-	rarityText.BackgroundTransparency = 1
-	rarityText.Text = self:GetRarityName(self._currentPetData.rarity)
-	rarityText.TextColor3 = Color3.new(1, 1, 1)
-	rarityText.TextScaled = true
-	rarityText.Font = self._config.FONTS.Secondary
-	rarityText.ZIndex = 204
-	rarityText.Parent = rarityBadge
+	-- Remove the rarity badge from header since it's shown in stats
 
 	-- Close button
 	local closeButton = self._uiFactory:CreateButton(header, {
@@ -664,9 +643,9 @@ function PetDetailsUI:CreatePremiumButton(parent: Frame, config)
 	local gradient = Instance.new("UIGradient")
 	gradient.Color = ColorSequence.new(Color3.new(1, 1, 1))
 	gradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.2),
-		NumberSequenceKeypoint.new(0.5, 0.3),
-		NumberSequenceKeypoint.new(1, 0.4)
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(0.5, 0.15),
+		NumberSequenceKeypoint.new(1, 0.2)
 	})
 	gradient.Rotation = -45
 	gradient.Parent = button
@@ -959,7 +938,7 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
 	-- Level and Experience
 	local levelFrame = self:CreateStatRow(container, "Level", 
 		tostring(petInstance.level), STAT_ICONS.level, yOffset)
-	yOffset = yOffset + 50
+	yOffset = yOffset + 55
 
 	-- Experience bar
 	local expFrame = Instance.new("Frame")
@@ -1084,37 +1063,59 @@ end
 function PetDetailsUI:CreateStatRow(parent: Frame, statName: string, value: string, 
 	icon: string, yPos: number, color: Color3?): Frame
 	local frame = Instance.new("Frame")
-	frame.Size = UDim2.new(1, -20, 0, 40)
+	frame.Size = UDim2.new(1, -20, 0, 45)
 	frame.Position = UDim2.new(0, 10, 0, yPos)
-	frame.BackgroundColor3 = self._config.COLORS.White
+	frame.BackgroundColor3 = self._config.COLORS.Surface
 	frame.Parent = parent
 
-	self._utilities.CreateCorner(frame, 8)
+	self._utilities.CreateCorner(frame, 10)
+	
+	-- Add subtle shadow
+	local shadow = Instance.new("Frame")
+	shadow.Size = UDim2.new(1, 0, 1, 0)
+	shadow.Position = UDim2.new(0, 0, 0, 2)
+	shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+	shadow.BackgroundTransparency = 0.92
+	shadow.ZIndex = frame.ZIndex - 1
+	shadow.Parent = frame
+	self._utilities.CreateCorner(shadow, 10)
 
-	-- Icon
-	local iconLabel = self._uiFactory:CreateLabel(frame, {
+	-- Icon with background
+	local iconBg = Instance.new("Frame")
+	iconBg.Size = UDim2.new(0, 35, 0, 35)
+	iconBg.Position = UDim2.new(0, 8, 0.5, -17.5)
+	iconBg.BackgroundColor3 = color or self._config.COLORS.Primary
+	iconBg.BackgroundTransparency = 0.85
+	iconBg.Parent = frame
+	self._utilities.CreateCorner(iconBg, 8)
+	
+	local iconLabel = self._uiFactory:CreateLabel(iconBg, {
 		text = icon,
-		size = UDim2.new(0, 40, 1, 0),
-		position = UDim2.new(0, 5, 0, 0),
-		textSize = 20
+		size = UDim2.new(1, 0, 1, 0),
+		position = UDim2.new(0, 0, 0, 0),
+		textSize = 18
 	})
 
-	-- Stat name
+	-- Stat name with better font
 	local nameLabel = self._uiFactory:CreateLabel(frame, {
 		text = statName,
-		size = UDim2.new(0.4, -50, 1, 0),
-		position = UDim2.new(0, 45, 0, 0),
-		textXAlignment = Enum.TextXAlignment.Left
+		size = UDim2.new(0.4, -60, 1, 0),
+		position = UDim2.new(0, 55, 0, 0),
+		textXAlignment = Enum.TextXAlignment.Left,
+		textColor = self._config.COLORS.TextSecondary,
+		font = self._config.FONTS.Primary,
+		textSize = 16
 	})
 
-	-- Value
+	-- Value with emphasis
 	local valueLabel = self._uiFactory:CreateLabel(frame, {
 		text = value,
-		size = UDim2.new(0.4, 0, 1, 0),
+		size = UDim2.new(0.5, -10, 1, 0),
 		position = UDim2.new(0.5, 0, 0, 0),
 		textXAlignment = Enum.TextXAlignment.Right,
-		textColor = color or self._config.COLORS.Dark,
-		font = self._config.FONTS.Secondary
+		textColor = color or self._config.COLORS.Text,
+		font = self._config.FONTS.Secondary,
+		textSize = 18
 	})
 
 	return frame
@@ -1526,7 +1527,40 @@ function PetDetailsUI:OnEquipClicked()
 					})
 				end
 			elseif type(result) == "boolean" and result then
-				-- Legacy response format
+				-- Legacy response format - but check if we should actually update
+				local wasEquipped = self._currentPetInstance.equipped
+				
+				-- If we were trying to equip and we're at max, don't update
+				if not wasEquipped then
+					local playerData = self._dataCache and self._dataCache:Get("playerData")
+					local equippedCount = 0
+					if playerData and playerData.pets then
+						for _, petData in pairs(playerData.pets) do
+							if petData.equipped then
+								equippedCount = equippedCount + 1
+							end
+						end
+					end
+					
+					if equippedCount >= 6 then
+						-- Server allowed it but we shouldn't update locally
+						if self._notificationSystem then
+							self._notificationSystem:Show({
+								title = "Error",
+								message = "Maximum pets equipped. Server error - please refresh.",
+								type = "error",
+								duration = 3
+							})
+						end
+						
+						-- Reset button state
+						self:UpdateEquipButton()
+						self._buttonStates.equip.isLoading = false
+						return
+					end
+				end
+				
+				-- Safe to update
 				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
 				self:UpdateEquipButton()
 				

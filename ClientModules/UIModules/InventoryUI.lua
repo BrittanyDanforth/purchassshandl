@@ -537,6 +537,9 @@ function InventoryUI:FetchPlayerData()
                 if self.StatsLabels.PetCount then
                     self.StatsLabels.PetCount.Text = petCount .. "/" .. self._realtimeStats.maxStorage
                 end
+                
+                -- Force render the total pets update
+                self:RenderStatUpdate("totalPets", petCount)
             else
                 -- Subsequent updates - use animated update
                 local petDelta = petCount - self._realtimeStats.totalPets
