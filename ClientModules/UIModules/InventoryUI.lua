@@ -44,7 +44,7 @@ type SortType = "Rarity" | "Level" | "Power" | "Recent" | "Name"
 -- ========================================
 
 local GRID_PADDING = 10
-local CARD_SIZE = Vector2.new(120, 140)
+local CARD_SIZE = Vector2.new(120, 160) -- Increased height for stats
 local CARDS_PER_ROW = 5
 local SCROLL_THRESHOLD = 5 -- Cards to preload above/below viewport
 local SEARCH_DEBOUNCE = 0.3
@@ -1914,6 +1914,57 @@ function InventoryUI:GetPooledCard()
     levelLabel.TextScaled = true
     levelLabel.TextColor3 = Color3.new(1, 1, 1)
     levelLabel.Parent = card
+    
+    -- Add stats container
+    local statsContainer = Instance.new("Frame")
+    statsContainer.Name = "StatsContainer"
+    statsContainer.Size = UDim2.new(1, -10, 0, 40)
+    statsContainer.Position = UDim2.new(0, 5, 1, -75)
+    statsContainer.BackgroundTransparency = 1
+    statsContainer.Parent = card
+    
+    -- Power stat
+    local powerFrame = Instance.new("Frame")
+    powerFrame.Name = "PowerFrame"
+    powerFrame.Size = UDim2.new(1, 0, 0, 20)
+    powerFrame.Position = UDim2.new(0, 0, 0, 0)
+    powerFrame.BackgroundTransparency = 1
+    powerFrame.Parent = statsContainer
+    
+    local powerIcon = Instance.new("ImageLabel")
+    powerIcon.Name = "PowerIcon"
+    powerIcon.Size = UDim2.new(0, 16, 0, 16)
+    powerIcon.Position = UDim2.new(0, 0, 0, 2)
+    powerIcon.BackgroundTransparency = 1
+    powerIcon.Image = "rbxassetid://7072718362" -- Sword icon
+    powerIcon.ImageColor3 = self._config.COLORS.Accent
+    powerIcon.Parent = powerFrame
+    
+    local powerLabel = Instance.new("TextLabel")
+    powerLabel.Name = "PowerLabel"
+    powerLabel.Size = UDim2.new(1, -20, 1, 0)
+    powerLabel.Position = UDim2.new(0, 20, 0, 0)
+    powerLabel.BackgroundTransparency = 1
+    powerLabel.Font = self._config.FONTS.Primary
+    powerLabel.TextScaled = true
+    powerLabel.TextColor3 = self._config.COLORS.Text
+    powerLabel.TextXAlignment = Enum.TextXAlignment.Left
+    powerLabel.Text = "Power: 0"
+    powerLabel.Parent = powerFrame
+    
+    -- Ability label (if pet has abilities)
+    local abilityLabel = Instance.new("TextLabel")
+    abilityLabel.Name = "AbilityLabel"
+    abilityLabel.Size = UDim2.new(1, 0, 0, 20)
+    abilityLabel.Position = UDim2.new(0, 0, 0, 25)
+    abilityLabel.BackgroundTransparency = 1
+    abilityLabel.Font = self._config.FONTS.Primary
+    abilityLabel.TextScaled = true
+    abilityLabel.TextColor3 = self._config.COLORS.Secondary
+    abilityLabel.TextXAlignment = Enum.TextXAlignment.Center
+    abilityLabel.Text = ""
+    abilityLabel.Visible = false
+    abilityLabel.Parent = statsContainer
     self._utilities.CreateCorner(levelLabel, 4)
     
     local button = Instance.new("TextButton")
@@ -1982,6 +2033,31 @@ function InventoryUI:UpdateCardWithData(card: Frame, petInstance: PetInstance, p
     local levelLabel = card:FindFirstChild("LevelLabel")
     if levelLabel then
         levelLabel.Text = "Lv." .. tostring(petInstance.level or 1)
+    end
+    
+    -- Update stats
+    local statsContainer = card:FindFirstChild("StatsContainer")
+    if statsContainer then
+        local powerLabel = statsContainer:FindFirstChild("PowerFrame") and statsContainer.PowerFrame:FindFirstChild("PowerLabel")
+        if powerLabel then
+            -- Calculate total power (base power * level multiplier)
+            local basePower = petData.baseStats and petData.baseStats.power or 100
+            local level = petInstance.level or 1
+            local totalPower = math.floor(basePower * (1 + (level - 1) * 0.1))
+            powerLabel.Text = "Power: " .. tostring(totalPower)
+        end
+        
+        local abilityLabel = statsContainer:FindFirstChild("AbilityLabel")
+        if abilityLabel then
+            -- Show first ability if available
+            if petData.abilities and next(petData.abilities) then
+                local firstAbility = next(petData.abilities)
+                abilityLabel.Text = firstAbility
+                abilityLabel.Visible = true
+            else
+                abilityLabel.Visible = false
+            end
+        end
     end
     
     -- Update click handler
