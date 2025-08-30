@@ -380,7 +380,14 @@ function InventoryUI:FetchPlayerData()
         print("[InventoryUI] Player data structure:", result)
         
         -- Check for pets in various possible locations
-        local pets = result.pets or (result.playerData and result.playerData.pets)
+        local pets = nil
+        if result.data and result.data.pets then
+            pets = result.data.pets
+        elseif result.pets then
+            pets = result.pets
+        elseif result.playerData and result.playerData.pets then
+            pets = result.playerData.pets
+        end
         
         if pets then
             local petCount = 0
@@ -396,6 +403,15 @@ function InventoryUI:FetchPlayerData()
                     table.insert(keys, tostring(k) .. " (" .. type(v) .. ")")
                 end
                 print("[InventoryUI] Data structure keys:", table.concat(keys, ", "))
+                
+                -- Also check if there's a data field
+                if result.data and type(result.data) == "table" then
+                    local dataKeys = {}
+                    for k, v in pairs(result.data) do
+                        table.insert(dataKeys, tostring(k) .. " (" .. type(v) .. ")")
+                    end
+                    print("[InventoryUI] Data.* structure keys:", table.concat(dataKeys, ", "))
+                end
             end
         end
         
@@ -2256,7 +2272,12 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
     
     if self._dataCache then
         local playerData = self._dataCache:Get("playerData")
-        if playerData and playerData.pets then
+        
+        -- Check for nested data structure (result.data.pets)
+        if playerData and playerData.data and playerData.data.pets then
+            pets = playerData.data.pets
+        -- Fallback to direct pets field
+        elseif playerData and playerData.pets then
             pets = playerData.pets
         end
     end
@@ -2273,8 +2294,15 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
             state = self._stateManager:GetData()
         end
         
-        if state and state.playerData and state.playerData.pets then
+        -- Check nested structures in state
+        if state and state.playerData and state.playerData.data and state.playerData.data.pets then
+            pets = state.playerData.data.pets
+        elseif state and state.playerData and state.playerData.pets then
             pets = state.playerData.pets
+        elseif state and state.data and state.data.pets then
+            pets = state.data.pets
+        elseif state and state.pets then
+            pets = state.pets
         end
     end
     
@@ -2283,10 +2311,14 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
         local fullData = self._dataCache:Get()
         if fullData and type(fullData) == "table" then
             -- Check various possible paths
-            if fullData.pets then
+            if fullData.data and fullData.data.pets then
+                pets = fullData.data.pets
+            elseif fullData.pets then
                 pets = fullData.pets
             elseif fullData.playerData and fullData.playerData.pets then
                 pets = fullData.playerData.pets
+            elseif fullData.playerData and fullData.playerData.data and fullData.playerData.data.pets then
+                pets = fullData.playerData.data.pets
             end
         end
     end
