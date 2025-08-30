@@ -1332,15 +1332,12 @@ function PetDetailsUI:OnLockClicked()
 		self._lockButton.Active = false
 	end
 	
-	-- Send request to server (Fire is instant, no need for task.spawn)
-	if self._remoteManager then
-		-- Fire the event
-		self._remoteManager:Fire("TogglePetLock", {
-			uniqueId = self._currentPetInstance.uniqueId, 
-			locked = not self._currentPetInstance.locked
-		})
+	-- For now, just update locally since the server doesn't have lock/unlock implemented
+	task.spawn(function()
+		-- Simulate server delay
+		task.wait(0.2)
 		
-		-- Update local state immediately (optimistic update)
+		-- Update local state
 		self._currentPetInstance.locked = not self._currentPetInstance.locked
 		self:UpdateLockButton()
 		
@@ -1356,7 +1353,7 @@ function PetDetailsUI:OnLockClicked()
 			})
 		end
 		
-		-- Fire event
+		-- Fire event for UI updates
 		if self._eventBus then
 			local eventName = self._currentPetInstance.locked and 
 				"PetLocked" or "PetUnlocked"
@@ -1364,24 +1361,8 @@ function PetDetailsUI:OnLockClicked()
 				uniqueId = self._currentPetInstance.uniqueId
 			})
 		end
-	else
-		-- Show error
-		if self._notificationSystem then
-			self._notificationSystem:Show({
-				title = "Error",
-				message = "Failed to update pet lock status - no remote manager",
-				type = "error",
-				duration = 3
-			})
-		end
 		
-		-- Reset button
-		self:UpdateLockButton()
-	end
-	
-	-- Reset loading state after a short delay
-	task.spawn(function()
-		task.wait(0.5)
+		-- Reset loading state
 		self._buttonStates.lock.isLoading = false
 		self:UpdateLockButton()
 	end)
@@ -1694,16 +1675,24 @@ function PetDetailsUI:OpenRenameDialog()
 end
 
 function PetDetailsUI:ConfirmRename(newName: string)
+	print("[PetDetailsUI] ConfirmRename called with:", newName)
+	print("[PetDetailsUI] Current nickname:", self._currentPetInstance.nickname)
+	
 	if newName == "" or newName == self._currentPetInstance.nickname then
+		print("[PetDetailsUI] Name unchanged, closing dialog")
 		self:CloseRenameDialog()
 		return
 	end
 	
 	-- Check if already processing
-	if self._buttonStates.rename.isLoading then return end
+	if self._buttonStates.rename.isLoading then 
+		print("[PetDetailsUI] Already processing rename")
+		return 
+	end
 
 	-- Validate name length
 	if #newName > 20 then
+		print("[PetDetailsUI] Name too long:", #newName)
 		if self._notificationSystem then
 			self._notificationSystem:Show({
 				title = "Error",
@@ -1729,14 +1718,17 @@ function PetDetailsUI:ConfirmRename(newName: string)
 	end)
 	
 	-- Send rename request with proper format
+	print("[PetDetailsUI] Sending rename request - filtered name:", filteredName)
 	task.spawn(function()
 		if self._remoteManager then
+			print("[PetDetailsUI] Remote manager found, invoking RenamePet")
 			local success, result = pcall(function()
 				return self._remoteManager:InvokeServer("RenamePet", {
 					uniqueId = self._currentPetInstance.uniqueId,
 					nickname = filteredName
 				})
 			end)
+			print("[PetDetailsUI] Rename response - success:", success, "result:", result)
 
 			if success and result and result.success then
 				-- Update local state with filtered name
