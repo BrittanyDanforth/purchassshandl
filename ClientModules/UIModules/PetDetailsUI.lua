@@ -686,76 +686,19 @@ function PetDetailsUI:CreatePremiumButton(parent: Frame, config)
 end
 
 function PetDetailsUI:CreateActionButtons(parent: Frame)
-	
-	-- Check if at max equipped pets
-	local playerData = self._dataCache and self._dataCache:Get("playerData")
-	local equippedCount = 0
-	if playerData and playerData.pets then
-		for _, petData in pairs(playerData.pets) do
-			if petData.equipped then
-				equippedCount = equippedCount + 1
-			end
-		end
-	end
-	
-	local MAX_EQUIPPED = 6
-	local isAtMaxEquipped = equippedCount >= MAX_EQUIPPED and not self._currentPetInstance.equipped
-	
-	-- FIXED: Equip button at position 0,0 (top of actions frame)
+	-- Simple equip button
 	self._equipButton = self:CreatePremiumButton(parent, {
-		text = isAtMaxEquipped and "Max Equipped" or (self._currentPetInstance.equipped and "Unequip" or "Equip"),
+		text = self._currentPetInstance.equipped and "Unequip" or "Equip",
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
-		position = UDim2.new(0, 0, 0, 0), -- FIXED: Position at 0,0
-		backgroundColor = isAtMaxEquipped and self._config.COLORS.TextSecondary or (self._currentPetInstance.equipped and 
+		position = UDim2.new(0, 0, 0, 0),
+		backgroundColor = self._currentPetInstance.equipped and 
 			self._config.COLORS.Error or 
-			self._config.COLORS.Success),
+			self._config.COLORS.Success,
 		zIndex = 206,
 		callback = function()
-			-- Check if at max before calling OnEquipClicked
-			if isAtMaxEquipped then
-				if self._notificationSystem then
-					self._notificationSystem:Show({
-						title = "Maximum Pets Equipped",
-						message = "You already have 6 pets equipped. Unequip one first.",
-						type = "error",
-						duration = 3
-					})
-				end
-				
-				-- Play error sound
-				if self._soundSystem then
-					self._soundSystem:PlayUISound("Error")
-				end
-				
-				return
-			end
-			
 			self:OnEquipClicked()
 		end
 	})
-	
-	-- Store original properties for state management
-	self._equipButton:SetAttribute("OriginalColor", self._equipButton.BackgroundColor3)
-	self._equipButton:SetAttribute("OriginalText", self._equipButton.Text)
-	
-	-- Disable button if at max equipped
-	if isAtMaxEquipped then
-		self._equipButton.Active = false
-		self._equipButton.AutoButtonColor = false
-		
-		-- Add an indicator showing the limit
-		local limitLabel = Instance.new("TextLabel")
-		limitLabel.Name = "LimitLabel"
-		limitLabel.Size = UDim2.new(1, 0, 0.3, 0)
-		limitLabel.Position = UDim2.new(0, 0, 0.7, 0)
-		limitLabel.BackgroundTransparency = 1
-		limitLabel.Text = "(" .. equippedCount .. "/" .. MAX_EQUIPPED .. ")"
-		limitLabel.TextColor3 = Color3.new(1, 1, 1)
-		limitLabel.TextScaled = true
-		limitLabel.Font = self._config.FONTS.Secondary
-		limitLabel.ZIndex = 207
-		limitLabel.Parent = self._equipButton
-	end
 
 	-- FIXED: Lock button below equip button with proper spacing
 	self._lockButton = self:CreatePremiumButton(parent, {
@@ -1439,260 +1382,122 @@ function PetDetailsUI:ApplyVariantEffect(container: Frame, variant: string)
 end
 
 -- ========================================
+-- HELPER FUNCTIONS
+-- ========================================
+
+function PetDetailsUI:GetEquippedCount(): number
+	local count = 0
+	local playerData = self._dataCache and self._dataCache:Get("playerData")
+	if playerData and playerData.pets then
+		for _, pet in pairs(playerData.pets) do
+			if pet.equipped then
+				count = count + 1
+			end
+		end
+	end
+	return count
+end
+
+-- ========================================
 -- BUTTON ACTIONS
 -- ========================================
 
 function PetDetailsUI:OnEquipClicked()
-	-- Check if already loading
+	-- Simple loading check
 	if self._buttonStates.equip.isLoading then return end
 	
-	-- CRITICAL: Double-check if we're trying to equip when at max
-	if not self._currentPetInstance.equipped then
-		local playerData = self._dataCache and self._dataCache:Get("playerData")
-		local equippedCount = 0
-		if playerData and playerData.pets then
-			for _, petData in pairs(playerData.pets) do
-				if petData.equipped then
-					equippedCount = equippedCount + 1
-				end
-			end
-		end
-		
-		if equippedCount >= 6 then
-			-- Show notification
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Maximum Pets Equipped",
-					message = "You already have 6 pets equipped. Unequip one first.",
-					type = "error",
-					duration = 3
-				})
-			end
-			
-			-- Play error sound
-			if self._soundSystem then
-				self._soundSystem:PlayUISound("Error")
-			end
-			
-			-- Make sure button shows correct state
-			if self._equipButton then
-				self._equipButton.Active = false
-				self._equipButton.AutoButtonColor = false
-			end
-			
-			return -- STOP HERE - DO NOT SEND REQUEST
-		end
-	end
+	-- Get current equipped count from a SINGLE source of truth
+	local equippedCount = self:GetEquippedCount()
+	local isEquipping = not self._currentPetInstance.equipped
 	
-
+	-- Simple validation: Can't equip if at max
+	if isEquipping and equippedCount >= 6 then
+		self._notificationSystem:Show({
+			title = "Maximum Equipped",
+			message = "You have 6 pets equipped. Unequip one first.",
+			type = "error",
+			duration = 3
+		})
+		self._soundSystem:PlayUISound("Error")
+		return
+	end
 	
 	-- Set loading state
 	self._buttonStates.equip.isLoading = true
-	if self._equipButton then
-		self._equipButton.Text = "..."
-		self._equipButton.Active = false
-	end
+	self._equipButton.Text = "..."
+	self._equipButton.Active = false
 	
-	-- Send request to server
-	local remote = self._currentPetInstance.equipped and "UnequipPet" or "EquipPet"
+	-- Send request
+	local remote = isEquipping and "EquipPet" or "UnequipPet"
 	
 	task.spawn(function()
-		local success, result = pcall(function()
-			if self._remoteManager then
-				return self._remoteManager:InvokeServer(remote, self._currentPetInstance.uniqueId)
-			end
-			return false, "No remote manager"
+		-- Try to call server
+		local success, serverResponse = pcall(function()
+			return self._remoteManager:InvokeServer(remote, self._currentPetInstance.uniqueId)
 		end)
 		
-		if success and result then
-			-- Only update local state if server confirms success
-			if type(result) == "table" and result.success then
-				-- Additional validation for equip
-				local wasEquipped = self._currentPetInstance.equipped
-				if not wasEquipped then
-					-- Double check we're not over limit
-					local playerData = self._dataCache and self._dataCache:Get("playerData")
-					local equippedCount = 0
-					if playerData and playerData.pets then
-						for _, petData in pairs(playerData.pets) do
-							if petData.equipped then
-								equippedCount = equippedCount + 1
-							end
-						end
-					end
-					
-					if equippedCount >= 6 then
-						-- Server said success but we're at max - reject it
-						if self._notificationSystem then
-							self._notificationSystem:Show({
-								title = "Maximum Pets Equipped",
-								message = "You already have 6 pets equipped. Please unequip one first.",
-								type = "error",
-								duration = 3
-							})
-						end
-						
-						-- Reset button state
-						self:UpdateEquipButton()
-						self._buttonStates.equip.isLoading = false
-						
-						-- Play error sound
-						if self._soundSystem then
-							self._soundSystem:PlayUISound("Error")
-						end
-						
-						return
-					end
-				end
-				
-				-- Update local state
-				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
+		-- Always reset loading state first
+		self._buttonStates.equip.isLoading = false
+		
+		-- SIMPLE APPROACH: Just check the count again after server response
+		if success and serverResponse then
+			-- Re-check equipped count to see what actually happened
+			local newEquippedCount = self:GetEquippedCount()
+			
+			-- Simple logic: 
+			-- If we tried to equip and count didn't go up, it failed
+			-- If we tried to unequip and count didn't go down, it failed
+			local expectedChange = isEquipping and 1 or -1
+			local actualChange = newEquippedCount - equippedCount
+			
+			if actualChange == expectedChange then
+				-- Success! Update our local state
+				self._currentPetInstance.equipped = isEquipping
 				self:UpdateEquipButton()
 				
-				-- Show success notification
-				local message = self._currentPetInstance.equipped and 
-					"Pet equipped!" or "Pet unequipped!"
-				if self._notificationSystem then
-					self._notificationSystem:Show({
-						title = "Success",
-						message = message,
-						type = "success",
-						duration = 3
-					})
-				end
+				-- Show success message
+				self._notificationSystem:Show({
+					title = "Success",
+					message = isEquipping and "Pet equipped!" or "Pet unequipped!",
+					type = "success",
+					duration = 3
+				})
 				
-				-- Fire event to update inventory
-				if self._eventBus then
-					local eventName = self._currentPetInstance.equipped and 
-						"PetEquipped" or "PetUnequipped"
-					self._eventBus:Fire(eventName, {
-						uniqueId = self._currentPetInstance.uniqueId
-					})
-				end
-			elseif type(result) == "boolean" and result then
-				-- Legacy response format - but check if we should actually update
-				local wasEquipped = self._currentPetInstance.equipped
-				
-				-- If we were trying to equip and we're at max, don't update
-				if not wasEquipped then
-					local playerData = self._dataCache and self._dataCache:Get("playerData")
-					local equippedCount = 0
-					if playerData and playerData.pets then
-						for _, petData in pairs(playerData.pets) do
-							if petData.equipped then
-								equippedCount = equippedCount + 1
-							end
-						end
-					end
-					
-					if equippedCount >= 6 then
-						-- Server allowed it but we shouldn't update locally
-						if self._notificationSystem then
-							self._notificationSystem:Show({
-								title = "Maximum Pets Equipped",
-								message = "You already have 6 pets equipped. Please unequip one first.",
-								type = "error",
-								duration = 3
-							})
-						end
-						
-						-- Reset button state without updating equipped status
-						self:UpdateEquipButton()
-						self._buttonStates.equip.isLoading = false
-						
-						-- Play error sound
-						if self._soundSystem then
-							self._soundSystem:PlayUISound("Error")
-						end
-						
-						return
-					end
-				end
-				
-				-- Final check before updating - ensure we're not exceeding limit
-				if not wasEquipped then
-					-- One more check to be absolutely sure
-					local finalPlayerData = self._dataCache and self._dataCache:Get("playerData")
-					local finalEquippedCount = 0
-					if finalPlayerData and finalPlayerData.pets then
-						for _, petData in pairs(finalPlayerData.pets) do
-							if petData.equipped then
-								finalEquippedCount = finalEquippedCount + 1
-							end
-						end
-					end
-					
-					if finalEquippedCount >= 6 then
-						-- STOP - DO NOT UPDATE ANYTHING
-						if self._notificationSystem then
-							self._notificationSystem:Show({
-								title = "Maximum Pets Equipped",
-								message = "Cannot equip - already at maximum (6/6)",
-								type = "error",
-								duration = 3
-							})
-						end
-						
-						-- Reset button state
-						self._buttonStates.equip.isLoading = false
-						self:UpdateEquipButton()
-						
-						return
-					end
-				end
-				
-				-- Safe to update
-				self._currentPetInstance.equipped = not self._currentPetInstance.equipped
-				self:UpdateEquipButton()
-				
-				-- Show success notification
-				local message = self._currentPetInstance.equipped and 
-					"Pet equipped!" or "Pet unequipped!"
-				if self._notificationSystem then
-					self._notificationSystem:Show({
-						title = "Success",
-						message = message,
-						type = "success",
-						duration = 3
-					})
-				end
-				
-				-- Fire event to update inventory
-				if self._eventBus then
-					local eventName = self._currentPetInstance.equipped and 
-						"PetEquipped" or "PetUnequipped"
-					self._eventBus:Fire(eventName, {
-						uniqueId = self._currentPetInstance.uniqueId
-					})
-				end
+				-- Fire event
+				self._eventBus:Fire(isEquipping and "PetEquipped" or "PetUnequipped", {
+					uniqueId = self._currentPetInstance.uniqueId
+				})
 			else
-				-- Server rejected the request
-				if self._notificationSystem then
+				-- Failed - reset everything
+				self:UpdateEquipButton()
+				
+				-- Show appropriate error
+				if isEquipping and newEquippedCount >= 6 then
+					self._notificationSystem:Show({
+						title = "Maximum Equipped",
+						message = "You already have 6 pets equipped.",
+						type = "error",
+						duration = 3
+					})
+				else
 					self._notificationSystem:Show({
 						title = "Error",
-						message = (result and result.message) or "Failed to update pet status",
+						message = "Failed to update pet status",
 						type = "error",
 						duration = 3
 					})
 				end
 			end
 		else
-			-- Show error
-			if self._notificationSystem then
-				self._notificationSystem:Show({
-					title = "Error",
-					message = result or "Failed to update pet",
-					type = "error",
-					duration = 3
-				})
-			end
-			
-			-- Reset button
+			-- Server error
 			self:UpdateEquipButton()
+			self._notificationSystem:Show({
+				title = "Error",
+				message = "Failed to contact server",
+				type = "error",
+				duration = 3
+			})
 		end
-		
-		-- Reset loading state
-		self._buttonStates.equip.isLoading = false
 	end)
 end
 

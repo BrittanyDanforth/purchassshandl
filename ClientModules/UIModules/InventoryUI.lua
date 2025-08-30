@@ -3510,20 +3510,9 @@ end
 
 -- Direct stat update for immediate changes
 function InventoryUI:UpdateSingleStat(statType: string, delta: number)
+    -- Simplified - just update the value
     local currentValue = self._realtimeStats[statType] or 0
     local newValue = math.max(0, currentValue + delta)
-    
-    -- Special validation for equipped pets - NEVER exceed 6
-    if statType == "equippedPets" then
-        newValue = math.min(6, newValue)
-        
-        -- Additional safety: if we're trying to increase beyond 6, ignore it
-        if delta > 0 and currentValue >= 6 then
-            warn("[InventoryUI] Attempted to equip beyond limit (6). Current:", currentValue)
-            return
-        end
-    end
-    
     self:QueueStatsUpdate(statType, newValue)
 end
 
@@ -4546,120 +4535,84 @@ function InventoryUI:OnSearchChanged(text: string)
 end
 
 function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolean)
-    -- Update visual card immediately for responsiveness
-    local cardUpdated = false
+    -- Simple approach: Just update the visuals based on the current data
+    local card = nil
     
+    -- Find the card
     if self.VirtualScrollEnabled then
-        -- Virtual scrolling mode - update the data and visible cards
-        if self.VisiblePets then
-            for _, petInfo in ipairs(self.VisiblePets) do
-                if petInfo.pet.uniqueId == uniqueId then
-                    petInfo.pet.equipped = equipped
-                    break
-                end
-            end
-        end
-        
-        -- Update any visible cards
-        for index, card in pairs(self.ActiveCards) do
-            if card.Name == "PetCard_" .. uniqueId then
-                cardUpdated = true
-                card:SetAttribute("Equipped", equipped)
-                
-                local indicator = card:FindFirstChild("EquippedIndicator")
-                if equipped and not indicator then
-                    -- Add equipped indicator with animation
-                    indicator = Instance.new("ImageLabel")
-                    indicator.Name = "EquippedIndicator"
-                    indicator.Size = UDim2.new(0, 30, 0, 30)
-                    indicator.Position = UDim2.new(1, -35, 0, 5)
-                    indicator.BackgroundTransparency = 1
-                    indicator.Image = "rbxassetid://7734053426" -- Checkmark icon
-                    indicator.ImageColor3 = self._config.COLORS.Success
-                    indicator.ImageTransparency = 1
-                    indicator.Parent = card
-                    
-                    -- Animate in
-                    self._utilities.Tween(indicator, {
-                        ImageTransparency = 0
-                    }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
-                elseif not equipped and indicator then
-                    -- Animate out then destroy
-                    self._utilities.Tween(indicator, {
-                        ImageTransparency = 1
-                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
-                    game:GetService("Debris"):AddItem(indicator, 0.2)
-                end
+        for _, activeCard in pairs(self.ActiveCards) do
+            if activeCard.Name == "PetCard_" .. uniqueId then
+                card = activeCard
                 break
             end
         end
     else
-        -- Traditional mode - use cache
-        for _, card in ipairs(self.PetCardCache) do
-            if card.Name == "PetCard_" .. uniqueId then
-                cardUpdated = true
-                card:SetAttribute("Equipped", equipped)
-                
-                local indicator = card:FindFirstChild("EquippedIndicator")
-                if equipped and not indicator then
-                    -- Add equipped indicator with animation
-                    indicator = Instance.new("ImageLabel")
-                    indicator.Name = "EquippedIndicator"
-                    indicator.Size = UDim2.new(0, 24, 0, 24)
-                    indicator.Position = UDim2.new(1, -26, 0, 2)
-                    indicator.BackgroundTransparency = 1
-                    indicator.Image = "rbxassetid://7072717697"
-                    indicator.ImageColor3 = self._config.COLORS.Success
-                    indicator.ImageTransparency = 1
-                    indicator.Parent = card
-                    
-                    -- Animate in
-                    self._utilities.Tween(indicator, {
-                        ImageTransparency = 0
-                    }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
-                elseif not equipped and indicator then
-                    -- Animate out then destroy
-                    self._utilities.Tween(indicator, {
-                        ImageTransparency = 1
-                    }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
-                    game:GetService("Debris"):AddItem(indicator, 0.2)
-                end
-                
+        for _, cachedCard in ipairs(self.PetCardCache) do
+            if cachedCard.Name == "PetCard_" .. uniqueId then
+                card = cachedCard
                 break
             end
         end
     end
     
-    -- Immediate stats update using real-time system
-    -- But first check if we should actually update (prevent going over 6)
-    local currentEquipped = self._realtimeStats.equippedPets or 0
-    
-    if equipped and currentEquipped >= 6 then
-        -- Don't update if trying to equip when at max
-        warn("[InventoryUI] Blocked equip update - already at max (6/6)")
-        return
+    -- Update the card if found
+    if card then
+        card:SetAttribute("Equipped", equipped)
+        
+        local indicator = card:FindFirstChild("EquippedIndicator")
+        if equipped and not indicator then
+            -- Add equipped indicator
+            indicator = Instance.new("ImageLabel")
+            indicator.Name = "EquippedIndicator"
+            indicator.Size = UDim2.new(0, 30, 0, 30)
+            indicator.Position = UDim2.new(1, -35, 0, 5)
+            indicator.BackgroundTransparency = 1
+            indicator.Image = "rbxassetid://7734053426"
+            indicator.ImageColor3 = self._config.COLORS.Success
+            indicator.ImageTransparency = 1
+            indicator.Parent = card
+            
+            self._utilities.Tween(indicator, {
+                ImageTransparency = 0
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
+        elseif not equipped and indicator then
+            -- Remove equipped indicator
+            self._utilities.Tween(indicator, {
+                ImageTransparency = 1
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+            game:GetService("Debris"):AddItem(indicator, 0.2)
+        end
+        
+        -- Play sound
+        if self._soundSystem then
+            self._soundSystem:PlayUISound(equipped and "Equip" or "Unequip")
+        end
     end
     
-    local delta = equipped and 1 or -1
-    self:UpdateSingleStat("equippedPets", delta)
-    
-    -- Update data cache (but only if we're not exceeding the limit)
-    if not (equipped and currentEquipped >= 6) then
-        local playerData = self._dataCache:Get("playerData")
-        if playerData and playerData.pets then
-            for _, pet in pairs(playerData.pets) do
-                if pet.uniqueId == uniqueId then
-                    pet.equipped = equipped
-                    break
-                end
+    -- Simple: Just refresh the count from data
+    self:RefreshEquippedCount()
+end
+
+function InventoryUI:RefreshEquippedCount()
+    -- Count equipped pets from the data
+    local equippedCount = 0
+    local playerData = self._dataCache and self._dataCache:Get("playerData")
+    if playerData and playerData.pets then
+        for _, pet in pairs(playerData.pets) do
+            if pet.equipped then
+                equippedCount = equippedCount + 1
             end
         end
     end
     
-    -- Visual feedback
-    if cardUpdated and self._soundSystem then
-        self._soundSystem:PlayUISound(equipped and "Equip" or "Unequip")
+    -- Update the display
+    if self.StatsLabels.Equipped then
+        self.StatsLabels.Equipped.Text = equippedCount .. "/6"
     end
+    
+    -- Update real-time stats
+    self._realtimeStats.equippedPets = equippedCount
+    self._realtimeStats.animatingValues.equippedPets = equippedCount
 end
 
 function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
