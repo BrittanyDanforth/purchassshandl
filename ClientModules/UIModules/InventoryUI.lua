@@ -1599,6 +1599,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     })
     
     -- Apply premium VFX for variants and high rarity pets
+    print("[InventoryUI] About to apply VFX - PetInstance:", petInstance and petInstance.uniqueId, "PetData:", petData and petData.name)
     self:ApplyPremiumVFX(card, petInstance, petData)
     
     -- Click handler
@@ -1899,22 +1900,32 @@ end
 
 function InventoryUI:ApplyPremiumVFX(card: Frame, petInstance: PetInstance, petData: table)
     local imageContainer = card:FindFirstChild("ImageContainer")
-    if not imageContainer then return end
+    if not imageContainer then 
+        print("[InventoryUI] No ImageContainer found for VFX")
+        return 
+    end
     
     -- Safety check for nil petData
-    if not petData then return end
+    if not petData then 
+        print("[InventoryUI] No petData provided for VFX")
+        return 
+    end
+    
+    print("[InventoryUI] Applying VFX - Variant:", petInstance and petInstance.variant, "Rarity:", petData.rarity)
     
     -- Clean up existing VFX
     self:CleanupVFX(card)
     
     -- Apply variant-based VFX
     if petInstance and petInstance.variant then
+        print("[InventoryUI] Applying variant VFX:", petInstance.variant)
         self:ApplyVariantVFX(card, petInstance.variant)
     end
     
     -- Apply rarity-based VFX
     local rarity = petData.rarity or 1
     if rarity >= 4 then -- Epic and above
+        print("[InventoryUI] Applying rarity VFX for rarity:", rarity)
         self:ApplyRarityVFX(card, rarity)
     end
 end
@@ -2600,6 +2611,7 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
     end
     
     -- Apply premium VFX for variants and high rarity pets
+    print("[InventoryUI] About to apply VFX - PetInstance:", petInstance and petInstance.uniqueId, "PetData:", petData and petData.name)
     self:ApplyPremiumVFX(card, petInstance, petData)
 end
 
@@ -3576,7 +3588,7 @@ function InventoryUI:LockSelectedPets()
     for uniqueId in pairs(self.SelectedForDeletion) do
         -- Send lock request to server
         if self._remoteManager then
-            self._remoteManager:FireServer("TogglePetLock", {uniqueId = uniqueId, locked = true})
+            self._remoteManager:Fire("TogglePetLock", {uniqueId = uniqueId, locked = true})
             count = count + 1
         end
     end
