@@ -340,7 +340,12 @@ function InventoryUI:SetupEventListeners()
     
     -- Listen for pet deletion
     self._janitor:Add(self._eventBus:On("PetDeleted", function(data)
-        self:RemovePetCard(data.uniqueId)
+        -- Fetch fresh data from server to ensure sync
+        task.spawn(function()
+            self:FetchPlayerData()
+            task.wait(0.1) -- Small delay to ensure data is propagated
+            self:RefreshInventory()
+        end)
     end))
     
     -- Listen for pet level changes
