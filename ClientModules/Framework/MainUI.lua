@@ -111,6 +111,14 @@ function MainUI.new(dependencies)
     self._uiScale = 1
     self._debugMode = self._config.DEBUG.ENABLED
     
+    -- Animation queue for smooth transitions
+    self._animationQueue = {}
+    self._animationProcessing = false
+    
+    -- Performance optimization
+    self._lastInteractionTime = 0
+    self._interactionCooldown = 0.1 -- Prevent spam clicks
+    
     -- Cleanup tracking
     self._connections = {}
     self._isDestroyed = false
@@ -332,18 +340,44 @@ function MainUI:SetupNavButtonInteractions(button: TextButton, navData: Navigati
         self:RemoveNavTooltip(navData.Name)
     end)
     
-    -- Click
+    -- Click with Triple-A polish
     button.MouseButton1Click:Connect(function()
+        -- Performance check - prevent spam clicks
+        local currentTime = tick()
+        if currentTime - self._lastInteractionTime < self._interactionCooldown then
+            return
+        end
+        self._lastInteractionTime = currentTime
+        
+        -- Haptic feedback (if supported) - non-blocking
+        task.spawn(function()
+            pcall(function()
+                local HapticService = game:GetService("HapticService")
+                HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0.1)
+                task.wait(0.05)
+                HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+            end)
+        end)
+        
         if self._soundSystem then
             self._soundSystem:PlayUISound("Click")
         end
         
-        -- Force clear hover state
+        -- Create click ripple effect
+        self:CreateClickRipple(button)
+        
+        -- Force clear hover state with animation
         if state.activeTween then
             state.activeTween:Cancel()
         end
         state.isHovered = false
-        button.BackgroundColor3 = state.originalColor
+        
+        -- Smooth color transition
+        self:QueueAnimation("NavButtonClick_" .. navData.Name, function()
+            self._utilities.Tween(button, {
+                BackgroundColor3 = state.originalColor
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        end, 2)
         
         -- Remove tooltip
         self:RemoveNavTooltip(navData.Name)
@@ -363,6 +397,33 @@ function MainUI:SetupNavButtonInteractions(button: TextButton, navData: Navigati
             })
         end
     end)
+end
+
+function MainUI:CreateClickRipple(button: GuiObject)
+    -- Create ripple effect for Triple-A polish
+    local ripple = Instance.new("Frame")
+    ripple.Name = "ClickRipple"
+    ripple.Size = UDim2.new(0, 0, 0, 0)
+    ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+    ripple.BackgroundColor3 = self._config.COLORS.White
+    ripple.BackgroundTransparency = 0.7
+    ripple.BorderSizePixel = 0
+    ripple.ZIndex = button.ZIndex + 1
+    ripple.Parent = button
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = ripple
+    
+    -- Animate ripple
+    self._utilities.Tween(ripple, {
+        Size = UDim2.new(2, 0, 2, 0),
+        BackgroundTransparency = 1
+    }, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Clean up after animation
+    game:GetService("Debris"):AddItem(ripple, 0.6)
 end
 
 function MainUI:CreateNavTooltip(button: TextButton, text: string)
@@ -708,18 +769,21 @@ function MainUI:AnimateCurrencyGlow(container: Frame)
     
     game:GetService("Debris"):AddItem(glow, 0.5)
     
-    -- Scale bounce effect
+    -- Scale bounce effect (non-blocking)
     local originalSize = container.Size
     self._utilities.Tween(container, {
         Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset + 5, 
                         originalSize.Y.Scale, originalSize.Y.Offset + 5)
     }, TweenInfo.new(0.1, Enum.EasingStyle.Quad))
     
-    task.wait(0.1)
-    
-    self._utilities.Tween(container, {
-        Size = originalSize
-    }, TweenInfo.new(0.1, Enum.EasingStyle.Quad))
+    -- Chain the second animation without blocking
+    task.delay(0.1, function()
+        if container and container.Parent then
+            self._utilities.Tween(container, {
+                Size = originalSize
+            }, TweenInfo.new(0.1, Enum.EasingStyle.Quad))
+        end
+    end)
 end
 
 -- ========================================
@@ -930,13 +994,15 @@ function MainUI:RemoveOverlay(name: string)
     local overlayData = self._activeOverlays[name]
     if not overlayData then return end
     
-    -- Animate out
+    -- Animate out (non-blocking)
     self._utilities.Tween(overlayData.frame, {BackgroundTransparency = 1}, self._config.TWEEN_INFO.Fast)
     
-    task.wait(0.2)
-    
-    -- Remove from tracking
-    overlayData.frame:Destroy()
+    -- Remove after animation completes
+    task.delay(0.2, function()
+        if overlayData.frame and overlayData.frame.Parent then
+            overlayData.frame:Destroy()
+        end
+    end)
     self._activeOverlays[name] = nil
     
     -- Remove from stack
@@ -1038,6 +1104,54 @@ function MainUI:StartUpdateLoops()
 end
 
 -- ========================================
+-- ANIMATION QUEUE SYSTEM
+-- ========================================
+
+function MainUI:QueueAnimation(name: string, callback: () -> (), priority: number?)
+    table.insert(self._animationQueue, {
+        name = name,
+        callback = callback,
+        priority = priority or 1,
+        timestamp = tick()
+    })
+    
+    -- Sort by priority (higher priority first)
+    table.sort(self._animationQueue, function(a, b)
+        return a.priority > b.priority
+    end)
+    
+    -- Process queue if not already processing
+    if not self._animationProcessing then
+        self:ProcessAnimationQueue()
+    end
+end
+
+function MainUI:ProcessAnimationQueue()
+    if self._animationProcessing or #self._animationQueue == 0 then
+        return
+    end
+    
+    self._animationProcessing = true
+    
+    task.spawn(function()
+        while #self._animationQueue > 0 and not self._isDestroyed do
+            local animation = table.remove(self._animationQueue, 1)
+            
+            -- Execute animation
+            local success, err = pcall(animation.callback)
+            if not success then
+                warn("[MainUI] Animation error:", animation.name, err)
+            end
+            
+            -- Small delay between animations for smoothness
+            task.wait(0.05)
+        end
+        
+        self._animationProcessing = false
+    end)
+end
+
+-- ========================================
 -- UTILITY FUNCTIONS
 -- ========================================
 
@@ -1075,19 +1189,23 @@ function MainUI:RemoveNavigationButton(name: string)
 end
 
 function MainUI:CleanupLingeringOverlays()
-    -- Clean up any lingering overlays from previous sessions
-    task.wait(0.1)
-    
-    for _, child in ipairs(self.ScreenGui:GetChildren()) do
-        if string.find(child.Name, "Overlay") or 
-           (child:IsA("Frame") and child.Size == UDim2.new(1, 0, 1, 0) and 
-            child.BackgroundTransparency < 1 and child ~= self.MainContainer) then
-            if self._debugMode then
-                print("[MainUI] Cleaning up lingering overlay:", child.Name)
+    -- Clean up any lingering overlays from previous sessions (non-blocking)
+    task.spawn(function()
+        task.wait(0.1) -- Small delay to ensure UI is ready
+        
+        if not self.ScreenGui or not self.ScreenGui.Parent then return end
+        
+        for _, child in ipairs(self.ScreenGui:GetChildren()) do
+            if string.find(child.Name, "Overlay") or 
+               (child:IsA("Frame") and child.Size == UDim2.new(1, 0, 1, 0) and 
+                child.BackgroundTransparency < 1 and child ~= self.MainContainer) then
+                if self._debugMode then
+                    print("[MainUI] Cleaning up lingering overlay:", child.Name)
+                end
+                child:Destroy()
             end
-            child:Destroy()
         end
-    end
+    end)
 end
 
 function MainUI:GetCurrentModule(): string?
