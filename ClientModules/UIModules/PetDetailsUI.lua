@@ -335,8 +335,30 @@ function PetDetailsUI:CreateOverlay()
 	closeButton.Parent = self._overlay
 
 	self._janitor:Add(closeButton.MouseButton1Click:Connect(function()
-		print("[PetDetailsUI] Background clicked, closing...")
-		self:Close()
+		-- Only close if clicking on the dark background, not the details frame
+		local mouse = game.Players.LocalPlayer:GetMouse()
+		local target = mouse.Target
+		
+		-- Check if we clicked on the overlay itself (dark background)
+		if not self._detailsFrame or not self._detailsFrame:IsDescendantOf(game) then
+			print("[PetDetailsUI] Background clicked, closing...")
+			self:Close()
+			return
+		end
+		
+		-- Get mouse position relative to details frame
+		local mousePos = Vector2.new(mouse.X, mouse.Y)
+		local framePos = self._detailsFrame.AbsolutePosition
+		local frameSize = self._detailsFrame.AbsoluteSize
+		
+		-- Check if click is outside the details frame
+		if mousePos.X < framePos.X or mousePos.X > framePos.X + frameSize.X or
+		   mousePos.Y < framePos.Y or mousePos.Y > framePos.Y + frameSize.Y then
+			print("[PetDetailsUI] Background clicked, closing...")
+			self:Close()
+		else
+			print("[PetDetailsUI] Clicked inside frame, not closing")
+		end
 	end))
 
 	print("[PetDetailsUI] Overlay setup complete")
@@ -697,13 +719,13 @@ function PetDetailsUI:SwitchTab(tabName: string)
 	for name, tab in pairs(self._tabFrames) do
 		local isActive = name == tabName
 
-		-- Update button appearance
+		-- Update button appearance (consistent colors like Stats tab)
 		tab.button.BackgroundColor3 = isActive and 
 			self._config.COLORS.Primary or 
 			self._config.COLORS.Surface
 		tab.button.TextColor3 = isActive and 
 			self._config.COLORS.White or 
-			self._config.COLORS.Dark
+			self._config.COLORS.TextSecondary
 
 		-- Show/hide frame
 		tab.frame.Visible = isActive
@@ -1035,10 +1057,17 @@ end
 -- ========================================
 
 function PetDetailsUI:ShowPetInfo(parent: Frame)
+	-- Create scrolling frame like Stats tab
+	local scrollFrame = self:CreateScrollingFrame(parent, {
+		size = UDim2.new(1, 0, 1, 0),
+		canvasSize = UDim2.new(0, 0, 0, 0), -- Will be set automatically
+		scrollBarThickness = 6
+	})
+	
 	local infoFrame = Instance.new("Frame")
-	infoFrame.Size = UDim2.new(1, 0, 1, 0)
+	infoFrame.Size = UDim2.new(1, -10, 1, 0)
 	infoFrame.BackgroundTransparency = 1
-	infoFrame.Parent = parent
+	infoFrame.Parent = scrollFrame
 
 	-- Create comprehensive info list
 	local infoList = {
@@ -1116,7 +1145,12 @@ function PetDetailsUI:ShowPetInfo(parent: Frame)
 			textYAlignment = Enum.TextYAlignment.Top,
 			textSize = 14
 		})
+		
+		yOffset = yOffset + 110
 	end
+	
+	-- Update canvas size to fit all content
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
 end
 
 -- ========================================
@@ -1655,14 +1689,26 @@ function PetDetailsUI:ConfirmRename(newName: string)
 		return
 	end
 
-	-- Send rename request
+	-- Filter the text first for Roblox compliance
+	local TextService = game:GetService("TextService")
+	local filteredName = newName
+	
+	-- Try to filter the text (wrapped in pcall for studio testing)
+	pcall(function()
+		local filterResult = TextService:FilterStringAsync(newName, game.Players.LocalPlayer.UserId)
+		filteredName = filterResult:GetNonChatStringForBroadcastAsync()
+	end)
+	
+	-- Send rename request with proper format
 	if self._remoteManager then
-		local success, result = self._remoteManager:InvokeServer("RenamePet", 
-			self._currentPetInstance.uniqueId, newName)
+		local result = self._remoteManager:InvokeServer("RenamePet", {
+			uniqueId = self._currentPetInstance.uniqueId,
+			nickname = filteredName
+		})
 
-		if success then
-			-- Update local state
-			self._currentPetInstance.nickname = newName
+		if result and result.success then
+			-- Update local state with filtered name
+			self._currentPetInstance.nickname = filteredName
 			self:UpdatePetName()
 
 			-- Show notification

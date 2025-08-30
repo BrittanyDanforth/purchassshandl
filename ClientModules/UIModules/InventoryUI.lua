@@ -2872,8 +2872,8 @@ function InventoryUI:CreateMassDeleteContent(window: Frame)
     })
     
     local gridLayout = Instance.new("UIGridLayout")
-    gridLayout.CellSize = UDim2.new(0, 100, 0, 120)
-    gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+    gridLayout.CellSize = UDim2.new(0, 110, 0, 130)  -- Slightly bigger cells
+    gridLayout.CellPadding = UDim2.new(0, 15, 0, 15)  -- More spacing
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
     gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     gridLayout.Parent = scrollFrame
@@ -2969,6 +2969,7 @@ function InventoryUI:CreateDeleteSelectionCard(parent: ScrollingFrame, petInstan
     card.BackgroundColor3 = self._config.COLORS.Surface
     card.BorderSizePixel = 0
     card:SetAttribute("Rarity", petData.rarity or 1)  -- Store rarity for filtering
+    card.ZIndex = 1  -- Ensure proper layering
     card.Parent = parent
     
     self._utilities.CreateCorner(card, 8)
@@ -3330,11 +3331,22 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
         self._utilities.CreateCorner(loadingLabel, 8)
     end
     
-    -- Send delete request
+    -- Send delete requests for each pet
     if self._remoteManager then
-        local result = self._remoteManager:InvokeServer("MassDeletePets", petIds)
+        local successCount = 0
+        local failCount = 0
         
-        if result and result.success then
+        -- Delete pets one by one since server might not have mass delete
+        for _, petId in ipairs(petIds) do
+            local result = self._remoteManager:InvokeServer("DeletePet", {uniqueId = petId})
+            if result and result.success then
+                successCount = successCount + 1
+            else
+                failCount = failCount + 1
+            end
+        end
+        
+        if successCount > 0 then
             -- Animate deletion of cards
             local cardsToDelete = {}
             
@@ -3364,10 +3376,15 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
             task.wait(0.5 + #cardsToDelete * 0.05)
             
             if self._notificationSystem then
+                local message = string.format("Successfully deleted %d pets!", successCount)
+                if failCount > 0 then
+                    message = message .. string.format(" (%d failed)", failCount)
+                end
+                
                 self._notificationSystem:Show({
-                    title = "Success",
-                    message = string.format("Successfully deleted %d pets!", #petIds),
-                    type = "success",
+                    title = "Mass Delete Complete",
+                    message = message,
+                    type = successCount > 0 and "success" or "error",
                     duration = 3
                 })
             end
