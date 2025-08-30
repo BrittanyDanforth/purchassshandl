@@ -522,18 +522,32 @@ function InventoryUI:FetchPlayerData()
             end
             print("[InventoryUI] Fetched pets count:", petCount, "Equipped:", equippedCount)
             
-            -- Initialize real-time stats without animation
-            self._realtimeStats.totalPets = petCount
-            self._realtimeStats.equippedPets = equippedCount
-            self._realtimeStats.animatingValues.totalPets = petCount
-            self._realtimeStats.animatingValues.equippedPets = equippedCount
-            
-            -- Render initial values immediately
-            if self.StatsLabels.Equipped then
-                self.StatsLabels.Equipped.Text = equippedCount .. "/6"
-            end
-            if self.StatsLabels.PetCount then
-                self.StatsLabels.PetCount.Text = petCount .. "/" .. self._realtimeStats.maxStorage
+            -- Update stats (if first time, set directly; otherwise use UpdateSingleStat for animation)
+            if self._realtimeStats.totalPets == 0 and self._realtimeStats.equippedPets == 0 then
+                -- First time initialization - set values directly
+                self._realtimeStats.totalPets = petCount
+                self._realtimeStats.equippedPets = equippedCount
+                self._realtimeStats.animatingValues.totalPets = petCount
+                self._realtimeStats.animatingValues.equippedPets = equippedCount
+                
+                -- Render initial values immediately
+                if self.StatsLabels.Equipped then
+                    self.StatsLabels.Equipped.Text = equippedCount .. "/6"
+                end
+                if self.StatsLabels.PetCount then
+                    self.StatsLabels.PetCount.Text = petCount .. "/" .. self._realtimeStats.maxStorage
+                end
+            else
+                -- Subsequent updates - use animated update
+                local petDelta = petCount - self._realtimeStats.totalPets
+                local equippedDelta = equippedCount - self._realtimeStats.equippedPets
+                
+                if petDelta ~= 0 then
+                    self:UpdateSingleStat("totalPets", petDelta)
+                end
+                if equippedDelta ~= 0 then
+                    self:UpdateSingleStat("equippedPets", equippedDelta)
+                end
             end
         else
             warn("[InventoryUI] No pets field in player data!")

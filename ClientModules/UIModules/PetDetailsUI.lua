@@ -479,11 +479,12 @@ function PetDetailsUI:CreateHeader()
 	stroke.Transparency = 0.5
 	stroke.Parent = nameLabel
 	
-	-- Rarity badge
+	-- Rarity badge (positioned to the right of name)
+	local nameSize = nameLabel.TextBounds
 	local rarityBadge = Instance.new("Frame")
 	rarityBadge.Name = "RarityBadge"
-	rarityBadge.Size = UDim2.new(0, 80, 0, 24)
-	rarityBadge.Position = UDim2.new(0, 20, 1, -35)
+	rarityBadge.Size = UDim2.new(0, 80, 0, 20)
+	rarityBadge.Position = UDim2.new(1, -160, 0.5, -10)  -- Right side of header
 	rarityBadge.BackgroundColor3 = self:GetRarityColor(self._currentPetData.rarity)
 	rarityBadge.ZIndex = 203
 	rarityBadge.Parent = header
@@ -640,9 +641,9 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
 	-- Create action buttons with PROPER POSITIONING
 	self:CreateActionButtons(actionsFrame)
 
-	-- Rename button
-	local renameButton = self._uiFactory:CreateButton(infoContainer, {
-		text = "Rename Pet",
+	-- Rename button with premium style
+	local renameButton = self:CreatePremiumButton(infoContainer, {
+		text = "✏️ Rename Pet",
 		size = UDim2.new(1, -40, 0, 35),
 		backgroundColor = self._config.COLORS.Secondary,
 		layoutOrder = 3,
@@ -655,65 +656,80 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
 	})
 end
 
-function PetDetailsUI:CreateActionButtons(parent: Frame)
-	-- Helper function to create premium button
-	local function createPremiumButton(config)
-		local button = self._uiFactory:CreateButton(parent, config)
-		
-		-- Add premium gradient
-		local gradient = Instance.new("UIGradient")
-		gradient.Color = ColorSequence.new(Color3.new(1, 1, 1))
-		gradient.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.7),
-			NumberSequenceKeypoint.new(0.5, 0.8),
-			NumberSequenceKeypoint.new(1, 0.9)
-		})
-		gradient.Rotation = -45
-		gradient.Parent = button
-		
-		-- Add stroke for depth
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = Color3.new(0, 0, 0)
-		stroke.Transparency = 0.8
-		stroke.Thickness = 1
-		stroke.Parent = button
-		
-		-- Hover animations
-		button.MouseEnter:Connect(function()
-			if not button:GetAttribute("IsLoading") then
-				self._utilities.Tween(button, {
-					Size = UDim2.new(1, 6, 0, BUTTON_HEIGHT + 4)
-				}, TweenInfo.new(0.15, Enum.EasingStyle.Back))
-				
-				self._utilities.Tween(stroke, {
-					Transparency = 0.6,
-					Thickness = 2
-				}, TweenInfo.new(0.15))
-			end
-		end)
-		
-		button.MouseLeave:Connect(function()
+-- Helper function to create premium button (moved to class level)
+function PetDetailsUI:CreatePremiumButton(parent: Frame, config)
+	local button = self._uiFactory:CreateButton(parent, config)
+	
+	-- Add premium gradient (subtle)
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new(Color3.new(1, 1, 1))
+	gradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(0.5, 0.3),
+		NumberSequenceKeypoint.new(1, 0.4)
+	})
+	gradient.Rotation = -45
+	gradient.Parent = button
+	
+	-- Add stroke for depth
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.new(0, 0, 0)
+	stroke.Transparency = 0.8
+	stroke.Thickness = 1
+	stroke.Parent = button
+	
+	-- Hover animations
+	button.MouseEnter:Connect(function()
+		if not button:GetAttribute("IsLoading") then
 			self._utilities.Tween(button, {
-				Size = UDim2.new(1, 0, 0, BUTTON_HEIGHT)
-			}, TweenInfo.new(0.15, Enum.EasingStyle.Quad))
+				Size = UDim2.new(1, 6, 0, button.Size.Y.Offset + 4)
+			}, TweenInfo.new(0.15, Enum.EasingStyle.Back))
 			
 			self._utilities.Tween(stroke, {
-				Transparency = 0.8,
-				Thickness = 1
+				Transparency = 0.6,
+				Thickness = 2
 			}, TweenInfo.new(0.15))
-		end)
+		end
+	end)
+	
+	button.MouseLeave:Connect(function()
+		self._utilities.Tween(button, {
+			Size = config.size
+		}, TweenInfo.new(0.15, Enum.EasingStyle.Quad))
 		
-		return button
+		self._utilities.Tween(stroke, {
+			Transparency = 0.8,
+			Thickness = 1
+		}, TweenInfo.new(0.15))
+	end)
+	
+	return button
+end
+
+function PetDetailsUI:CreateActionButtons(parent: Frame)
+	
+	-- Check if at max equipped pets
+	local playerData = self._dataCache and self._dataCache:Get("playerData")
+	local equippedCount = 0
+	if playerData and playerData.pets then
+		for _, petData in pairs(playerData.pets) do
+			if petData.equipped then
+				equippedCount = equippedCount + 1
+			end
+		end
 	end
 	
+	local MAX_EQUIPPED = 6
+	local isAtMaxEquipped = equippedCount >= MAX_EQUIPPED and not self._currentPetInstance.equipped
+	
 	-- FIXED: Equip button at position 0,0 (top of actions frame)
-	self._equipButton = createPremiumButton({
-		text = self._currentPetInstance.equipped and "Unequip" or "Equip",
+	self._equipButton = self:CreatePremiumButton(parent, {
+		text = isAtMaxEquipped and "Max Equipped" or (self._currentPetInstance.equipped and "Unequip" or "Equip"),
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 		position = UDim2.new(0, 0, 0, 0), -- FIXED: Position at 0,0
-		backgroundColor = self._currentPetInstance.equipped and 
+		backgroundColor = isAtMaxEquipped and self._config.COLORS.TextSecondary or (self._currentPetInstance.equipped and 
 			self._config.COLORS.Error or 
-			self._config.COLORS.Success,
+			self._config.COLORS.Success),
 		zIndex = 206,
 		callback = function()
 			self:OnEquipClicked()
@@ -723,9 +739,28 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 	-- Store original properties for state management
 	self._equipButton:SetAttribute("OriginalColor", self._equipButton.BackgroundColor3)
 	self._equipButton:SetAttribute("OriginalText", self._equipButton.Text)
+	
+	-- Disable button if at max equipped
+	if isAtMaxEquipped then
+		self._equipButton.Active = false
+		self._equipButton.AutoButtonColor = false
+		
+		-- Add an indicator showing the limit
+		local limitLabel = Instance.new("TextLabel")
+		limitLabel.Name = "LimitLabel"
+		limitLabel.Size = UDim2.new(1, 0, 0.3, 0)
+		limitLabel.Position = UDim2.new(0, 0, 0.7, 0)
+		limitLabel.BackgroundTransparency = 1
+		limitLabel.Text = "(" .. equippedCount .. "/" .. MAX_EQUIPPED .. ")"
+		limitLabel.TextColor3 = Color3.new(1, 1, 1)
+		limitLabel.TextScaled = true
+		limitLabel.Font = self._config.FONTS.Secondary
+		limitLabel.ZIndex = 207
+		limitLabel.Parent = self._equipButton
+	end
 
 	-- FIXED: Lock button below equip button with proper spacing
-	self._lockButton = createPremiumButton({
+	self._lockButton = self:CreatePremiumButton(parent, {
 		text = self._currentPetInstance.locked and "Unlock" or "Lock",
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 		position = UDim2.new(0, 0, 0, BUTTON_HEIGHT + BUTTON_SPACING), -- FIXED: Proper spacing
@@ -743,7 +778,7 @@ function PetDetailsUI:CreateActionButtons(parent: Frame)
 	self._lockButton:SetAttribute("OriginalText", self._lockButton.Text)
 
 	-- Delete button with premium style
-	self._deleteButton = createPremiumButton({
+	self._deleteButton = self:CreatePremiumButton(parent, {
 		text = "Delete Pet",
 		size = UDim2.new(1, 0, 0, BUTTON_HEIGHT),
 		position = UDim2.new(0, 0, 0, (BUTTON_HEIGHT + BUTTON_SPACING) * 2), -- Below lock button
@@ -1388,6 +1423,26 @@ end
 -- ========================================
 
 function PetDetailsUI:OnEquipClicked()
+	-- Check if button is disabled
+	if self._equipButton and not self._equipButton.Active then
+		-- Show notification if they're trying to equip when at max
+		if self._notificationSystem then
+			self._notificationSystem:Show({
+				title = "Maximum Pets Equipped",
+				message = "You already have 6 pets equipped. Unequip one first.",
+				type = "error",
+				duration = 3
+			})
+		end
+		
+		-- Play error sound
+		if self._soundSystem then
+			self._soundSystem:PlayUISound("Error")
+		end
+		
+		return
+	end
+	
 	-- Check if already loading
 	if self._buttonStates.equip.isLoading then return end
 	
