@@ -1258,6 +1258,40 @@ function PetDetailsUI:OnEquipClicked()
 	-- Check if already loading
 	if self._buttonStates.equip.isLoading then return end
 	
+	-- If we are trying to EQUIP a pet (not unequip)
+	if not self._currentPetInstance.equipped then
+		-- Check equip limit
+		local playerData = self._dataCache and self._dataCache:Get("playerData")
+		local equippedCount = 0
+		if playerData and playerData.pets then
+			for _, petData in pairs(playerData.pets) do
+				if petData.equipped then
+					equippedCount = equippedCount + 1
+				end
+			end
+		end
+		
+		-- Check if we are at the limit
+		local MAX_EQUIPPED = 6 -- Your game's max equipped pets
+		if equippedCount >= MAX_EQUIPPED then
+			if self._notificationSystem then
+				self._notificationSystem:Show({
+					title = "Equip Limit Reached",
+					message = "You cannot equip more than " .. MAX_EQUIPPED .. " pets.",
+					type = "error",
+					duration = 3
+				})
+			end
+			
+			-- Play error sound
+			if self._soundSystem then
+				self._soundSystem:PlayUISound("Error")
+			end
+			
+			return -- Stop here, don't send request
+		end
+	end
+	
 	-- Set loading state
 	self._buttonStates.equip.isLoading = true
 	if self._equipButton then

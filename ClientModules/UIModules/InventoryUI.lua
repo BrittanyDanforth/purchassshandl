@@ -559,13 +559,11 @@ function InventoryUI:Open()
     
     -- 5. NOW that the UI is fully built and visible, refresh the content.
     -- This completely prevents the race condition.
-    -- Wait for animations to complete before refreshing
-    task.wait(0.4)
-    
-    -- Fetch fresh data and refresh
-    self:FetchPlayerData()
-    task.wait(0.1) -- Small delay to ensure data is propagated
-    self:RefreshInventory()
+    -- Refresh immediately without blocking
+    task.spawn(function()
+        self:FetchPlayerData()
+        self:RefreshInventory()
+    end)
     
     -- Play sound
     if self._soundSystem then
@@ -588,7 +586,7 @@ function InventoryUI:Close()
         Position = UDim2.new(self.Frame.Position.X.Scale, self.Frame.Position.X.Offset, 1, 100)
     }, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In))
     
-    task.wait(0.3)
+    -- Don't wait, hide immediately
     self.Frame.Visible = false
     
     -- Play sound
@@ -596,10 +594,10 @@ function InventoryUI:Close()
         self._soundSystem:PlayUISound("Close")
     end
     
-    -- Clear cached references to prevent stale state
-    self.PetGrid = nil
-    self.TabFrames = {}
-    self.CurrentTab = "Pets"
+    -- CRITICAL FIX: DO NOT clear these references!
+    -- self.PetGrid = nil -- REMOVED
+    -- self.TabFrames = {} -- REMOVED
+    -- self.CurrentTab = "Pets" -- Keep state
 end
 
 -- ========================================
@@ -681,20 +679,24 @@ function InventoryUI:OnReady()
         end
     end
     
-    -- Fetch fresh data and refresh
-    self:FetchPlayerData()
-    task.wait(0.1)
-    self:RefreshInventory()
+    -- Fetch fresh data and refresh WITHOUT blocking
+    task.spawn(function()
+        self:FetchPlayerData()
+        self:RefreshInventory()
+    end)
 end
 
 function InventoryUI:OnClosed()
     -- Called by WindowManager after close animation completes
-    self.Frame.Visible = false
+    if self.Frame then
+        self.Frame.Visible = false
+    end
     
-    -- Clear cached references
-    self.PetGrid = nil
-    self.TabFrames = {}
-    self.CurrentTab = "Pets"
+    -- CRITICAL FIX: DO NOT clear these references!
+    -- Keeping them allows the UI to work properly when reopened
+    -- self.PetGrid = nil -- REMOVED: This was causing the nil error
+    -- self.TabFrames = {} -- REMOVED: Preserve tab references
+    -- self.CurrentTab = "Pets" -- Keep current tab state
 end
 
 -- ========================================
@@ -1745,8 +1747,8 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     card:SetAttribute("PetInstance", petInstance)
     card:SetAttribute("PetData", petData)
     
-    -- Apply premium VFX for variants and high rarity pets
-    self:ApplyPremiumVFX(card, petInstance, petData)
+    -- DISABLED VFX TO FIX LAG
+    -- self:ApplyPremiumVFX(card, petInstance, petData)
     
     -- Click handler
     local button = Instance.new("TextButton")
@@ -2071,6 +2073,11 @@ end
 
 function InventoryUI:RefreshVisibleVFX()
     -- Apply VFX to all visible cards after scrolling stops
+    if not self.PetGrid then
+        warn("[InventoryUI] RefreshVisibleVFX: PetGrid is nil")
+        return
+    end
+    
     for _, child in ipairs(self.PetGrid:GetChildren()) do
         if child:IsA("Frame") and child.Name:match("^PetCard_") then
             local petInstance = child:GetAttribute("PetInstance")
@@ -2762,8 +2769,8 @@ function InventoryUI:UpdateCardIndicators(card: Frame, petInstance: PetInstance)
         variantIcon.Parent = variantBadge
     end
     
-    -- Apply premium VFX for variants and high rarity pets
-    self:ApplyPremiumVFX(card, petInstance, petData)
+    -- DISABLED VFX TO FIX LAG
+    -- self:ApplyPremiumVFX(card, petInstance, petData)
 end
 
 function InventoryUI:GetVariantColor(variant: string): Color3

@@ -967,8 +967,7 @@ function WindowManager:OpenWindow(windowModule)
                 self._currentWindow:Close()
             end
             
-            -- Wait for the close animation to finish
-            task.wait(0.3)
+            -- Don't wait, just continue immediately
         end
         
         -- Now, open the new window
@@ -991,8 +990,7 @@ function WindowManager:OpenWindow(windowModule)
                 self._currentWindow:Open()
             end
             
-            -- Wait for the open animation to finish
-            task.wait(0.4)
+            -- Don't wait, call OnReady immediately
             
             -- IMPORTANT: Tell the module it's ready for data loading
             if self._currentWindow.OnReady then
