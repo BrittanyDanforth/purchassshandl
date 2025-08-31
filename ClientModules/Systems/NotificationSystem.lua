@@ -360,6 +360,12 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     frame.AutomaticSize = Enum.AutomaticSize.None -- Prevent any automatic resizing
     frame.Parent = container
     
+    -- Add size constraint to ensure frame never grows
+    local sizeConstraint = Instance.new("UISizeConstraint")
+    sizeConstraint.MaxSize = Vector2.new(NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT)
+    sizeConstraint.MinSize = Vector2.new(NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT)
+    sizeConstraint.Parent = frame
+    
     -- Add corner radius
     self._utilities.CreateCorner(frame, 12)
     
@@ -641,7 +647,7 @@ function NotificationSystem:CreateStackedNotification(group: NotificationGroup)
     
     stacked.id = group.id
     stacked.message = string.format("%s (x%d)", first.message, group.count)
-    stacked.duration = 0 -- Don't auto-dismiss stacked
+    stacked.duration = first.duration or 3 -- Keep original duration for auto-dismiss
     
     self:DisplayNotification(stacked)
     -- After DisplayNotification, stacked.frame is set
@@ -671,9 +677,13 @@ function NotificationSystem:UpdateStackedNotification(group: NotificationGroup)
         message.Text = string.format("%s (x%d)", first.message, group.count)
     end
     
-    -- Pulse animation
-    if self._animationSystem then
-        self._animationSystem:Pulse(group.frame, 1.05, 0.2)
+    -- Only pulse if not recently animated (prevent animation stacking)
+    local now = tick()
+    if not group.lastAnimated or (now - group.lastAnimated) > 0.3 then
+        group.lastAnimated = now
+        if self._animationSystem then
+            self._animationSystem:Pulse(group.frame, 1.05, 0.2)
+        end
     end
 end
 
@@ -794,6 +804,14 @@ function NotificationSystem:RemoveNotification(index: number)
     
     -- Remove from active list
     table.remove(self._notifications, index)
+    
+    -- Clean up group if this was a stacked notification
+    for groupId, group in pairs(self._groups) do
+        if group.frame == notification.frame then
+            self._groups[groupId] = nil
+            break
+        end
+    end
     
     -- Animate out
     if notification.frame then
