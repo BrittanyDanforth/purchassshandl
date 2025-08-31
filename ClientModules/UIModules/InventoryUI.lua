@@ -865,7 +865,7 @@ function InventoryUI:CreateHeader()
         position = UDim2.new(1, -130, 0.5, -20),
         backgroundColor = self._config.COLORS.Error,
         onClick = function()
-            self._eventBus:Fire("ToggleMassDelete")
+            self:OpenMassDelete()
             self._soundSystem:PlayUISound("Click")
         end
     })
@@ -4429,8 +4429,27 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
 end
 
 function InventoryUI:CloseMassDelete()
-    -- Stub function - mass delete moved to MassDeleteUI module
-    self._eventBus:Fire("ToggleMassDelete")
+    if self.DeleteOverlay then
+        local deleteWindow = self.DeleteOverlay:FindFirstChild("DeleteWindow")
+        if deleteWindow then
+            self._utilities.Tween(deleteWindow, {
+                Size = UDim2.new(0, 0, 0, 0)
+            }, self._config.TWEEN_INFO.Normal)
+        end
+        
+        self._utilities.Tween(self.DeleteOverlay, {
+            BackgroundTransparency = 1
+        }, self._config.TWEEN_INFO.Normal)
+        
+        task.wait(0.3)
+        self.DeleteOverlay:Destroy()
+        self.DeleteOverlay = nil
+    end
+    
+    -- Clear selection
+    self.SelectedForDeletion = {}
+    self.DeleteSelectionGrid = nil
+    self.DeleteSelectedLabel = nil
 end
 
 function InventoryUI:CreateStorageTab(parent: Frame)
