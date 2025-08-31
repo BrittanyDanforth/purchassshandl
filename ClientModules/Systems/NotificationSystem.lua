@@ -357,6 +357,7 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     frame.BackgroundColor3 = self._config.COLORS.Surface
     frame.BorderSizePixel = 0
     frame.ClipsDescendants = true
+    frame.AutomaticSize = Enum.AutomaticSize.None -- Prevent any automatic resizing
     frame.Parent = container
     
     -- Add corner radius
@@ -386,20 +387,27 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     icon.Font = self._config.FONTS.Display
     icon.Parent = iconBg
     
+    -- Check if we have a title
+    local hasTitle = notification.title ~= nil
+    
     -- Content container
     local content = Instance.new("Frame")
     content.Name = "Content"
     content.Size = UDim2.new(1, -70, 1, -10)
     content.Position = UDim2.new(0, 65, 0, 5)
     content.BackgroundTransparency = 1
+    content.ClipsDescendants = true -- Ensure content doesn't overflow
+    content.AutomaticSize = Enum.AutomaticSize.None -- No automatic resizing
     content.Parent = frame
     
-    -- Add UIListLayout for automatic positioning
-    local contentLayout = Instance.new("UIListLayout")
-    contentLayout.FillDirection = Enum.FillDirection.Vertical
-    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    contentLayout.Padding = UDim.new(0, 3)
-    contentLayout.Parent = content
+    -- Add UIListLayout for automatic positioning (only if there's a title)
+    if hasTitle then
+        local contentLayout = Instance.new("UIListLayout")
+        contentLayout.FillDirection = Enum.FillDirection.Vertical
+        contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        contentLayout.Padding = UDim.new(0, 3)
+        contentLayout.Parent = content
+    end
     
     -- Add padding
     local contentPadding = Instance.new("UIPadding")
@@ -410,7 +418,7 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     contentPadding.Parent = content
     
     -- Title (if provided)
-    if notification.title then
+    if hasTitle then
         local title = Instance.new("TextLabel")
         title.Name = "Title"
         title.Size = UDim2.new(1, 0, 0, 20)
@@ -427,12 +435,14 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     -- Message
     local message = Instance.new("TextLabel")
     message.Name = "Message"
-    message.Size = UDim2.new(1, 0, 0, 0)
-    message.AutomaticSize = Enum.AutomaticSize.Y
+    -- Adjust size based on whether there's a title
+    message.Size = hasTitle and UDim2.new(1, 0, 0, 40) or UDim2.new(1, 0, 1, 0)
+    message.AutomaticSize = Enum.AutomaticSize.None -- Don't auto-resize
     message.BackgroundTransparency = 1
     message.Text = tostring(notification.message or "")
     message.TextColor3 = self._config.COLORS.TextSecondary
     message.TextXAlignment = Enum.TextXAlignment.Left
+    message.TextYAlignment = Enum.TextYAlignment.Center
     message.TextWrapped = true
     message.TextScaled = false
     message.TextSize = 14
