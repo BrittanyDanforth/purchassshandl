@@ -1,6 +1,12 @@
 --[[
     Module: MassDeleteUI
-    Description: Simple mass pet deletion interface
+    Description: Two-panel wizard-style mass pet deletion interface
+    Features:
+        - Left panel: Available pets with filters
+        - Right panel: Selected pets for deletion
+        - Drag-and-drop style selection
+        - Real-time resource calculation
+        - Safety countdown on delete confirmation
 ]]
 
 local Types = require(script.Parent.Parent.Core.ClientTypes)
@@ -15,8 +21,8 @@ MassDeleteUI.__index = MassDeleteUI
 -- CONSTANTS
 -- ========================================
 
-local WINDOW_SIZE = Vector2.new(800, 600)
-local CARD_SIZE = UDim2.new(0, 100, 0, 120)
+local WINDOW_SIZE = Vector2.new(1200, 700)
+local CARD_SIZE = UDim2.new(0, 90, 0, 110)
 local RARITY_COLORS = {
 	Common = Color3.fromRGB(200, 200, 200),
 	Uncommon = Color3.fromRGB(100, 200, 100),
@@ -24,6 +30,15 @@ local RARITY_COLORS = {
 	Epic = Color3.fromRGB(200, 100, 255),
 	Legendary = Color3.fromRGB(255, 200, 50),
 	Mythic = Color3.fromRGB(255, 100, 100)
+}
+
+local RARITY_VALUES = {
+	Common = {coins = 10, dust = 1},
+	Uncommon = {coins = 25, dust = 3},
+	Rare = {coins = 100, dust = 10},
+	Epic = {coins = 500, dust = 50},
+	Legendary = {coins = 2000, dust = 200},
+	Mythic = {coins = 10000, dust = 1000}
 }
 
 -- ========================================
@@ -37,6 +52,7 @@ function MassDeleteUI.new(client)
 	self._client = client
 	self._player = Services.Players.LocalPlayer
 	self._playerGui = self._player:WaitForChild("PlayerGui")
+	self._tweenService = Services.TweenService
 
 	-- Dependencies
 	self._remoteManager = client.RemoteManager
@@ -47,14 +63,26 @@ function MassDeleteUI.new(client)
 	self._utilities = client.Utilities or Utilities
 
 	-- State
-	self._selectedPets = {} -- [uniqueId] = true
-	self._petCards = {} -- [uniqueId] = card
+	self._availablePets = {} -- Pets in left panel
+	self._selectedPets = {} -- Pets in right panel
+	self._filters = {
+		rarities = {},
+		duplicatesOnly = false,
+		keepBest = true,
+		searchText = ""
+	}
+	self._totalCoins = 0
+	self._totalDust = 0
 	
 	-- UI References
 	self._screenGui = nil
 	self._window = nil
-	self._grid = nil
-	self._selectedLabel = nil
+	self._leftPanel = nil
+	self._rightPanel = nil
+	self._leftGrid = nil
+	self._rightGrid = nil
+	self._resourceDisplay = nil
+	self._deleteButton = nil
 
 	-- Janitor for cleanup
 	self._janitor = client.Janitor.new()
@@ -114,14 +142,14 @@ function MassDeleteUI:CreateWindow()
 	-- Create filter section
 	self:CreateFilterSection(window)
 
-	-- Create pet grid
-	self:CreatePetGrid(window)
+	-- Create two panels
+	self:CreatePanels(window)
 
-	-- Create bottom bar
-	self:CreateBottomBar(window)
+	-- Create bottom section
+	self:CreateBottomSection(window)
 
 	-- Load pets
-	self:RefreshPets()
+	self:RefreshAvailablePets()
 end
 
 function MassDeleteUI:CreateHeader(parent)
@@ -147,7 +175,7 @@ function MassDeleteUI:CreateHeader(parent)
 	-- Title
 	local title = Instance.new("TextLabel")
 	title.Size = UDim2.new(1, -60, 1, 0)
-	title.Text = "Mass Delete Pets"
+	title.Text = "Mass Delete Pets - Wizard"
 	title.Font = Config.FONTS.Display or Enum.Font.SourceSansBold
 	title.TextSize = 20
 	title.TextColor3 = Config.COLORS.White
@@ -173,92 +201,361 @@ end
 function MassDeleteUI:CreateFilterSection(parent)
 	local filterFrame = Instance.new("Frame")
 	filterFrame.Name = "FilterSection"
-	filterFrame.Size = UDim2.new(1, -20, 0, 60)
+	filterFrame.Size = UDim2.new(1, -20, 0, 80)
 	filterFrame.Position = UDim2.new(0, 10, 0, 60)
 	filterFrame.BackgroundTransparency = 1
 	filterFrame.Parent = parent
 
-	-- Quick select buttons
-	local selectDupesBtn = Instance.new("TextButton")
-	selectDupesBtn.Size = UDim2.new(0, 180, 0, 35)
-	selectDupesBtn.Position = UDim2.new(0, 0, 0, 0)
-	selectDupesBtn.Text = "Select Duplicates"
-	selectDupesBtn.Font = Enum.Font.SourceSans
-	selectDupesBtn.TextSize = 14
-	selectDupesBtn.TextColor3 = Config.COLORS.White
-	selectDupesBtn.BackgroundColor3 = Config.COLORS.Primary
-	selectDupesBtn.BorderSizePixel = 0
-	selectDupesBtn.Parent = filterFrame
+	-- Rarity pills (row 1)
+	local rarityRow = Instance.new("Frame")
+	rarityRow.Size = UDim2.new(1, 0, 0, 35)
+	rarityRow.BackgroundTransparency = 1
+	rarityRow.Parent = filterFrame
 
-	local btnCorner = Instance.new("UICorner")
-	btnCorner.CornerRadius = UDim.new(0, 6)
-	btnCorner.Parent = selectDupesBtn
+	local xOffset = 0
+	for _, rarity in ipairs({"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"}) do
+		local pill = Instance.new("TextButton")
+		pill.Size = UDim2.new(0, 90, 0, 30)
+		pill.Position = UDim2.new(0, xOffset, 0, 0)
+		pill.Text = rarity
+		pill.Font = Enum.Font.SourceSans
+		pill.TextSize = 14
+		pill.TextColor3 = RARITY_COLORS[rarity]
+		pill.BackgroundColor3 = Config.COLORS.Surface
+		pill.BorderSizePixel = 2
+		pill.BorderColor3 = Config.COLORS.Border
+		pill.Parent = rarityRow
 
-	selectDupesBtn.MouseButton1Click:Connect(function()
-		self:SelectDuplicates()
+		local pillCorner = Instance.new("UICorner")
+		pillCorner.CornerRadius = UDim.new(0, 15)
+		pillCorner.Parent = pill
+
+		pill.MouseButton1Click:Connect(function()
+			if self._filters.rarities[rarity] then
+				self._filters.rarities[rarity] = nil
+				pill.BackgroundColor3 = Config.COLORS.Surface
+				pill.BorderColor3 = Config.COLORS.Border
+			else
+				self._filters.rarities[rarity] = true
+				pill.BackgroundColor3 = RARITY_COLORS[rarity]
+				pill.BorderColor3 = RARITY_COLORS[rarity]
+			end
+			self:RefreshAvailablePets()
+		end)
+
+		xOffset = xOffset + 100
+	end
+
+	-- Controls row (row 2)
+	local controlsRow = Instance.new("Frame")
+	controlsRow.Size = UDim2.new(1, 0, 0, 35)
+	controlsRow.Position = UDim2.new(0, 0, 0, 40)
+	controlsRow.BackgroundTransparency = 1
+	controlsRow.Parent = filterFrame
+
+	-- Duplicates only toggle
+	local dupToggle = Instance.new("TextButton")
+	dupToggle.Size = UDim2.new(0, 150, 0, 30)
+	dupToggle.Position = UDim2.new(0, 0, 0, 0)
+	dupToggle.Text = "🔁 Duplicates Only"
+	dupToggle.Font = Enum.Font.SourceSans
+	dupToggle.TextSize = 14
+	dupToggle.TextColor3 = Config.COLORS.Text
+	dupToggle.BackgroundColor3 = Config.COLORS.Surface
+	dupToggle.BorderSizePixel = 2
+	dupToggle.BorderColor3 = Config.COLORS.Border
+	dupToggle.Parent = controlsRow
+
+	local dupCorner = Instance.new("UICorner")
+	dupCorner.CornerRadius = UDim.new(0, 6)
+	dupCorner.Parent = dupToggle
+
+	dupToggle.MouseButton1Click:Connect(function()
+		self._filters.duplicatesOnly = not self._filters.duplicatesOnly
+		if self._filters.duplicatesOnly then
+			dupToggle.BackgroundColor3 = Config.COLORS.Primary
+			dupToggle.TextColor3 = Config.COLORS.White
+		else
+			dupToggle.BackgroundColor3 = Config.COLORS.Surface
+			dupToggle.TextColor3 = Config.COLORS.Text
+		end
+		self:RefreshAvailablePets()
 	end)
 
-	-- Select common button
-	local selectCommonBtn = Instance.new("TextButton")
-	selectCommonBtn.Size = UDim2.new(0, 150, 0, 35)
-	selectCommonBtn.Position = UDim2.new(0, 190, 0, 0)
-	selectCommonBtn.Text = "Select Common"
-	selectCommonBtn.Font = Enum.Font.SourceSans
-	selectCommonBtn.TextSize = 14
-	selectCommonBtn.TextColor3 = Config.COLORS.White
-	selectCommonBtn.BackgroundColor3 = Config.COLORS.Secondary
-	selectCommonBtn.BorderSizePixel = 0
-	selectCommonBtn.Parent = filterFrame
+	-- Search bar
+	local searchBox = Instance.new("TextBox")
+	searchBox.Size = UDim2.new(0, 200, 0, 30)
+	searchBox.Position = UDim2.new(0, 160, 0, 0)
+	searchBox.PlaceholderText = "🔍 Search pets..."
+	searchBox.Text = ""
+	searchBox.Font = Enum.Font.SourceSans
+	searchBox.TextSize = 14
+	searchBox.TextColor3 = Config.COLORS.Text
+	searchBox.BackgroundColor3 = Config.COLORS.Surface
+	searchBox.BorderSizePixel = 0
+	searchBox.ClearTextOnFocus = false
+	searchBox.Parent = controlsRow
 
-	local btnCorner2 = Instance.new("UICorner")
-	btnCorner2.CornerRadius = UDim.new(0, 6)
-	btnCorner2.Parent = selectCommonBtn
+	local searchCorner = Instance.new("UICorner")
+	searchCorner.CornerRadius = UDim.new(0, 6)
+	searchCorner.Parent = searchBox
 
-	selectCommonBtn.MouseButton1Click:Connect(function()
-		self:SelectByRarity("Common")
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		self._filters.searchText = searchBox.Text:lower()
+		self:RefreshAvailablePets()
+	end)
+end
+
+function MassDeleteUI:CreatePanels(parent)
+	local panelContainer = Instance.new("Frame")
+	panelContainer.Name = "PanelContainer"
+	panelContainer.Size = UDim2.new(1, -20, 1, -230)
+	panelContainer.Position = UDim2.new(0, 10, 0, 150)
+	panelContainer.BackgroundTransparency = 1
+	panelContainer.Parent = parent
+
+	-- Left Panel: Your Pets
+	local leftPanel = Instance.new("Frame")
+	leftPanel.Name = "LeftPanel"
+	leftPanel.Size = UDim2.new(0.48, 0, 1, 0)
+	leftPanel.BackgroundColor3 = Config.COLORS.Surface
+	leftPanel.BorderSizePixel = 0
+	leftPanel.Parent = panelContainer
+
+	local leftCorner = Instance.new("UICorner")
+	leftCorner.CornerRadius = UDim.new(0, 8)
+	leftCorner.Parent = leftPanel
+
+	-- Left panel header
+	local leftHeader = Instance.new("TextLabel")
+	leftHeader.Size = UDim2.new(1, 0, 0, 40)
+	leftHeader.Text = "Your Pets"
+	leftHeader.Font = Enum.Font.SourceSansBold
+	leftHeader.TextSize = 16
+	leftHeader.TextColor3 = Config.COLORS.Text
+	leftHeader.BackgroundColor3 = Config.COLORS.Card
+	leftHeader.BorderSizePixel = 0
+	leftHeader.Parent = leftPanel
+
+	local leftHeaderCorner = Instance.new("UICorner")
+	leftHeaderCorner.CornerRadius = UDim.new(0, 8)
+	leftHeaderCorner.Parent = leftHeader
+
+	-- Left grid
+	local leftScroll = Instance.new("ScrollingFrame")
+	leftScroll.Name = "LeftGrid"
+	leftScroll.Size = UDim2.new(1, -10, 1, -50)
+	leftScroll.Position = UDim2.new(0, 5, 0, 45)
+	leftScroll.BackgroundTransparency = 1
+	leftScroll.BorderSizePixel = 0
+	leftScroll.ScrollBarThickness = 6
+	leftScroll.Parent = leftPanel
+
+	local leftGrid = Instance.new("UIGridLayout")
+	leftGrid.CellSize = CARD_SIZE
+	leftGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+	leftGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	leftGrid.Parent = leftScroll
+
+	self._leftPanel = leftPanel
+	self._leftGrid = leftScroll
+
+	-- Center controls
+	local centerControls = Instance.new("Frame")
+	centerControls.Name = "CenterControls"
+	centerControls.Size = UDim2.new(0, 60, 1, 0)
+	centerControls.Position = UDim2.new(0.48, 5, 0, 0)
+	centerControls.BackgroundTransparency = 1
+	centerControls.Parent = panelContainer
+
+	-- Move all button
+	local moveAllBtn = Instance.new("TextButton")
+	moveAllBtn.Size = UDim2.new(1, 0, 0, 40)
+	moveAllBtn.Position = UDim2.new(0, 0, 0.5, -60)
+	moveAllBtn.Text = ">>"
+	moveAllBtn.Font = Enum.Font.SourceSansBold
+	moveAllBtn.TextSize = 20
+	moveAllBtn.TextColor3 = Config.COLORS.White
+	moveAllBtn.BackgroundColor3 = Config.COLORS.Primary
+	moveAllBtn.BorderSizePixel = 0
+	moveAllBtn.Parent = centerControls
+
+	local moveAllCorner = Instance.new("UICorner")
+	moveAllCorner.CornerRadius = UDim.new(0, 8)
+	moveAllCorner.Parent = moveAllBtn
+
+	-- Keep one checkbox
+	local keepOneCheck = Instance.new("Frame")
+	keepOneCheck.Size = UDim2.new(1, 0, 0, 30)
+	keepOneCheck.Position = UDim2.new(0, 0, 0.5, -15)
+	keepOneCheck.BackgroundTransparency = 1
+	keepOneCheck.Parent = centerControls
+
+	local checkbox = Instance.new("TextButton")
+	checkbox.Size = UDim2.new(0, 20, 0, 20)
+	checkbox.Position = UDim2.new(0, 5, 0, 5)
+	checkbox.Text = ""
+	checkbox.BackgroundColor3 = Config.COLORS.Surface
+	checkbox.BorderSizePixel = 2
+	checkbox.BorderColor3 = Config.COLORS.Border
+	checkbox.Parent = keepOneCheck
+
+	local checkCorner = Instance.new("UICorner")
+	checkCorner.CornerRadius = UDim.new(0, 4)
+	checkCorner.Parent = checkbox
+
+	local checkLabel = Instance.new("TextLabel")
+	checkLabel.Size = UDim2.new(1, -30, 1, 0)
+	checkLabel.Position = UDim2.new(0, 30, 0, 0)
+	checkLabel.Text = "Keep\nbest"
+	checkLabel.Font = Enum.Font.SourceSans
+	checkLabel.TextSize = 11
+	checkLabel.TextColor3 = Config.COLORS.TextSecondary
+	checkLabel.BackgroundTransparency = 1
+	checkLabel.TextWrapped = true
+	checkLabel.Parent = keepOneCheck
+
+	checkbox.MouseButton1Click:Connect(function()
+		self._filters.keepBest = not self._filters.keepBest
+		if self._filters.keepBest then
+			checkbox.Text = "✓"
+			checkbox.TextColor3 = Config.COLORS.Success
+		else
+			checkbox.Text = ""
+		end
 	end)
 
-	-- Clear selection button
-	local clearBtn = Instance.new("TextButton")
-	clearBtn.Size = UDim2.new(0, 120, 0, 35)
-	clearBtn.Position = UDim2.new(0, 350, 0, 0)
-	clearBtn.Text = "Clear All"
-	clearBtn.Font = Enum.Font.SourceSans
-	clearBtn.TextSize = 14
-	clearBtn.TextColor3 = Config.COLORS.White
-	clearBtn.BackgroundColor3 = Config.COLORS.Error
-	clearBtn.BorderSizePixel = 0
-	clearBtn.Parent = filterFrame
+	-- Set initial state
+	if self._filters.keepBest then
+		checkbox.Text = "✓"
+		checkbox.TextColor3 = Config.COLORS.Success
+	end
 
-	local btnCorner3 = Instance.new("UICorner")
-	btnCorner3.CornerRadius = UDim.new(0, 6)
-	btnCorner3.Parent = clearBtn
+	moveAllBtn.MouseButton1Click:Connect(function()
+		self:MoveAllFiltered()
+	end)
 
-	clearBtn.MouseButton1Click:Connect(function()
+	-- Clear all button
+	local clearAllBtn = Instance.new("TextButton")
+	clearAllBtn.Size = UDim2.new(1, 0, 0, 40)
+	clearAllBtn.Position = UDim2.new(0, 0, 0.5, 20)
+	clearAllBtn.Text = "<<"
+	clearAllBtn.Font = Enum.Font.SourceSansBold
+	clearAllBtn.TextSize = 20
+	clearAllBtn.TextColor3 = Config.COLORS.White
+	clearAllBtn.BackgroundColor3 = Config.COLORS.Error
+	clearAllBtn.BorderSizePixel = 0
+	clearAllBtn.Parent = centerControls
+
+	local clearAllCorner = Instance.new("UICorner")
+	clearAllCorner.CornerRadius = UDim.new(0, 8)
+	clearAllCorner.Parent = clearAllBtn
+
+	clearAllBtn.MouseButton1Click:Connect(function()
 		self:ClearSelection()
 	end)
+
+	-- Right Panel: Marked for Deletion
+	local rightPanel = Instance.new("Frame")
+	rightPanel.Name = "RightPanel"
+	rightPanel.Size = UDim2.new(0.48, 0, 1, 0)
+	rightPanel.Position = UDim2.new(0.52, 0, 0, 0)
+	rightPanel.BackgroundColor3 = Config.COLORS.Surface
+	rightPanel.BorderSizePixel = 0
+	rightPanel.Parent = panelContainer
+
+	local rightCorner = Instance.new("UICorner")
+	rightCorner.CornerRadius = UDim.new(0, 8)
+	rightCorner.Parent = rightPanel
+
+	-- Right panel header
+	local rightHeader = Instance.new("TextLabel")
+	rightHeader.Size = UDim2.new(1, 0, 0, 40)
+	rightHeader.Text = "Marked for Deletion"
+	rightHeader.Font = Enum.Font.SourceSansBold
+	rightHeader.TextSize = 16
+	rightHeader.TextColor3 = Config.COLORS.Error
+	rightHeader.BackgroundColor3 = Color3.new(0.3, 0.1, 0.1)
+	rightHeader.BorderSizePixel = 0
+	rightHeader.Parent = rightPanel
+
+	local rightHeaderCorner = Instance.new("UICorner")
+	rightHeaderCorner.CornerRadius = UDim.new(0, 8)
+	rightHeaderCorner.Parent = rightHeader
+
+	-- Right grid
+	local rightScroll = Instance.new("ScrollingFrame")
+	rightScroll.Name = "RightGrid"
+	rightScroll.Size = UDim2.new(1, -10, 1, -140)
+	rightScroll.Position = UDim2.new(0, 5, 0, 45)
+	rightScroll.BackgroundTransparency = 1
+	rightScroll.BorderSizePixel = 0
+	rightScroll.ScrollBarThickness = 6
+	rightScroll.Parent = rightPanel
+
+	local rightGrid = Instance.new("UIGridLayout")
+	rightGrid.CellSize = CARD_SIZE
+	rightGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+	rightGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	rightGrid.Parent = rightScroll
+
+	self._rightPanel = rightPanel
+	self._rightGrid = rightScroll
+
+	-- Resource summary in right panel
+	local summaryFrame = Instance.new("Frame")
+	summaryFrame.Name = "Summary"
+	summaryFrame.Size = UDim2.new(1, -10, 0, 80)
+	summaryFrame.Position = UDim2.new(0, 5, 1, -85)
+	summaryFrame.BackgroundColor3 = Config.COLORS.Card
+	summaryFrame.BorderSizePixel = 0
+	summaryFrame.Parent = rightPanel
+
+	local summaryCorner = Instance.new("UICorner")
+	summaryCorner.CornerRadius = UDim.new(0, 8)
+	summaryCorner.Parent = summaryFrame
+
+	local totalLabel = Instance.new("TextLabel")
+	totalLabel.Name = "TotalLabel"
+	totalLabel.Size = UDim2.new(1, -10, 0, 25)
+	totalLabel.Position = UDim2.new(0, 5, 0, 5)
+	totalLabel.Text = "Total Pets: 0"
+	totalLabel.Font = Enum.Font.SourceSansBold
+	totalLabel.TextSize = 16
+	totalLabel.TextColor3 = Config.COLORS.Text
+	totalLabel.TextXAlignment = Enum.TextXAlignment.Left
+	totalLabel.BackgroundTransparency = 1
+	totalLabel.Parent = summaryFrame
+
+	local resourceLabel = Instance.new("TextLabel")
+	resourceLabel.Name = "ResourceLabel"
+	resourceLabel.Size = UDim2.new(1, -10, 0, 20)
+	resourceLabel.Position = UDim2.new(0, 5, 0, 30)
+	resourceLabel.Text = "Resources Back: 0 Coins, 0 Dust"
+	resourceLabel.Font = Enum.Font.SourceSans
+	resourceLabel.TextSize = 14
+	resourceLabel.TextColor3 = Config.COLORS.Success
+	resourceLabel.TextXAlignment = Enum.TextXAlignment.Left
+	resourceLabel.BackgroundTransparency = 1
+	resourceLabel.Parent = summaryFrame
+
+	local warningLabel = Instance.new("TextLabel")
+	warningLabel.Name = "WarningLabel"
+	warningLabel.Size = UDim2.new(1, -10, 0, 20)
+	warningLabel.Position = UDim2.new(0, 5, 0, 55)
+	warningLabel.Text = "⚠️ WARNING: High-value pets selected!"
+	warningLabel.Font = Enum.Font.SourceSansBold
+	warningLabel.TextSize = 12
+	warningLabel.TextColor3 = Config.COLORS.Error
+	warningLabel.TextXAlignment = Enum.TextXAlignment.Left
+	warningLabel.BackgroundTransparency = 1
+	warningLabel.Visible = false
+	warningLabel.Parent = summaryFrame
+
+	self._resourceDisplay = summaryFrame
 end
 
-function MassDeleteUI:CreatePetGrid(parent)
-	local scrollFrame = Instance.new("ScrollingFrame")
-	scrollFrame.Name = "PetGrid"
-	scrollFrame.Size = UDim2.new(1, -20, 1, -180)
-	scrollFrame.Position = UDim2.new(0, 10, 0, 130)
-	scrollFrame.BackgroundTransparency = 1
-	scrollFrame.BorderSizePixel = 0
-	scrollFrame.ScrollBarThickness = 8
-	scrollFrame.Parent = parent
-
-	local gridLayout = Instance.new("UIGridLayout")
-	gridLayout.CellSize = CARD_SIZE
-	gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
-	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	gridLayout.Parent = scrollFrame
-
-	self._grid = scrollFrame
-end
-
-function MassDeleteUI:CreateBottomBar(parent)
+function MassDeleteUI:CreateBottomSection(parent)
 	local bottomBar = Instance.new("Frame")
 	bottomBar.Name = "BottomBar"
 	bottomBar.Size = UDim2.new(1, 0, 0, 60)
@@ -267,27 +564,13 @@ function MassDeleteUI:CreateBottomBar(parent)
 	bottomBar.BorderSizePixel = 0
 	bottomBar.Parent = parent
 
-	-- Selected count label
-	local selectedLabel = Instance.new("TextLabel")
-	selectedLabel.Size = UDim2.new(0, 300, 1, 0)
-	selectedLabel.Position = UDim2.new(0, 20, 0, 0)
-	selectedLabel.Text = "0 pets selected"
-	selectedLabel.Font = Enum.Font.SourceSans
-	selectedLabel.TextSize = 16
-	selectedLabel.TextColor3 = Config.COLORS.Text
-	selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
-	selectedLabel.BackgroundTransparency = 1
-	selectedLabel.Parent = bottomBar
-
-	self._selectedLabel = selectedLabel
-
 	-- Delete button
 	local deleteBtn = Instance.new("TextButton")
-	deleteBtn.Size = UDim2.new(0, 150, 0, 40)
-	deleteBtn.Position = UDim2.new(1, -170, 0.5, -20)
-	deleteBtn.Text = "Delete Selected"
+	deleteBtn.Size = UDim2.new(0, 200, 0, 40)
+	deleteBtn.Position = UDim2.new(1, -220, 0.5, -20)
+	deleteBtn.Text = "Delete Pets"
 	deleteBtn.Font = Enum.Font.SourceSansBold
-	deleteBtn.TextSize = 16
+	deleteBtn.TextSize = 18
 	deleteBtn.TextColor3 = Config.COLORS.White
 	deleteBtn.BackgroundColor3 = Config.COLORS.Error
 	deleteBtn.BorderSizePixel = 0
@@ -298,41 +581,44 @@ function MassDeleteUI:CreateBottomBar(parent)
 	btnCorner.Parent = deleteBtn
 
 	deleteBtn.MouseButton1Click:Connect(function()
-		self:ConfirmDelete()
+		self:ShowConfirmation()
 	end)
+
+	self._deleteButton = deleteBtn
 end
 
 -- ========================================
 -- PET CARD CREATION
 -- ========================================
 
-function MassDeleteUI:CreatePetCard(pet)
+function MassDeleteUI:CreatePetCard(pet, isRightPanel)
 	local card = Instance.new("Frame")
 	card.Name = "PetCard_" .. pet.uniqueId
 	card.BackgroundColor3 = Config.COLORS.Card or Color3.fromRGB(255, 255, 255)
 	card.BorderSizePixel = 0
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
+	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = card
 
-	-- Selection overlay
-	local overlay = Instance.new("Frame")
-	overlay.Name = "SelectionOverlay"
-	overlay.Size = UDim2.new(1, 0, 1, 0)
-	overlay.BackgroundColor3 = Config.COLORS.Error
-	overlay.BackgroundTransparency = 0.7
-	overlay.Visible = false
-	overlay.Parent = card
+	-- Red tint for right panel
+	if isRightPanel then
+		local redOverlay = Instance.new("Frame")
+		redOverlay.Name = "RedOverlay"
+		redOverlay.Size = UDim2.new(1, 0, 1, 0)
+		redOverlay.BackgroundColor3 = Config.COLORS.Error
+		redOverlay.BackgroundTransparency = 0.85
+		redOverlay.Parent = card
 
-	local overlayCorner = Instance.new("UICorner")
-	overlayCorner.CornerRadius = UDim.new(0, 8)
-	overlayCorner.Parent = overlay
+		local overlayCorner = Instance.new("UICorner")
+		overlayCorner.CornerRadius = UDim.new(0, 6)
+		overlayCorner.Parent = redOverlay
+	end
 
 	-- Pet image placeholder
 	local petImage = Instance.new("Frame")
 	petImage.Name = "PetImage"
-	petImage.Size = UDim2.new(1, -10, 1, -30)
+	petImage.Size = UDim2.new(1, -10, 1, -25)
 	petImage.Position = UDim2.new(0, 5, 0, 5)
 	petImage.BackgroundColor3 = Config.COLORS.Surface or Color3.fromRGB(240, 240, 240)
 	petImage.BorderSizePixel = 0
@@ -340,17 +626,38 @@ function MassDeleteUI:CreatePetCard(pet)
 
 	-- Name label
 	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, -10, 0, 20)
-	nameLabel.Position = UDim2.new(0, 5, 1, -25)
+	nameLabel.Size = UDim2.new(1, -4, 0, 20)
+	nameLabel.Position = UDim2.new(0, 2, 1, -22)
 	nameLabel.Text = pet.name or "Pet"
 	nameLabel.Font = Enum.Font.SourceSans
-	nameLabel.TextSize = 12
+	nameLabel.TextSize = 11
 	nameLabel.TextColor3 = RARITY_COLORS[pet.rarity] or Config.COLORS.Text
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	nameLabel.Parent = card
 
-	-- Click button
+	-- Level badge
+	local levelBadge = Instance.new("Frame")
+	levelBadge.Size = UDim2.new(0, 25, 0, 16)
+	levelBadge.Position = UDim2.new(1, -28, 0, 3)
+	levelBadge.BackgroundColor3 = Config.COLORS.Primary
+	levelBadge.BorderSizePixel = 0
+	levelBadge.Parent = card
+
+	local badgeCorner = Instance.new("UICorner")
+	badgeCorner.CornerRadius = UDim.new(0, 4)
+	badgeCorner.Parent = levelBadge
+
+	local levelText = Instance.new("TextLabel")
+	levelText.Size = UDim2.new(1, 0, 1, 0)
+	levelText.Text = tostring(pet.level or 1)
+	levelText.Font = Enum.Font.SourceSansBold
+	levelText.TextSize = 10
+	levelText.TextColor3 = Config.COLORS.White
+	levelText.BackgroundTransparency = 1
+	levelText.Parent = levelBadge
+
+	-- Click handler
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.new(1, 0, 1, 0)
 	button.BackgroundTransparency = 1
@@ -358,24 +665,165 @@ function MassDeleteUI:CreatePetCard(pet)
 	button.Parent = card
 
 	button.MouseButton1Click:Connect(function()
-		self:TogglePetSelection(pet.uniqueId)
+		if isRightPanel then
+			self:MovePetToLeft(pet, card)
+		else
+			self:MovePetToRight(pet, card)
+		end
 	end)
 
 	return card
 end
 
 -- ========================================
--- SELECTION LOGIC
+-- PET MOVEMENT
 -- ========================================
 
-function MassDeleteUI:RefreshPets()
-	-- Clear existing cards
-	for _, child in ipairs(self._grid:GetChildren()) do
+function MassDeleteUI:MovePetToRight(pet, oldCard)
+	-- Add to selected
+	self._selectedPets[pet.uniqueId] = pet
+	
+	-- Remove from available
+	self._availablePets[pet.uniqueId] = nil
+	
+	-- Animate card movement
+	self:AnimateCardTransfer(oldCard, self._rightGrid, true)
+	
+	-- Update displays
+	self:UpdateResourceCalculation()
+	self:UpdateDeleteButton()
+	
+	-- Play sound
+	self._soundSystem:PlayUISound("Click")
+end
+
+function MassDeleteUI:MovePetToLeft(pet, oldCard)
+	-- Remove from selected
+	self._selectedPets[pet.uniqueId] = nil
+	
+	-- Add back to available
+	self._availablePets[pet.uniqueId] = pet
+	
+	-- Animate card movement
+	self:AnimateCardTransfer(oldCard, self._leftGrid, false)
+	
+	-- Update displays
+	self:UpdateResourceCalculation()
+	self:UpdateDeleteButton()
+	
+	-- Play sound
+	self._soundSystem:PlayUISound("Click")
+end
+
+function MassDeleteUI:AnimateCardTransfer(oldCard, targetGrid, toRight)
+	-- Get positions
+	local startPos = oldCard.AbsolutePosition
+	local screenGui = self._screenGui
+	
+	-- Create flying card
+	local flyingCard = oldCard:Clone()
+	flyingCard.Parent = screenGui
+	flyingCard.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
+	flyingCard.Size = UDim2.new(0, oldCard.AbsoluteSize.X, 0, oldCard.AbsoluteSize.Y)
+	
+	-- Remove old card
+	oldCard:Destroy()
+	
+	-- Calculate target position (center of target panel)
+	local targetPanel = toRight and self._rightPanel or self._leftPanel
+	local targetCenter = targetPanel.AbsolutePosition + targetPanel.AbsoluteSize/2
+	
+	-- Animate to target
+	local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	local tween = self._tweenService:Create(flyingCard, tweenInfo, {
+		Position = UDim2.new(0, targetCenter.X - flyingCard.AbsoluteSize.X/2, 
+		                     0, targetCenter.Y - flyingCard.AbsoluteSize.Y/2),
+		Size = UDim2.new(0, 0, 0, 0),
+		Rotation = toRight and 15 or -15
+	})
+	
+	tween:Play()
+	tween.Completed:Connect(function()
+		flyingCard:Destroy()
+		-- Refresh the target grid
+		if toRight then
+			self:RefreshSelectedPets()
+		else
+			self:RefreshAvailablePets()
+		end
+	end)
+end
+
+function MassDeleteUI:MoveAllFiltered()
+	local toMove = {}
+	
+	-- Collect all visible pets in left panel
+	for uniqueId, pet in pairs(self._availablePets) do
+		-- Check for duplicates if keepBest is enabled
+		if self._filters.keepBest and self._filters.duplicatesOnly then
+			local duplicates = self:GetDuplicatesOf(pet)
+			if #duplicates > 1 then
+				-- Sort by level and keep the best
+				table.sort(duplicates, function(a, b)
+					return (a.level or 1) > (b.level or 1)
+				end)
+				-- Skip the best one
+				for i = 2, #duplicates do
+					if duplicates[i].uniqueId == uniqueId then
+						table.insert(toMove, pet)
+						break
+					end
+				end
+			end
+		else
+			table.insert(toMove, pet)
+		end
+	end
+	
+	-- Move all at once
+	for _, pet in ipairs(toMove) do
+		self._selectedPets[pet.uniqueId] = pet
+		self._availablePets[pet.uniqueId] = nil
+	end
+	
+	-- Refresh both panels
+	self:RefreshAvailablePets()
+	self:RefreshSelectedPets()
+	self:UpdateResourceCalculation()
+	self:UpdateDeleteButton()
+	
+	-- Play sound
+	self._soundSystem:PlayUISound("Whoosh")
+end
+
+function MassDeleteUI:ClearSelection()
+	-- Move all back
+	for uniqueId, pet in pairs(self._selectedPets) do
+		self._availablePets[uniqueId] = pet
+	end
+	self._selectedPets = {}
+	
+	-- Refresh both panels
+	self:RefreshAvailablePets()
+	self:RefreshSelectedPets()
+	self:UpdateResourceCalculation()
+	self:UpdateDeleteButton()
+	
+	-- Play sound
+	self._soundSystem:PlayUISound("Whoosh")
+end
+
+-- ========================================
+-- DATA MANAGEMENT
+-- ========================================
+
+function MassDeleteUI:RefreshAvailablePets()
+	-- Clear grid
+	for _, child in ipairs(self._leftGrid:GetChildren()) do
 		if child:IsA("Frame") then
 			child:Destroy()
 		end
 	end
-	self._petCards = {}
 
 	-- Get player data
 	local playerData = self._dataCache:Get("playerData")
@@ -383,126 +831,164 @@ function MassDeleteUI:RefreshPets()
 		return
 	end
 
-	-- Create cards for unequipped pets
+	-- Filter pets
+	local filtered = {}
 	for uniqueId, pet in pairs(playerData.pets) do
-		if not pet.equipped then
-			local card = self:CreatePetCard(pet)
-			card.Parent = self._grid
-			self._petCards[uniqueId] = card
-		end
-	end
-
-	self:UpdateSelectedCount()
-end
-
-function MassDeleteUI:TogglePetSelection(uniqueId)
-	if self._selectedPets[uniqueId] then
-		self._selectedPets[uniqueId] = nil
-	else
-		self._selectedPets[uniqueId] = true
-	end
-
-	-- Update visual
-	local card = self._petCards[uniqueId]
-	if card then
-		local overlay = card:FindFirstChild("SelectionOverlay")
-		if overlay then
-			overlay.Visible = self._selectedPets[uniqueId] ~= nil
-		end
-	end
-
-	self:UpdateSelectedCount()
-	self._soundSystem:PlayUISound("Click")
-end
-
-function MassDeleteUI:SelectDuplicates()
-	local playerData = self._dataCache:Get("playerData")
-	if not playerData or not playerData.pets then return end
-
-	-- Group pets by type
-	local petsByType = {}
-	for uniqueId, pet in pairs(playerData.pets) do
-		if not pet.equipped then
-			local petId = pet.petId
-			if not petsByType[petId] then
-				petsByType[petId] = {}
-			end
-			table.insert(petsByType[petId], {uniqueId = uniqueId, level = pet.level or 1})
-		end
-	end
-
-	-- Select duplicates (keep highest level)
-	self._selectedPets = {}
-	for petId, pets in pairs(petsByType) do
-		if #pets > 1 then
-			-- Sort by level
-			table.sort(pets, function(a, b)
-				return a.level > b.level
-			end)
+		if not pet.equipped and not self._selectedPets[uniqueId] then
+			local include = true
 			
-			-- Select all except the best
-			for i = 2, #pets do
-				self._selectedPets[pets[i].uniqueId] = true
+			-- Rarity filter
+			if next(self._filters.rarities) and not self._filters.rarities[pet.rarity] then
+				include = false
+			end
+			
+			-- Duplicates filter
+			if self._filters.duplicatesOnly then
+				local duplicates = self:GetDuplicatesOf(pet)
+				if #duplicates <= 1 then
+					include = false
+				end
+			end
+			
+			-- Search filter
+			if self._filters.searchText ~= "" then
+				local petName = (pet.name or ""):lower()
+				if not petName:find(self._filters.searchText, 1, true) then
+					include = false
+				end
+			end
+			
+			if include then
+				self._availablePets[uniqueId] = pet
+				table.insert(filtered, pet)
+			else
+				self._availablePets[uniqueId] = nil
 			end
 		end
 	end
 
-	self:UpdateVisuals()
-	self:UpdateSelectedCount()
+	-- Sort by rarity and level
+	table.sort(filtered, function(a, b)
+		if a.rarity ~= b.rarity then
+			local rarityOrder = {Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythic=6}
+			return (rarityOrder[a.rarity] or 1) < (rarityOrder[b.rarity] or 1)
+		end
+		return (a.level or 1) < (b.level or 1)
+	end)
+
+	-- Create cards
+	for _, pet in ipairs(filtered) do
+		local card = self:CreatePetCard(pet, false)
+		card.Parent = self._leftGrid
+	end
 end
 
-function MassDeleteUI:SelectByRarity(rarity)
+function MassDeleteUI:RefreshSelectedPets()
+	-- Clear grid
+	for _, child in ipairs(self._rightGrid:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	-- Create cards for selected pets
+	local sorted = {}
+	for _, pet in pairs(self._selectedPets) do
+		table.insert(sorted, pet)
+	end
+
+	-- Sort by rarity (highest first for visibility)
+	table.sort(sorted, function(a, b)
+		if a.rarity ~= b.rarity then
+			local rarityOrder = {Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythic=6}
+			return (rarityOrder[a.rarity] or 1) > (rarityOrder[b.rarity] or 1)
+		end
+		return (a.level or 1) > (b.level or 1)
+	end)
+
+	-- Create cards
+	for _, pet in ipairs(sorted) do
+		local card = self:CreatePetCard(pet, true)
+		card.Parent = self._rightGrid
+	end
+end
+
+function MassDeleteUI:GetDuplicatesOf(targetPet)
 	local playerData = self._dataCache:Get("playerData")
-	if not playerData or not playerData.pets then return end
+	if not playerData or not playerData.pets then
+		return {}
+	end
 
-	self._selectedPets = {}
+	local duplicates = {}
 	for uniqueId, pet in pairs(playerData.pets) do
-		if not pet.equipped and pet.rarity == rarity then
-			self._selectedPets[uniqueId] = true
+		if pet.petId == targetPet.petId and not pet.equipped then
+			table.insert(duplicates, pet)
 		end
 	end
 
-	self:UpdateVisuals()
-	self:UpdateSelectedCount()
+	return duplicates
 end
 
-function MassDeleteUI:ClearSelection()
-	self._selectedPets = {}
-	self:UpdateVisuals()
-	self:UpdateSelectedCount()
-end
+function MassDeleteUI:UpdateResourceCalculation()
+	self._totalCoins = 0
+	self._totalDust = 0
+	local count = 0
+	local hasHighValue = false
 
-function MassDeleteUI:UpdateVisuals()
-	for uniqueId, card in pairs(self._petCards) do
-		local overlay = card:FindFirstChild("SelectionOverlay")
-		if overlay then
-			overlay.Visible = self._selectedPets[uniqueId] ~= nil
+	for _, pet in pairs(self._selectedPets) do
+		count = count + 1
+		local values = RARITY_VALUES[pet.rarity] or RARITY_VALUES.Common
+		local levelMultiplier = 1 + ((pet.level or 1) - 1) * 0.1
+		
+		self._totalCoins = self._totalCoins + math.floor(values.coins * levelMultiplier)
+		self._totalDust = self._totalDust + math.floor(values.dust * levelMultiplier)
+		
+		if pet.rarity == "Epic" or pet.rarity == "Legendary" or pet.rarity == "Mythic" then
+			hasHighValue = true
 		end
+	end
+
+	-- Update display
+	local totalLabel = self._resourceDisplay:FindFirstChild("TotalLabel")
+	local resourceLabel = self._resourceDisplay:FindFirstChild("ResourceLabel")
+	local warningLabel = self._resourceDisplay:FindFirstChild("WarningLabel")
+
+	if totalLabel then
+		totalLabel.Text = "Total Pets: " .. count
+	end
+
+	if resourceLabel then
+		resourceLabel.Text = string.format("Resources Back: %s Coins, %s Dust",
+			self._utilities:FormatNumber(self._totalCoins),
+			self._utilities:FormatNumber(self._totalDust)
+		)
+	end
+
+	if warningLabel then
+		warningLabel.Visible = hasHighValue
 	end
 end
 
-function MassDeleteUI:UpdateSelectedCount()
+function MassDeleteUI:UpdateDeleteButton()
 	local count = 0
 	for _ in pairs(self._selectedPets) do
 		count = count + 1
 	end
-	
-	if self._selectedLabel then
-		self._selectedLabel.Text = count .. " pets selected"
+
+	if self._deleteButton then
+		self._deleteButton.Text = count > 0 and ("Delete " .. count .. " Pets") or "Delete Pets"
+		self._deleteButton.BackgroundColor3 = count > 0 and Config.COLORS.Error or Config.COLORS.Secondary
 	end
 end
 
 -- ========================================
--- DELETION
+-- CONFIRMATION
 -- ========================================
 
-function MassDeleteUI:ConfirmDelete()
+function MassDeleteUI:ShowConfirmation()
 	local count = 0
-	local petIds = {}
-	
-	for uniqueId in pairs(self._selectedPets) do
+	for _ in pairs(self._selectedPets) do
 		count = count + 1
-		table.insert(petIds, uniqueId)
 	end
 
 	if count == 0 then
@@ -514,33 +1000,55 @@ function MassDeleteUI:ConfirmDelete()
 		return
 	end
 
-	-- Simple confirmation
-	local confirmText = string.format("Delete %d pets? This cannot be undone!", count)
-	
-	-- Create simple confirmation dialog
-	local confirmFrame = Instance.new("Frame")
-	confirmFrame.Size = UDim2.new(0, 400, 0, 200)
-	confirmFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
-	confirmFrame.BackgroundColor3 = Config.COLORS.Background
-	confirmFrame.BorderSizePixel = 0
-	confirmFrame.ZIndex = 10
-	confirmFrame.Parent = self._screenGui
+	-- Create confirmation popup
+	local confirmOverlay = Instance.new("Frame")
+	confirmOverlay.Name = "ConfirmOverlay"
+	confirmOverlay.Size = UDim2.new(1, 0, 1, 0)
+	confirmOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+	confirmOverlay.BackgroundTransparency = 0.5
+	confirmOverlay.ZIndex = 10
+	confirmOverlay.Parent = self._screenGui
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = confirmFrame
+	local confirmDialog = Instance.new("Frame")
+	confirmDialog.Size = UDim2.new(0, 400, 0, 250)
+	confirmDialog.Position = UDim2.new(0.5, -200, 0.5, -125)
+	confirmDialog.BackgroundColor3 = Config.COLORS.Background
+	confirmDialog.BorderSizePixel = 0
+	confirmDialog.ZIndex = 11
+	confirmDialog.Parent = confirmOverlay
 
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.new(1, -40, 0, 100)
-	text.Position = UDim2.new(0, 20, 0, 20)
-	text.Text = confirmText
-	text.Font = Enum.Font.SourceSans
-	text.TextSize = 18
-	text.TextColor3 = Config.COLORS.Text
-	text.BackgroundTransparency = 1
-	text.TextWrapped = true
-	text.Parent = confirmFrame
+	local dialogCorner = Instance.new("UICorner")
+	dialogCorner.CornerRadius = UDim.new(0, 12)
+	dialogCorner.Parent = confirmDialog
 
+	-- Title
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -40, 0, 40)
+	title.Position = UDim2.new(0, 20, 0, 20)
+	title.Text = "CONFIRM DELETION"
+	title.Font = Enum.Font.SourceSansBold
+	title.TextSize = 24
+	title.TextColor3 = Config.COLORS.Error
+	title.BackgroundTransparency = 1
+	title.Parent = confirmDialog
+
+	-- Message
+	local message = Instance.new("TextLabel")
+	message.Size = UDim2.new(1, -40, 0, 80)
+	message.Position = UDim2.new(0, 20, 0, 70)
+	message.Text = string.format("You are about to permanently delete %d pets.\n\nYou will receive:\n%s Coins\n%s Pet Dust",
+		count,
+		self._utilities:FormatNumber(self._totalCoins),
+		self._utilities:FormatNumber(self._totalDust)
+	)
+	message.Font = Enum.Font.SourceSans
+	message.TextSize = 16
+	message.TextColor3 = Config.COLORS.Text
+	message.BackgroundTransparency = 1
+	message.TextWrapped = true
+	message.Parent = confirmDialog
+
+	-- Buttons
 	local cancelBtn = Instance.new("TextButton")
 	cancelBtn.Size = UDim2.new(0, 120, 0, 40)
 	cancelBtn.Position = UDim2.new(0, 40, 1, -60)
@@ -550,58 +1058,93 @@ function MassDeleteUI:ConfirmDelete()
 	cancelBtn.TextColor3 = Config.COLORS.White
 	cancelBtn.BackgroundColor3 = Config.COLORS.Secondary
 	cancelBtn.BorderSizePixel = 0
-	cancelBtn.Parent = confirmFrame
+	cancelBtn.Parent = confirmDialog
 
 	local cancelCorner = Instance.new("UICorner")
 	cancelCorner.CornerRadius = UDim.new(0, 8)
 	cancelCorner.Parent = cancelBtn
 
-	local deleteBtn = Instance.new("TextButton")
-	deleteBtn.Size = UDim2.new(0, 120, 0, 40)
-	deleteBtn.Position = UDim2.new(1, -160, 1, -60)
-	deleteBtn.Text = "Delete"
-	deleteBtn.Font = Enum.Font.SourceSansBold
-	deleteBtn.TextSize = 16
-	deleteBtn.TextColor3 = Config.COLORS.White
-	deleteBtn.BackgroundColor3 = Config.COLORS.Error
-	deleteBtn.BorderSizePixel = 0
-	deleteBtn.Parent = confirmFrame
+	local confirmBtn = Instance.new("TextButton")
+	confirmBtn.Size = UDim2.new(0, 140, 0, 40)
+	confirmBtn.Position = UDim2.new(1, -180, 1, -60)
+	confirmBtn.Text = "Delete (3)"
+	confirmBtn.Font = Enum.Font.SourceSansBold
+	confirmBtn.TextSize = 16
+	confirmBtn.TextColor3 = Config.COLORS.White
+	confirmBtn.BackgroundColor3 = Config.COLORS.Secondary
+	confirmBtn.BorderSizePixel = 0
+	confirmBtn.Parent = confirmDialog
 
-	local deleteCorner = Instance.new("UICorner")
-	deleteCorner.CornerRadius = UDim.new(0, 8)
-	deleteCorner.Parent = deleteBtn
+	local confirmCorner = Instance.new("UICorner")
+	confirmCorner.CornerRadius = UDim.new(0, 8)
+	confirmCorner.Parent = confirmBtn
 
+	-- Cancel handler
 	cancelBtn.MouseButton1Click:Connect(function()
-		confirmFrame:Destroy()
+		confirmOverlay:Destroy()
 	end)
 
-	deleteBtn.MouseButton1Click:Connect(function()
-		confirmFrame:Destroy()
-		self:ExecuteDelete(petIds)
+	-- Countdown
+	local countdown = 3
+	confirmBtn.Text = "Delete (" .. countdown .. ")"
+	
+	local countdownConnection
+	countdownConnection = game:GetService("RunService").Heartbeat:Connect(function()
+		countdown = countdown - (1/60)
+		if countdown <= 0 then
+			countdownConnection:Disconnect()
+			confirmBtn.Text = "DELETE NOW"
+			confirmBtn.BackgroundColor3 = Config.COLORS.Error
+			
+			-- Enable delete
+			confirmBtn.MouseButton1Click:Connect(function()
+				confirmOverlay:Destroy()
+				self:ExecuteDelete()
+			end)
+		else
+			confirmBtn.Text = "Delete (" .. math.ceil(countdown) .. ")"
+		end
 	end)
 end
 
-function MassDeleteUI:ExecuteDelete(petIds)
-	-- Use InvokeServer instead of FireServer for RemoteFunctions
+function MassDeleteUI:ExecuteDelete()
+	local petIds = {}
+	for uniqueId in pairs(self._selectedPets) do
+		table.insert(petIds, uniqueId)
+	end
+
+	-- Use InvokeServer for RemoteFunctions
 	local result = self._remoteManager:InvokeServer("BatchDeletePets", {
 		petIds = petIds
 	})
 	
 	if result and result.success then
+		-- Animate resource collection
+		self:AnimateResourceCollection()
+		
 		self._notificationSystem:Show({
 			title = "Pets Deleted",
-			message = string.format("Successfully deleted %d pets!", result.deletedCount or #petIds),
-			type = "success"
+			message = string.format("Successfully deleted %d pets!\nReceived %s coins and %s dust!",
+				result.deletedCount or #petIds,
+				self._utilities:FormatNumber(result.coinsReceived or 0),
+				self._utilities:FormatNumber(result.dustReceived or 0)
+			),
+			type = "success",
+			duration = 4
 		})
 		
 		-- Clear selection and refresh
 		self._selectedPets = {}
-		self:RefreshPets()
+		self:RefreshAvailablePets()
+		self:RefreshSelectedPets()
+		self:UpdateResourceCalculation()
+		self:UpdateDeleteButton()
 		
-		-- Fire event for other UIs to update
+		-- Fire event
 		self._eventBus:Fire("PetsDeleted", {count = result.deletedCount})
 		
-		-- Close the UI
+		-- Close after animation
+		task.wait(1)
 		self:Close()
 	else
 		self._notificationSystem:Show({
@@ -610,6 +1153,49 @@ function MassDeleteUI:ExecuteDelete(petIds)
 			type = "error"
 		})
 	end
+end
+
+function MassDeleteUI:AnimateResourceCollection()
+	-- Get all cards in right panel
+	local cards = {}
+	for _, child in ipairs(self._rightGrid:GetChildren()) do
+		if child:IsA("Frame") and child.Name:match("PetCard_") then
+			table.insert(cards, child)
+		end
+	end
+
+	-- Animate cards shrinking and flying to resource display
+	local targetPos = self._resourceDisplay.AbsolutePosition + self._resourceDisplay.AbsoluteSize/2
+	
+	for i, card in ipairs(cards) do
+		task.spawn(function()
+			task.wait(i * 0.05) -- Stagger
+			
+			local startPos = card.AbsolutePosition
+			local flyingCard = card:Clone()
+			flyingCard.Parent = self._screenGui
+			flyingCard.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
+			flyingCard.Size = UDim2.new(0, card.AbsoluteSize.X, 0, card.AbsoluteSize.Y)
+			
+			card:Destroy()
+			
+			-- Animate to resource display
+			local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+			local tween = self._tweenService:Create(flyingCard, tweenInfo, {
+				Position = UDim2.new(0, targetPos.X, 0, targetPos.Y),
+				Size = UDim2.new(0, 0, 0, 0),
+				Rotation = 360
+			})
+			
+			tween:Play()
+			tween.Completed:Connect(function()
+				flyingCard:Destroy()
+			end)
+		end)
+	end
+	
+	-- Play collection sound
+	self._soundSystem:PlayUISound("CoinCollect")
 end
 
 -- ========================================
@@ -623,7 +1209,10 @@ function MassDeleteUI:Open()
 	
 	if self._screenGui then
 		self._screenGui.Enabled = true
-		self:RefreshPets()
+		self:RefreshAvailablePets()
+		self:RefreshSelectedPets()
+		self:UpdateResourceCalculation()
+		self:UpdateDeleteButton()
 	end
 end
 
@@ -632,9 +1221,13 @@ function MassDeleteUI:Close()
 		self._screenGui:Destroy()
 		self._screenGui = nil
 		self._window = nil
-		self._grid = nil
-		self._selectedLabel = nil
-		self._petCards = {}
+		self._leftPanel = nil
+		self._rightPanel = nil
+		self._leftGrid = nil
+		self._rightGrid = nil
+		self._resourceDisplay = nil
+		self._deleteButton = nil
+		self._availablePets = {}
 		self._selectedPets = {}
 	end
 end
@@ -652,7 +1245,8 @@ function MassDeleteUI:SetupEventListeners()
 	-- Listen for data updates
 	self._janitor:Add(self._eventBus:On("PlayerDataUpdated", function()
 		if self._screenGui and self._screenGui.Enabled then
-			self:RefreshPets()
+			self:RefreshAvailablePets()
+			self:UpdateResourceCalculation()
 		end
 	end))
 end
