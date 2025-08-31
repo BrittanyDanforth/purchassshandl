@@ -51,7 +51,7 @@ local FADE_TIME = 0.2
 local NOTIFICATION_HEIGHT = 80
 local NOTIFICATION_SPACING = 10
 local MAX_VISIBLE = 5
-local STACK_THRESHOLD = 3
+local STACK_THRESHOLD = 2 -- Start stacking after 2 identical notifications
 local POSITION_RIGHT = UDim2.new(1, -320, 1, -100)
 local POSITION_TOP = UDim2.new(0.5, -160, 0, 100)
 local NOTIFICATION_WIDTH = 300
@@ -540,8 +540,9 @@ function NotificationSystem:ShouldStack(notification: NotificationData): boolean
     
     -- Check for similar recent notifications
     local similarCount = 0
-    local recentTime = tick() - 2 -- Within last 2 seconds
+    local recentTime = tick() - 3 -- Within last 3 seconds
     
+    -- Count both active notifications and those in queue
     for _, active in ipairs(self._notifications) do
         if active.type == notification.type and 
            active.timestamp > recentTime and
@@ -550,21 +551,38 @@ function NotificationSystem:ShouldStack(notification: NotificationData): boolean
         end
     end
     
+    -- Also check notifications in the queue
+    for _, queued in ipairs(self._queue) do
+        if queued.type == notification.type and 
+           queued.timestamp > recentTime and
+           self:AreSimilar(queued, notification) then
+            similarCount = similarCount + 1
+        end
+    end
+    
+    -- Check if this message already has a group
+    local msg = tostring(notification.message or "")
+    local groupId = notification.type .. "_" .. msg -- Use full message for accurate grouping
+    if self._groups[groupId] then
+        return true -- Always stack if group exists
+    end
+    
     return similarCount >= STACK_THRESHOLD - 1
 end
 
 function NotificationSystem:AreSimilar(a: NotificationData, b: NotificationData): boolean
-    -- Simple similarity check - can be enhanced
+    -- Check if notifications have the same type and exact message
     local msgA = tostring(a.message or "")
     local msgB = tostring(b.message or "")
-    return a.type == b.type and 
-           string.sub(msgA, 1, 20) == string.sub(msgB, 1, 20)
+    
+    -- For exact matching (important for repeated error messages)
+    return a.type == b.type and msgA == msgB
 end
 
 function NotificationSystem:StackNotification(notification: NotificationData)
     -- Find or create group
     local msg = tostring(notification.message or "")
-    local groupId = notification.type .. "_" .. string.sub(msg, 1, 20)
+    local groupId = notification.type .. "_" .. msg -- Use full message for accurate grouping
     local group = self._groups[groupId]
     
     if not group then
@@ -575,9 +593,27 @@ function NotificationSystem:StackNotification(notification: NotificationData)
             frame = nil,
         }
         self._groups[groupId] = group
+        
+        -- Move existing similar notifications to the group
+        local toRemove = {}
+        for i, active in ipairs(self._notifications) do
+            if self:AreSimilar(active, notification) then
+                table.insert(group.notifications, active)
+                group.count = group.count + 1
+                table.insert(toRemove, i)
+            end
+        end
+        
+        -- Remove the notifications that are now in the group
+        for i = #toRemove, 1, -1 do
+            local removed = table.remove(self._notifications, toRemove[i])
+            if removed.frame then
+                removed.frame:Destroy()
+            end
+        end
     end
     
-    -- Add to group
+    -- Add new notification to group
     table.insert(group.notifications, notification)
     group.count = group.count + 1
     
