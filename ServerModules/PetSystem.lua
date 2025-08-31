@@ -160,7 +160,7 @@ function PetSystem:EquipPet(player, uniqueId)
     -- MUTEX CHECK: Prevent concurrent operations
     if EquipMutex[player.UserId] then
         print("[PetSystem] BLOCKED concurrent equip attempt by", player.Name)
-        return false, "Please wait for the previous operation to complete."
+        return {success = false, error = "Please wait for the previous operation to complete."}
     end
     
     -- Lock the mutex
@@ -174,18 +174,18 @@ function PetSystem:EquipPet(player, uniqueId)
     local playerData = DataStoreModule.PlayerData[player.UserId]
     if not playerData then 
         cleanup()
-        return false, "No player data" 
+        return {success = false, error = "No player data"}
     end
     
     local pet = playerData.pets[uniqueId]
     if not pet then 
         cleanup()
-        return false, "Pet not found" 
+        return {success = false, error = "Pet not found"}
     end
     
     if pet.equipped then 
         cleanup()
-        return false, "Pet already equipped" 
+        return {success = false, error = "Pet already equipped"}
     end
     
     -- AUTHORITATIVE COUNT: Count equipped pets directly from the source of truth
@@ -200,7 +200,7 @@ function PetSystem:EquipPet(player, uniqueId)
     if equippedCount >= Configuration.CONFIG.MAX_EQUIPPED_PETS then
         print("[PetSystem] BLOCKED equip attempt by", player.Name, "- Already have", equippedCount, "equipped")
         cleanup()
-        return false, "You cannot equip more than " .. Configuration.CONFIG.MAX_EQUIPPED_PETS .. " pets."
+        return {success = false, error = "You cannot equip more than " .. Configuration.CONFIG.MAX_EQUIPPED_PETS .. " pets."}
     end
     
     -- Only equip if we're under the limit
@@ -239,17 +239,17 @@ function PetSystem:EquipPet(player, uniqueId)
     
     -- Unlock mutex before returning
     cleanup()
-    return true
+    return {success = true}
 end
 
 function PetSystem:UnequipPet(player, uniqueId)
     local playerData = DataStoreModule.PlayerData[player.UserId]
-    if not playerData then return false, "No player data" end
+    if not playerData then return {success = false, error = "No player data"} end
     
     local pet = playerData.pets[uniqueId]
-    if not pet then return false, "Pet not found" end
+    if not pet then return {success = false, error = "Pet not found"} end
     
-    if not pet.equipped then return false, "Pet not equipped" end
+    if not pet.equipped then return {success = false, error = "Pet not equipped"} end
     
     -- Unequip the pet
     pet.equipped = false
@@ -285,7 +285,7 @@ function PetSystem:UnequipPet(player, uniqueId)
         end
     end
     
-    return true
+    return {success = true}
 end
 
 -- ========================================
