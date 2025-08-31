@@ -3693,48 +3693,7 @@ function InventoryUI:OpenMassDelete()
     end
 end
 
-function InventoryUI:CreateStorageTab(parent: Frame)
-    -- Storage statistics and upgrades  
-    local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -40, 1, -40)
-    content.Position = UDim2.new(0, 20, 0, 20)
-    content.BackgroundTransparency = 1
-    content.Parent = parent
-    
-    -- Current storage info
-    local storageInfo = self._uiFactory:CreateFrame(content, {
-        size = UDim2.new(0, 120, 1, 0),
-        position = UDim2.new(0, 130, 0, 0),
-        callback = function()
-            self:SelectPetsByRarity(2)
-        end
-    })
-    
-    local deselectAll = self._uiFactory:CreateButton(quickSelectFrame, {
-        text = "Deselect All",
-        size = UDim2.new(0, 120, 1, 0),
-        position = UDim2.new(0, 260, 0, 0),
-        backgroundColor = self._config.COLORS.Secondary,
-        callback = function()
-            self:DeselectAllPets()
-        end
-    })
-    
-    -- Advanced select options (second row)
-    local advancedSelectFrame = self._uiFactory:CreateFrame(content, {
-        size = UDim2.new(1, -40, 0, 40),
-        position = UDim2.new(0, 20, 0, 50),
-        backgroundColor = self._config.COLORS.Background
-    })
-    
-    local selectExceptLegend = self._uiFactory:CreateButton(advancedSelectFrame, {
-        text = "All Except Legendary+",
-        size = UDim2.new(0, 150, 1, 0),
-        position = UDim2.new(0, 0, 0, 0),
-        backgroundColor = self._config.COLORS.Warning,
-        callback = function()
-            self:SelectAllExceptRarity(4) -- Exclude Legendary and above
-        end
+
     })
     
     local selectExceptMythic = self._uiFactory:CreateButton(advancedSelectFrame, {
