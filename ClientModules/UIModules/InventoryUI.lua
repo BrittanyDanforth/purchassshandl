@@ -3692,64 +3692,17 @@ function InventoryUI:OpenMassDelete()
         self._eventBus:Fire("ToggleMassDelete")
     end
 end
-        size = UDim2.new(0, 40, 0, 40),
-        position = UDim2.new(1, -45, 0.5, -20),
-        backgroundColor = Color3.new(1, 1, 1),
-        backgroundTransparency = 0.9,
-        textColor = self._config.COLORS.White,
-        zIndex = 903,
-        callback = function()
-            self:CloseMassDelete()
-        end
-    })
-    
-    -- Content
-    self:CreateMassDeleteContent(deleteWindow)
-    
-    -- Animate in
-    deleteWindow.Size = UDim2.new(0, 0, 0, 0)
-    self._utilities.Tween(deleteWindow, {
-        Size = UDim2.new(0, MASS_DELETE_WINDOW_SIZE.X, 0, MASS_DELETE_WINDOW_SIZE.Y)
-    }, self._config.TWEEN_INFO.Elastic)
-end
 
-
+function InventoryUI:CreateStorageTab(parent: Frame)
+    -- Storage statistics and upgrades  
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -20, 1, -140)
-    content.Position = UDim2.new(0, 10, 0, 70)
+    content.Size = UDim2.new(1, -40, 1, -40)
+    content.Position = UDim2.new(0, 20, 0, 20)
     content.BackgroundTransparency = 1
-    content.ZIndex = 902
-    content.Parent = window
+    content.Parent = parent
     
-    -- Instructions
-    local infoLabel = self._uiFactory:CreateLabel(content, {
-        text = "Select pets to delete. This action cannot be undone!",
-        size = UDim2.new(1, 0, 0, 40),
-        position = UDim2.new(0, 0, 0, 0),
-        textColor = self._config.COLORS.Error,
-        textWrapped = true,
-        zIndex = 903
-    })
-    
-    -- Quick select buttons
-    local quickSelectFrame = Instance.new("Frame")
-    quickSelectFrame.Size = UDim2.new(1, 0, 0, 40)
-    quickSelectFrame.Position = UDim2.new(0, 0, 0, 50)
-    quickSelectFrame.BackgroundTransparency = 1
-    quickSelectFrame.ZIndex = 902
-    quickSelectFrame.Parent = content
-    
-    local selectAllCommon = self._uiFactory:CreateButton(quickSelectFrame, {
-        text = "All Common",
-        size = UDim2.new(0, 120, 1, 0),
-        position = UDim2.new(0, 0, 0, 0),
-        callback = function()
-            self:SelectPetsByRarity(1)
-        end
-    })
-    
-    local selectAllUncommon = self._uiFactory:CreateButton(quickSelectFrame, {
-        text = "All Uncommon",
+    -- Current storage info
+    local storageInfo = self._uiFactory:CreateFrame(content, {
         size = UDim2.new(0, 120, 1, 0),
         position = UDim2.new(0, 130, 0, 0),
         callback = function()
