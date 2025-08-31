@@ -864,7 +864,7 @@ function InventoryUI:CreateHeader()
         size = UDim2.new(0, 120, 0, 40),
         position = UDim2.new(1, -130, 0.5, -20),
         backgroundColor = self._config.COLORS.Error,
-        onClick = function()
+        callback = function()
             self:OpenMassDelete()
             self._soundSystem:PlayUISound("Click")
         end
