@@ -3684,10 +3684,21 @@ end
 -- OTHER TABS
 -- ========================================
 
--- Mass delete functionality moved to MassDeleteUI module
+-- Mass delete functionality - simplified version
 
--- Stub function to prevent errors from old references
 function InventoryUI:OpenMassDelete()
+    -- Show coming soon notification for now
+    if self._notificationSystem then
+        self._notificationSystem:Show({
+            title = "Coming Soon",
+            message = "Advanced Mass Delete feature is being developed!",
+            type = "info",
+            duration = 3
+        })
+    end
+    return
+    
+    --[[ OLD IMPLEMENTATION DISABLED
     -- Close any existing delete window
     if self.DeleteOverlay then
         self.DeleteOverlay:Destroy()
@@ -3769,6 +3780,7 @@ function InventoryUI:OpenMassDelete()
 end
 
 function InventoryUI:CreateMassDeleteContent(window: Frame)
+    return -- Disabled
     local content = Instance.new("Frame")
     content.Size = UDim2.new(1, -20, 1, -140)
     content.Position = UDim2.new(0, 10, 0, 70)
@@ -4147,6 +4159,7 @@ function InventoryUI:UpdateDeleteCount()
 end
 
 function InventoryUI:ConfirmMassDelete()
+    return -- Disabled
     local count = 0
     local petIds = {}
     
@@ -4311,6 +4324,7 @@ function InventoryUI:AnimateCardDeletion(card: Frame, callback: () -> ())
 end
 
 function InventoryUI:ExecuteMassDelete(petIds: {string})
+    return -- Disabled
     -- Show loading state
     if self.DeleteOverlay then
         local loadingLabel = self._uiFactory:CreateLabel(self.DeleteOverlay, {
@@ -4429,27 +4443,7 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
 end
 
 function InventoryUI:CloseMassDelete()
-    if self.DeleteOverlay then
-        local deleteWindow = self.DeleteOverlay:FindFirstChild("DeleteWindow")
-        if deleteWindow then
-            self._utilities.Tween(deleteWindow, {
-                Size = UDim2.new(0, 0, 0, 0)
-            }, self._config.TWEEN_INFO.Normal)
-        end
-        
-        self._utilities.Tween(self.DeleteOverlay, {
-            BackgroundTransparency = 1
-        }, self._config.TWEEN_INFO.Normal)
-        
-        task.wait(0.3)
-        self.DeleteOverlay:Destroy()
-        self.DeleteOverlay = nil
-    end
-    
-    -- Clear selection
-    self.SelectedForDeletion = {}
-    self.DeleteSelectionGrid = nil
-    self.DeleteSelectedLabel = nil
+    return -- Disabled
 end
 
 function InventoryUI:CreateStorageTab(parent: Frame)
