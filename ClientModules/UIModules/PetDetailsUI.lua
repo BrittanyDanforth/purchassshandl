@@ -1391,33 +1391,8 @@ function PetDetailsUI:OnEquipClicked()
 
 	local isEquipping = not self._currentPetInstance.equipped
 
-	-- *** NEW AAA FIX STARTS HERE ***
-	-- Check the rules BEFORE sending anything to the server.
-	if isEquipping then
-		-- *** CRITICAL FIX: Get the most accurate count possible ***
-		local equippedCount = 0
-		
-		-- Get count from data cache (should be up-to-date from real-time stats)
-		local playerData = self._dataCache:Get("playerData")
-		if playerData and playerData.pets then
-			for _, petData in pairs(playerData.pets) do
-				if petData.equipped then equippedCount = equippedCount + 1 end
-			end
-		end
-		
-		-- If the team is full, show an error and stop immediately.
-		local MAX_EQUIPPED = 6
-		if equippedCount >= MAX_EQUIPPED then
-			self._notificationSystem:Show({
-				title = "Team Full",
-				message = "You cannot equip more than " .. MAX_EQUIPPED .. " pets.",
-				type = "error"
-			})
-			self._soundSystem:PlayUISound("Error")
-			return -- EXIT
-		end
-	end
-	-- *** NEW AAA FIX ENDS HERE ***
+	-- REMOVED CLIENT-SIDE VALIDATION - Let server be the authority
+	-- The server has the mutex and proper validation, so we trust it completely
 
 	-- Set the button to its loading state
 	self._buttonStates.equip.isLoading = true

@@ -18,6 +18,9 @@ local Configuration = require(script.Parent.Configuration)
 local DataStoreModule = require(script.Parent.DataStoreModule)
 local PetDatabase = require(script.Parent.PetDatabase)
 
+-- Mutex to prevent race conditions during equip/unequip operations
+local EquipMutex = {}  -- [userId] = true when operation is in progress
+
 -- ========================================
 -- PET MANAGEMENT
 -- ========================================
@@ -154,32 +157,62 @@ end
 -- ========================================
 
 function PetSystem:EquipPet(player, uniqueId)
+    -- MUTEX CHECK: Prevent concurrent operations
+    if EquipMutex[player.UserId] then
+        print("[PetSystem] BLOCKED concurrent equip attempt by", player.Name)
+        return false, "Please wait for the previous operation to complete."
+    end
+    
+    -- Lock the mutex
+    EquipMutex[player.UserId] = true
+    
+    -- Ensure we always unlock the mutex
+    local function cleanup()
+        EquipMutex[player.UserId] = nil
+    end
+    
     local playerData = DataStoreModule.PlayerData[player.UserId]
-    if not playerData then return false, "No player data" end
+    if not playerData then 
+        cleanup()
+        return false, "No player data" 
+    end
     
     local pet = playerData.pets[uniqueId]
-    if not pet then return false, "Pet not found" end
+    if not pet then 
+        cleanup()
+        return false, "Pet not found" 
+    end
     
-    if pet.equipped then return false, "Pet already equipped" end
+    if pet.equipped then 
+        cleanup()
+        return false, "Pet already equipped" 
+    end
     
-    -- CRITICAL FIX: Rebuild equippedPets array to ensure it's in sync
+    -- AUTHORITATIVE COUNT: Count equipped pets directly from the source of truth
+    local equippedCount = 0
+    for id, p in pairs(playerData.pets) do
+        if p.equipped then
+            equippedCount = equippedCount + 1
+        end
+    end
+    
+    -- STRICT ENFORCEMENT: Check limit BEFORE making any changes
+    if equippedCount >= Configuration.CONFIG.MAX_EQUIPPED_PETS then
+        print("[PetSystem] BLOCKED equip attempt by", player.Name, "- Already have", equippedCount, "equipped")
+        cleanup()
+        return false, "You cannot equip more than " .. Configuration.CONFIG.MAX_EQUIPPED_PETS .. " pets."
+    end
+    
+    -- Only equip if we're under the limit
+    pet.equipped = true
+    
+    -- Rebuild equippedPets array from scratch (temporary until we remove it entirely)
     playerData.equippedPets = {}
     for id, p in pairs(playerData.pets) do
         if p.equipped then
             table.insert(playerData.equippedPets, id)
         end
     end
-    
-    -- Check equipped limit using the actual equipped count
-    local equippedCount = #playerData.equippedPets
-    
-    if equippedCount >= Configuration.CONFIG.MAX_EQUIPPED_PETS then
-        return false, "You cannot equip more than " .. Configuration.CONFIG.MAX_EQUIPPED_PETS .. " pets."
-    end
-    
-    -- Equip the pet
-    pet.equipped = true
-    table.insert(playerData.equippedPets, uniqueId)
     
     -- Mark data as dirty
     DataStoreModule:MarkPlayerDirty(player.UserId)
@@ -204,6 +237,8 @@ function PetSystem:EquipPet(player, uniqueId)
         end
     end
     
+    -- Unlock mutex before returning
+    cleanup()
     return true
 end
 
@@ -568,17 +603,26 @@ function PetSystem:ValidatePlayerPets(player)
     -- Rebuild equippedPets array based on equipped flags
     local correctEquippedPets = {}
     local equippedCount = 0
+    local changesWereMade = false
     
+    -- Sort pets by some criteria to ensure consistent unequipping order
+    local sortedPets = {}
     for id, pet in pairs(playerData.pets) do
         if pet.equipped then
-            equippedCount = equippedCount + 1
-            -- If we're over the limit, unequip excess pets
-            if equippedCount > Configuration.CONFIG.MAX_EQUIPPED_PETS then
-                pet.equipped = false
-                print("[PetSystem] Unequipped excess pet:", id, "for player:", player.Name)
-            else
-                table.insert(correctEquippedPets, id)
-            end
+            table.insert(sortedPets, {id = id, pet = pet})
+        end
+    end
+    
+    -- Process equipped pets
+    for _, petData in ipairs(sortedPets) do
+        equippedCount = equippedCount + 1
+        -- If we're over the limit, unequip excess pets
+        if equippedCount > Configuration.CONFIG.MAX_EQUIPPED_PETS then
+            petData.pet.equipped = false
+            changesWereMade = true
+            print("[PetSystem] VALIDATION: Unequipped excess pet:", petData.id, "for player:", player.Name, "- Was at", equippedCount, "/", Configuration.CONFIG.MAX_EQUIPPED_PETS)
+        else
+            table.insert(correctEquippedPets, petData.id)
         end
     end
     
@@ -586,7 +630,7 @@ function PetSystem:ValidatePlayerPets(player)
     playerData.equippedPets = correctEquippedPets
     
     -- Mark data as dirty if we made changes
-    if equippedCount > Configuration.CONFIG.MAX_EQUIPPED_PETS then
+    if changesWereMade then
         DataStoreModule:MarkPlayerDirty(player.UserId)
         
         -- Notify client of the change
@@ -597,9 +641,11 @@ function PetSystem:ValidatePlayerPets(player)
                 DataUpdated:FireClient(player, playerData)
             end
         end
+        
+        print("[PetSystem] VALIDATION COMPLETE: Fixed equipped count for", player.Name, "- Now:", #correctEquippedPets, "/", Configuration.CONFIG.MAX_EQUIPPED_PETS)
+    else
+        print("[PetSystem] VALIDATION COMPLETE: No issues for", player.Name, "- Equipped:", #correctEquippedPets, "/", Configuration.CONFIG.MAX_EQUIPPED_PETS)
     end
-    
-    print("[PetSystem] Validated pets for", player.Name, "- Equipped:", #correctEquippedPets)
 end
 
 return PetSystem
