@@ -3691,68 +3691,7 @@ function InventoryUI:OpenMassDelete()
     if self._eventBus then
         self._eventBus:Fire("ToggleMassDelete")
     end
-    return
-    
-    --[[ OLD IMPLEMENTATION DISABLED
-    -- Close any existing delete window
-    if self.DeleteOverlay then
-        self.DeleteOverlay:Destroy()
-    end
-    
-    -- Get the highest parent (ScreenGui)
-    local screenGui = self.Frame.Parent
-    while screenGui.Parent and not screenGui:IsA("ScreenGui") do
-        screenGui = screenGui.Parent
-    end
-    
-    -- Create overlay at ScreenGui level
-    local overlay = Instance.new("Frame")
-    overlay.Name = "MassDeleteOverlay"
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.3
-    overlay.ZIndex = 900  -- Very high to ensure it's on top
-    overlay.Parent = screenGui
-    
-    self.DeleteOverlay = overlay
-    
-    -- Create window
-    local deleteWindow = Instance.new("Frame")
-    deleteWindow.Name = "DeleteWindow"
-    deleteWindow.Size = UDim2.new(0, MASS_DELETE_WINDOW_SIZE.X, 0, MASS_DELETE_WINDOW_SIZE.Y)
-    deleteWindow.Position = UDim2.new(0.5, -MASS_DELETE_WINDOW_SIZE.X/2, 0.5, -MASS_DELETE_WINDOW_SIZE.Y/2)
-    deleteWindow.BackgroundColor3 = self._config.COLORS.Background
-    deleteWindow.ZIndex = 901  -- Above overlay
-    deleteWindow.Parent = overlay
-    
-    self._utilities.CreateCorner(deleteWindow, 20)
-    -- CreateShadow is optional, skip if not available
-    if self._utilities.CreateShadow then
-        self._utilities.CreateShadow(deleteWindow, 0.5)
-    end
-    
-    -- Header
-    local header = self._uiFactory:CreateFrame(deleteWindow, {
-        name = "Header",
-        size = UDim2.new(1, 0, 0, 60),
-        position = UDim2.new(0, 0, 0, 0),
-        backgroundColor = self._config.COLORS.Error,
-        zIndex = 902
-    })
-    
-    local headerLabel = self._uiFactory:CreateLabel(header, {
-        text = "Mass Delete Pets",
-        size = UDim2.new(1, -50, 1, 0),
-        position = UDim2.new(0, 0, 0, 0),
-        font = self._config.FONTS.Display,
-        textColor = self._config.COLORS.White,
-        textSize = 20,
-        zIndex = 903
-    })
-    
-    -- Close button
-    local closeButton = self._uiFactory:CreateButton(header, {
-        text = "✖",
+end
         size = UDim2.new(0, 40, 0, 40),
         position = UDim2.new(1, -45, 0.5, -20),
         backgroundColor = Color3.new(1, 1, 1),
@@ -3774,8 +3713,7 @@ function InventoryUI:OpenMassDelete()
     }, self._config.TWEEN_INFO.Elastic)
 end
 
-function InventoryUI:CreateMassDeleteContent(window: Frame)
-    return -- Disabled
+
     local content = Instance.new("Frame")
     content.Size = UDim2.new(1, -20, 1, -140)
     content.Position = UDim2.new(0, 10, 0, 70)
@@ -4153,8 +4091,7 @@ function InventoryUI:UpdateDeleteCount()
     end
 end
 
-function InventoryUI:ConfirmMassDelete()
-    return -- Disabled
+
     local count = 0
     local petIds = {}
     
@@ -4318,8 +4255,7 @@ function InventoryUI:AnimateCardDeletion(card: Frame, callback: () -> ())
     end
 end
 
-function InventoryUI:ExecuteMassDelete(petIds: {string})
-    return -- Disabled
+
     -- Show loading state
     if self.DeleteOverlay then
         local loadingLabel = self._uiFactory:CreateLabel(self.DeleteOverlay, {
@@ -4437,9 +4373,7 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
     end
 end
 
-function InventoryUI:CloseMassDelete()
-    return -- Disabled
-end
+
 
 function InventoryUI:CreateStorageTab(parent: Frame)
     -- Storage statistics and upgrades
