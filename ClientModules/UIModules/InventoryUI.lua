@@ -3693,34 +3693,66 @@ function InventoryUI:OpenMassDelete()
     end
 end
 
-
-    bottomBar.Size = UDim2.new(1, 0, 0, 60)
-    bottomBar.Position = UDim2.new(0, 0, 1, -60)
-    bottomBar.BackgroundColor3 = self._config.COLORS.Dark
-    bottomBar.ZIndex = 902
-    bottomBar.Parent = window
+function InventoryUI:CreateStorageTab(parent: Frame)
+    -- Storage statistics and upgrades
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, -40, 1, -40)
+    content.Position = UDim2.new(0, 20, 0, 20)
+    content.BackgroundTransparency = 1
+    content.Parent = parent
     
-    self._utilities.CreateCorner(bottomBar, 20)
-    
-    -- Selected count
-    local selectedLabel = self._uiFactory:CreateLabel(bottomBar, {
-        text = "Selected: 0 pets",
-        size = UDim2.new(0, 200, 1, 0),
-        position = UDim2.new(0, 20, 0, 0),
-        textXAlignment = Enum.TextXAlignment.Left,
-        zIndex = 903
+    -- Current storage info
+    local storageInfo = self._uiFactory:CreateFrame(content, {
+        size = UDim2.new(1, 0, 0, 200),
+        position = UDim2.new(0, 0, 0, 0),
+        backgroundColor = self._config.COLORS.Surface
     })
-    self.DeleteSelectedLabel = selectedLabel
     
-    -- Delete button
-    local deleteButton = self._uiFactory:CreateButton(bottomBar, {
-        text = "Delete Selected",
-        size = UDim2.new(0, 150, 0, 40),
-        position = UDim2.new(1, -170, 0.5, -20),
-        backgroundColor = self._config.COLORS.Error,
-        zIndex = 903,
+    local titleLabel = self._uiFactory:CreateLabel(storageInfo, {
+        text = "Pet Storage",
+        size = UDim2.new(1, 0, 0, 40),
+        position = UDim2.new(0, 0, 0, 10),
+        font = self._config.FONTS.Display,
+        textSize = 20
+    })
+    
+    -- Storage progress bar
+    local progressFrame = Instance.new("Frame")
+    progressFrame.Size = UDim2.new(1, -40, 0, 30)
+    progressFrame.Position = UDim2.new(0, 20, 0, 60)
+    progressFrame.BackgroundColor3 = self._config.COLORS.Dark
+    progressFrame.Parent = storageInfo
+    
+    self._utilities.CreateCorner(progressFrame, 15)
+    
+    local progressFill = Instance.new("Frame")
+    progressFill.Name = "StorageFill"
+    progressFill.Size = UDim2.new(0, 0, 1, 0)
+    progressFill.BackgroundColor3 = self._config.COLORS.Primary
+    progressFill.Parent = progressFrame
+    
+    self._utilities.CreateCorner(progressFill, 15)
+    
+    -- Storage text
+    local storageText = self._uiFactory:CreateLabel(storageInfo, {
+        text = "0 / 500 Pets",
+        size = UDim2.new(1, 0, 0, 30),
+        position = UDim2.new(0, 0, 0, 100),
+        font = self._config.FONTS.Secondary,
+        textSize = 18
+    })
+    
+    -- Upgrade button
+    local upgradeButton = self._uiFactory:CreateButton(storageInfo, {
+        text = "Upgrade Storage",
+        size = UDim2.new(0, 200, 0, 40),
+        position = UDim2.new(0.5, -100, 0, 140),
+        backgroundColor = self._config.COLORS.Success,
         callback = function()
-            self:ConfirmMassDelete()
+            -- Open storage upgrade shop
+            if self._eventBus then
+                self._eventBus:Fire("OpenStorageUpgrade", {})
+            end
         end
     })
 end
