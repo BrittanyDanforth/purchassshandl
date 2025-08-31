@@ -3684,17 +3684,12 @@ end
 -- OTHER TABS
 -- ========================================
 
--- Mass delete functionality - simplified version
+-- Mass delete functionality - triggers MassDeleteUI
 
 function InventoryUI:OpenMassDelete()
-    -- Show coming soon notification for now
-    if self._notificationSystem then
-        self._notificationSystem:Show({
-            title = "Coming Soon",
-            message = "Advanced Mass Delete feature is being developed!",
-            type = "info",
-            duration = 3
-        })
+    -- Fire event to open MassDeleteUI
+    if self._eventBus then
+        self._eventBus:Fire("ToggleMassDelete")
     end
     return
     
