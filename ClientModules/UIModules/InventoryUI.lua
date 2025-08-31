@@ -3693,43 +3693,7 @@ function InventoryUI:OpenMassDelete()
     end
 end
 
-
-    })
-    
-    local selectExceptMythic = self._uiFactory:CreateButton(advancedSelectFrame, {
-        text = "All Except Mythic",
-        size = UDim2.new(0, 140, 1, 0),
-        position = UDim2.new(0, 160, 0, 0),
-        backgroundColor = self._config.COLORS.Warning,
-        callback = function()
-            self:SelectAllExceptRarity(5) -- Exclude Mythic
-        end
-    })
-    
-    local lockAllButton = self._uiFactory:CreateButton(advancedSelectFrame, {
-        text = "Lock Selected",
-        size = UDim2.new(0, 120, 1, 0),
-        position = UDim2.new(0, 310, 0, 0),
-        backgroundColor = self._config.COLORS.Info,
-        callback = function()
-            self:LockSelectedPets()
-        end
-    })
-    
-    -- Pet selection grid
-    local scrollFrame = self._uiFactory:CreateScrollingFrame(content, {
-        size = UDim2.new(1, 0, 1, -200),  -- Adjusted for extra row
-        position = UDim2.new(0, 0, 0, 150)  -- Moved down for extra row
-    })
-    
-    local gridLayout = Instance.new("UIGridLayout")
-    gridLayout.CellSize = UDim2.new(0, 110, 0, 130)  -- Slightly bigger cells
-    gridLayout.CellPadding = UDim2.new(0, 15, 0, 15)  -- More spacing
-    gridLayout.FillDirection = Enum.FillDirection.Horizontal
-    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    gridLayout.Parent = scrollFrame
-    
-    self.DeleteSelectionGrid = scrollFrame
+-- Removed old mass delete code
     self.SelectedForDeletion = {}
     
     -- Load pets for selection
