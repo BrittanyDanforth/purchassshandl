@@ -3693,19 +3693,7 @@ function InventoryUI:OpenMassDelete()
     end
 end
 
--- Removed old mass delete code
-    self.SelectedForDeletion = {}
-    
-    -- Load pets for selection
-    self:LoadPetsForDeletion(scrollFrame)
-    
-    -- Update canvas size
-    gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
-    end)
-    
-    -- Bottom bar
-    local bottomBar = Instance.new("Frame")
+
     bottomBar.Size = UDim2.new(1, 0, 0, 60)
     bottomBar.Position = UDim2.new(0, 0, 1, -60)
     bottomBar.BackgroundColor3 = self._config.COLORS.Dark
