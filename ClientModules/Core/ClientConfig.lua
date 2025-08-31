@@ -187,6 +187,7 @@ ClientConfig.SOUNDS = {
 	Purchase = "rbxassetid://203691837",  -- Purchase/Buy sound
 	LevelUp = "rbxassetid://6551277077",     -- Level up/Victory sound (updated)
 	Equip = "rbxassetid://6026984224",    -- Equip/Switch sound (updated)
+	Unequip = "rbxassetid://9126213752",  -- Unequip sound (pop/detach sound)
 	Trade = "rbxassetid://179235828",     -- Trade/Impact sound (working)
 
 	-- Currency Sounds

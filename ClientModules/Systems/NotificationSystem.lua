@@ -598,7 +598,12 @@ function NotificationSystem:CreateStackedNotification(group: NotificationGroup)
     stacked.duration = 0 -- Don't auto-dismiss stacked
     
     self:DisplayNotification(stacked)
-    group.frame = stacked.frame
+    -- After DisplayNotification, stacked.frame is set
+    if stacked.frame then
+        group.frame = stacked.frame
+    else
+        warn("[NotificationSystem] Failed to create frame for stacked notification")
+    end
 end
 
 function NotificationSystem:UpdateStackedNotification(group: NotificationGroup)
@@ -606,7 +611,15 @@ function NotificationSystem:UpdateStackedNotification(group: NotificationGroup)
         return
     end
     
-    local message = group.frame:FindFirstChild("Content"):FindFirstChild("Message")
+    -- Safety check for Content frame
+    local content = group.frame:FindFirstChild("Content")
+    if not content then
+        warn("[NotificationSystem] Content frame not found in notification")
+        return
+    end
+    
+    -- Safety check for Message label
+    local message = content:FindFirstChild("Message")
     if message then
         local first = group.notifications[1]
         message.Text = string.format("%s (x%d)", first.message, group.count)
