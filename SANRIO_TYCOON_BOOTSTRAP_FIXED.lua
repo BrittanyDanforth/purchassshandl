@@ -845,6 +845,11 @@ local function setupPlayerHandlers(modules, folders)
 
 			-- Wait for data to load
 			wait(0.5)
+			
+			-- CRITICAL: Validate pet data to fix any sync issues
+			if modules.PetSystem then
+				modules.PetSystem:ValidatePlayerPets(player)
+			end
 
 			-- Send initial data
 			local playerData = modules.DataStoreModule:GetPlayerData(player)

@@ -162,16 +162,19 @@ function PetSystem:EquipPet(player, uniqueId)
     
     if pet.equipped then return false, "Pet already equipped" end
     
-    -- Check equipped limit
-    local equippedCount = 0
-    for _, p in pairs(playerData.pets) do
+    -- CRITICAL FIX: Rebuild equippedPets array to ensure it's in sync
+    playerData.equippedPets = {}
+    for id, p in pairs(playerData.pets) do
         if p.equipped then
-            equippedCount = equippedCount + 1
+            table.insert(playerData.equippedPets, id)
         end
     end
     
+    -- Check equipped limit using the actual equipped count
+    local equippedCount = #playerData.equippedPets
+    
     if equippedCount >= Configuration.CONFIG.MAX_EQUIPPED_PETS then
-        return false, "Max equipped pets reached"
+        return false, "You cannot equip more than " .. Configuration.CONFIG.MAX_EQUIPPED_PETS .. " pets."
     end
     
     -- Equip the pet
@@ -552,6 +555,51 @@ function PetSystem:SellPet(player, uniqueId)
     DataStoreModule:MarkPlayerDirty(player.UserId)
     
     return true, value
+end
+
+-- ========================================
+-- DATA VALIDATION
+-- ========================================
+
+function PetSystem:ValidatePlayerPets(player)
+    local playerData = DataStoreModule.PlayerData[player.UserId]
+    if not playerData then return end
+    
+    -- Rebuild equippedPets array based on equipped flags
+    local correctEquippedPets = {}
+    local equippedCount = 0
+    
+    for id, pet in pairs(playerData.pets) do
+        if pet.equipped then
+            equippedCount = equippedCount + 1
+            -- If we're over the limit, unequip excess pets
+            if equippedCount > Configuration.CONFIG.MAX_EQUIPPED_PETS then
+                pet.equipped = false
+                print("[PetSystem] Unequipped excess pet:", id, "for player:", player.Name)
+            else
+                table.insert(correctEquippedPets, id)
+            end
+        end
+    end
+    
+    -- Update the equippedPets array
+    playerData.equippedPets = correctEquippedPets
+    
+    -- Mark data as dirty if we made changes
+    if equippedCount > Configuration.CONFIG.MAX_EQUIPPED_PETS then
+        DataStoreModule:MarkPlayerDirty(player.UserId)
+        
+        -- Notify client of the change
+        local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+        if RemoteEvents then
+            local DataUpdated = RemoteEvents:FindFirstChild("DataUpdated")
+            if DataUpdated then
+                DataUpdated:FireClient(player, playerData)
+            end
+        end
+    end
+    
+    print("[PetSystem] Validated pets for", player.Name, "- Equipped:", #correctEquippedPets)
 end
 
 return PetSystem

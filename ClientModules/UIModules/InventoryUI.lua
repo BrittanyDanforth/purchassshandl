@@ -3230,6 +3230,33 @@ function InventoryUI:GetFilteredAndSortedPets(): {{pet: PetInstance, data: table
             petCount = petCount + 1
         end
         print("[InventoryUI] Found pets! Count:", petCount)
+        
+        -- CRITICAL FIX: Validate equipped count to prevent 7/6 issue
+        local playerData = self._dataCache and self._dataCache:Get("playerData")
+        if playerData then
+            local equippedByFlag = 0
+            local correctEquippedPets = {}
+            
+            for id, pet in pairs(pets) do
+                if pet.equipped then
+                    equippedByFlag = equippedByFlag + 1
+                    -- Enforce the 6 pet limit on client side
+                    if equippedByFlag <= 6 then
+                        table.insert(correctEquippedPets, id)
+                    else
+                        -- Force unequip pets beyond limit on client side
+                        pet.equipped = false
+                        print("[InventoryUI] WARNING: Unequipping excess pet (client-side):", id)
+                    end
+                end
+            end
+            
+            -- Update the equippedPets array if needed
+            if playerData.equippedPets and #playerData.equippedPets ~= #correctEquippedPets then
+                print("[InventoryUI] Fixing equipped pets array. Was:", #playerData.equippedPets, "Now:", #correctEquippedPets)
+                playerData.equippedPets = correctEquippedPets
+            end
+        end
     end
     
     if not pets then
