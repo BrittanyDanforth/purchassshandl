@@ -95,7 +95,7 @@ local function createRemotes(folders)
 		"GlobalAnnouncement",
 
 		-- UI/Notifications
-		"NotificationSent", "CurrencyUpdated", "InventoryUpdated", "PetDeleted",
+		"NotificationSent", "CurrencyUpdated", "InventoryUpdated", "PetDeleted", "PetsDeleted",
 
 		-- Quests & Achievements
 		"QuestsUpdated", "QuestCompleted", "QuestRewardClaimed", "AchievementUnlocked",
@@ -145,7 +145,7 @@ local function createRemotes(folders)
 		"GetPlayerData", "GetShopData", "SaveSettings",
 
 		-- Pet System
-		"OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets", "MassDeletePets", "DeletePet",
+		"OpenCase", "EquipPet", "UnequipPet", "SellPet", "EvolvePet", "FusePets", "MassDeletePets", "DeletePet", "BatchDeletePets",
 
 		-- Trading
 		"StartTrade", "AddTradeItem", "RemoveTradeItem", "SetTradeCurrency",
@@ -492,39 +492,13 @@ local function connectRemoteHandlers(modules, folders)
 	end
 
 	RemoteFunctions.MassDeletePets.OnServerInvoke = function(player, petIds)
-		if modules.PetSystem and modules.DataStoreModule then
-			local playerData = modules.DataStoreModule:GetPlayerData(player)
-			if not playerData then
-				return {success = false, error = "Player data not found"}
-			end
-
-			local deletedCount = 0
-			local errors = {}
-
-			for _, petId in ipairs(petIds) do
-				local pet = playerData.pets[petId]
-				if pet then
-					if pet.equipped then
-						table.insert(errors, petId .. " is equipped")
-					else
-						-- Delete the pet
-						playerData.pets[petId] = nil
-						deletedCount = deletedCount + 1
-					end
-				end
-			end
-
-			-- Mark data dirty
-			modules.DataStoreModule:MarkPlayerDirty(player.UserId)
-
-			-- Fire update event
-			RemoteEvents.PetDeleted:FireClient(player, petIds)
-
-						return {
-				success = true,
-				deletedCount = deletedCount,
-				errors = errors
-			}
+		warn("[DEBUG] MassDeletePets called by", player.Name, "with", #petIds, "pets")
+		return {success = false, error = "Mass delete is disabled for safety"}
+	end
+	
+	RemoteFunctions.BatchDeletePets.OnServerInvoke = function(player, data)
+		if modules.PetSystem then
+			return modules.PetSystem:BatchDeletePets(player, data.petIds)
 		end
 		return {success = false, error = "System not available"}
 	end

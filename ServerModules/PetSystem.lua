@@ -648,4 +648,140 @@ function PetSystem:ValidatePlayerPets(player)
     end
 end
 
+-- ========================================
+-- BATCH DELETION
+-- ========================================
+
+function PetSystem:BatchDeletePets(player, petIds)
+    -- Validate input
+    if type(petIds) ~= "table" or #petIds == 0 then
+        return {success = false, error = "Invalid pet list"}
+    end
+    
+    -- Limit batch size to prevent abuse
+    if #petIds > 500 then
+        return {success = false, error = "Too many pets selected (max 500)"}
+    end
+    
+    local playerData = DataStoreModule.PlayerData[player.UserId]
+    if not playerData then
+        return {success = false, error = "No player data"}
+    end
+    
+    -- Start transaction
+    local deletedPets = {}
+    local totalCoins = 0
+    local totalDust = 0
+    local failedDeletes = {}
+    
+    -- Process each pet
+    for _, uniqueId in ipairs(petIds) do
+        local pet = playerData.pets[uniqueId]
+        
+        if pet then
+            -- Can't delete equipped pets
+            if pet.equipped then
+                table.insert(failedDeletes, {
+                    id = uniqueId,
+                    reason = "Pet is equipped"
+                })
+            -- Can't delete locked pets
+            elseif pet.locked then
+                table.insert(failedDeletes, {
+                    id = uniqueId,
+                    reason = "Pet is locked"
+                })
+            else
+                -- Calculate resources from pet
+                local petData = PetDatabase:GetPet(pet.petId)
+                if petData then
+                    -- Base values by rarity
+                    local baseValues = {
+                        Common = {coins = 10, dust = 1},
+                        Uncommon = {coins = 25, dust = 2},
+                        Rare = {coins = 100, dust = 5},
+                        Epic = {coins = 500, dust = 15},
+                        Legendary = {coins = 2000, dust = 50},
+                        Mythic = {coins = 10000, dust = 200}
+                    }
+                    
+                    local rarityValues = baseValues[pet.rarity] or baseValues.Common
+                    local levelMultiplier = 1 + (pet.level - 1) * 0.1
+                    
+                    local coins = math.floor(rarityValues.coins * levelMultiplier)
+                    local dust = math.floor(rarityValues.dust * levelMultiplier)
+                    
+                    totalCoins = totalCoins + coins
+                    totalDust = totalDust + dust
+                    
+                    -- Store deleted pet info for logging
+                    table.insert(deletedPets, {
+                        uniqueId = uniqueId,
+                        petId = pet.petId,
+                        name = pet.name,
+                        rarity = pet.rarity,
+                        level = pet.level,
+                        coins = coins,
+                        dust = dust
+                    })
+                    
+                    -- Remove pet from inventory
+                    playerData.pets[uniqueId] = nil
+                end
+            end
+        else
+            table.insert(failedDeletes, {
+                id = uniqueId,
+                reason = "Pet not found"
+            })
+        end
+    end
+    
+    -- Only proceed if we deleted something
+    if #deletedPets > 0 then
+        -- Add resources to player
+        playerData.coins = (playerData.coins or 0) + totalCoins
+        playerData.petDust = (playerData.petDust or 0) + totalDust
+        
+        -- Mark data as dirty for saving
+        DataStoreModule:MarkDirty(player.UserId)
+        
+        -- Fire client update
+        local RemoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+        if RemoteEvents then
+            local DataUpdated = RemoteEvents:FindFirstChild("DataUpdated")
+            if DataUpdated then
+                DataUpdated:FireClient(player, playerData)
+            end
+            
+            -- Fire specific event for mass deletion
+            local PetsDeleted = RemoteEvents:FindFirstChild("PetsDeleted")
+            if PetsDeleted then
+                PetsDeleted:FireClient(player, {
+                    deletedCount = #deletedPets,
+                    coinsReceived = totalCoins,
+                    dustReceived = totalDust
+                })
+            end
+        end
+        
+        -- Log the deletion
+        print(string.format(
+            "[PetSystem] Batch deleted %d pets for %s. Coins: %d, Dust: %d",
+            #deletedPets,
+            player.Name,
+            totalCoins,
+            totalDust
+        ))
+    end
+    
+    return {
+        success = true,
+        deletedCount = #deletedPets,
+        coinsReceived = totalCoins,
+        dustReceived = totalDust,
+        failedDeletes = failedDeletes
+    }
+end
+
 return PetSystem

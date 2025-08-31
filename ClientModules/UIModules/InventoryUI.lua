@@ -851,11 +851,32 @@ function InventoryUI:CreateHeader()
     
     local headerLabel = self._uiFactory:CreateLabel(header, {
         text = "🎀 My Pet Collection 🎀",
-        size = UDim2.new(1, 0, 1, 0),
+        size = UDim2.new(1, -150, 1, 0),
         position = UDim2.new(0, 0, 0, 0),
         font = self._config.FONTS.Display,
         textColor = self._config.COLORS.White,
         textSize = 24
+    })
+    
+    -- Mass Delete button
+    local massDeleteBtn = self._uiFactory:CreateButton(header, {
+        text = "Mass Delete",
+        size = UDim2.new(0, 120, 0, 40),
+        position = UDim2.new(1, -130, 0.5, -20),
+        backgroundColor = self._config.COLORS.Error,
+        onClick = function()
+            self._eventBus:Fire("ToggleMassDelete")
+            self._soundSystem:PlayUISound("Click")
+        end
+    })
+    
+    -- Add warning icon
+    local warningIcon = self._uiFactory:CreateLabel(massDeleteBtn, {
+        text = "⚠️",
+        size = UDim2.new(0, 30, 1, 0),
+        position = UDim2.new(0, 5, 0, 0),
+        textSize = 20,
+        textColor = self._config.COLORS.White
     })
 end
 
