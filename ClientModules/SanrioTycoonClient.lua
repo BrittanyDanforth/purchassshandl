@@ -520,8 +520,7 @@ local uiModuleNames = {
     "SettingsUI",
     "DailyRewardUI",
     "SocialUI",
-    "ProgressionUI",
-    "MassDeleteUI"
+    "ProgressionUI"
 }
 
 local loadedCount = 0

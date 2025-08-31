@@ -869,15 +869,6 @@ function InventoryUI:CreateHeader()
             self._soundSystem:PlayUISound("Click")
         end
     })
-    
-    -- Add warning icon
-    local warningIcon = self._uiFactory:CreateLabel(massDeleteBtn, {
-        text = "⚠️",
-        size = UDim2.new(0, 30, 1, 0),
-        position = UDim2.new(0, 5, 0, 0),
-        textSize = 20,
-        textColor = self._config.COLORS.White
-    })
 end
 
 function InventoryUI:CreateStatsBar()
@@ -1184,16 +1175,7 @@ function InventoryUI:CreateControls()
         end
     )
     
-    -- Mass delete button
-    local massDeleteButton = self._uiFactory:CreateButton(controlsBar, {
-        text = "Mass Delete",
-        size = UDim2.new(0, 120, 0, 35),
-        position = UDim2.new(1, -130, 0.5, -17.5),
-        backgroundColor = self._config.COLORS.Error,
-        callback = function()
-            self:OpenMassDelete()
-        end
-    })
+
 end
 
 function InventoryUI:CreateDropdown(parent: Frame, placeholder: string, options: {string}, 
@@ -3699,9 +3681,12 @@ function InventoryUI:ShowPetDetails(petInstance: PetInstance, petData: table)
 end
 
 -- ========================================
--- MASS DELETE
+-- OTHER TABS
 -- ========================================
 
+-- Mass delete functionality moved to MassDeleteUI module
+
+-- Stub function to prevent errors from old references
 function InventoryUI:OpenMassDelete()
     -- Close any existing delete window
     if self.DeleteOverlay then
@@ -3750,7 +3735,7 @@ function InventoryUI:OpenMassDelete()
     })
     
     local headerLabel = self._uiFactory:CreateLabel(header, {
-        text = "⚠️ Mass Delete Pets",
+        text = "Mass Delete Pets",
         size = UDim2.new(1, -50, 1, 0),
         position = UDim2.new(0, 0, 0, 0),
         font = self._config.FONTS.Display,
@@ -4340,19 +4325,41 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
         self._utilities.CreateCorner(loadingLabel, 8)
     end
     
-    -- Send delete requests for each pet
+    -- Send batch delete request
     if self._remoteManager then
+        -- Try batch delete first
+        local result = self._remoteManager:InvokeServer("BatchDeletePets", {petIds = petIds})
+        
         local successCount = 0
         local failCount = 0
         
-        -- Delete pets one by one since server might not have mass delete
-        for _, petId in ipairs(petIds) do
-            local result = self._remoteManager:InvokeServer("DeletePet", {uniqueId = petId})
-            if result and result.success then
-                successCount = successCount + 1
-            else
-                failCount = failCount + 1
+        if result and result.success then
+            successCount = result.deletedCount or 0
+            failCount = #petIds - successCount
+            
+            -- Show resource notification if available
+            if result.coinsReceived or result.dustReceived then
+                self._notificationSystem:Show({
+                    title = "Resources Received",
+                    message = string.format("You received %s coins and %s pet dust!", 
+                        self._utilities:FormatNumber(result.coinsReceived or 0),
+                        self._utilities:FormatNumber(result.dustReceived or 0)
+                    ),
+                    type = "success",
+                    duration = 4
+                })
             end
+        elseif result and result.error then
+            -- Handle error
+            self._notificationSystem:Show({
+                title = "Delete Failed", 
+                message = result.error,
+                type = "error"
+            })
+            
+            -- Close mass delete window
+            self:CloseMassDelete()
+            return
         end
         
         if successCount > 0 then
@@ -4422,32 +4429,9 @@ function InventoryUI:ExecuteMassDelete(petIds: {string})
 end
 
 function InventoryUI:CloseMassDelete()
-    if self.DeleteOverlay then
-        local deleteWindow = self.DeleteOverlay:FindFirstChild("DeleteWindow")
-        if deleteWindow then
-            self._utilities.Tween(deleteWindow, {
-                Size = UDim2.new(0, 0, 0, 0)
-            }, self._config.TWEEN_INFO.Normal)
-        end
-        
-        self._utilities.Tween(self.DeleteOverlay, {
-            BackgroundTransparency = 1
-        }, self._config.TWEEN_INFO.Normal)
-        
-        task.wait(0.3)
-        self.DeleteOverlay:Destroy()
-        self.DeleteOverlay = nil
-    end
-    
-    -- Clear selection
-    self.SelectedForDeletion = {}
-    self.DeleteSelectionGrid = nil
-    self.DeleteSelectedLabel = nil
+    -- Stub function - mass delete moved to MassDeleteUI module
+    self._eventBus:Fire("ToggleMassDelete")
 end
-
--- ========================================
--- OTHER TABS
--- ========================================
 
 function InventoryUI:CreateStorageTab(parent: Frame)
     -- Storage statistics and upgrades
