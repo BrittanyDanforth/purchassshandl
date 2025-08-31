@@ -3757,22 +3757,19 @@ function InventoryUI:CreateStorageTab(parent: Frame)
     })
 end
 
-function InventoryUI:LoadPetsForDeletion(parent: ScrollingFrame)
-    local playerData = self._dataCache and self._dataCache:Get() or {}
-    if not playerData.pets then return end
+function InventoryUI:CreateStatsTab(parent: Frame)
+    -- Pet collection statistics
+    local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
+        size = UDim2.new(1, -20, 1, -20),
+        position = UDim2.new(0, 10, 0, 10)
+    })
     
-    local pets = {}
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, -20, 0, 800)
+    content.BackgroundTransparency = 1
+    content.Parent = scrollFrame
     
-    -- Convert to array if needed
-    for uniqueId, pet in pairs(playerData.pets) do
-        if type(pet) == "table" and not pet.equipped and not pet.locked then
-            pet.uniqueId = uniqueId
-            table.insert(pets, pet)
-        end
-    end
-    
-    -- Sort by rarity (lowest first for easier mass deletion)
-    table.sort(pets, function(a, b)
+    local yOffset = 0
         -- Use pet's own data
         local aData = {
             name = a.name or "Unknown",
