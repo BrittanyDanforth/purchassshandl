@@ -3826,33 +3826,20 @@ function InventoryUI:OnSearchChanged(text: string)
         self.SearchDebounce = nil
     end)
 end
-    
-    self._janitor:Add(button.MouseButton1Click:Connect(function()
-        if self.SelectedForDeletion[petInstance.uniqueId] then
-            self.SelectedForDeletion[petInstance.uniqueId] = nil
-            indicator.BackgroundTransparency = 1
-        else
-            self.SelectedForDeletion[petInstance.uniqueId] = true
-            indicator.BackgroundTransparency = 0.3
-        end
-        
-        self:UpdateDeleteCount()
-    end))
-    
-    return card
-end
 
-function InventoryUI:SelectPetsByRarity(rarity: number)
-    if not self.DeleteSelectionGrid then return end
+-- ========================================
+-- The rest of the InventoryUI functions are below
+-- All old mass delete functions have been removed
+-- ========================================
+
+function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolean)
+    -- This function now ONLY updates the visual card itself.
     
-    for _, card in ipairs(self.DeleteSelectionGrid:GetChildren()) do
-        if card:IsA("Frame") then
-            local petId = card.Name
-            local playerData = self._dataCache and self._dataCache:Get() or {}
-            
-            if playerData.pets and playerData.pets[petId] then
-                local pet = playerData.pets[petId]
-                -- Use pet's own data
+    -- Find the card in the grid
+    local card = nil
+    if self.VirtualScrollEnabled then
+        for _, activeCard in pairs(self.ActiveCards) do
+            if activeCard.Name == "PetCard_" .. uniqueId then
                 local petData = {
                     name = pet.name or "Unknown",
                     rarity = pet.rarity or 1
