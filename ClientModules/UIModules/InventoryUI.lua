@@ -3840,11 +3840,13 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
     if self.VirtualScrollEnabled then
         for _, activeCard in pairs(self.ActiveCards) do
             if activeCard.Name == "PetCard_" .. uniqueId then
-                local petData = {
-                    name = pet.name or "Unknown",
-                    rarity = pet.rarity or 1
-                }
-                
+                card = activeCard
+                break
+            end
+        end
+    else
+        for _, cachedCard in ipairs(self.PetCardCache) do
+            if cachedCard.Name == "PetCard_" .. uniqueId then
                 if petData.rarity == rarity and not pet.equipped and not pet.locked then
                     self.SelectedForDeletion[petId] = true
                     local indicator = card:FindFirstChild("SelectIndicator")
