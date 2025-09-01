@@ -358,6 +358,7 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     frame.BorderSizePixel = 0
     frame.ClipsDescendants = true
     frame.AutomaticSize = Enum.AutomaticSize.None -- Prevent any automatic resizing
+    frame.ZIndex = 999999 -- Ensure frame is on top
     frame.Parent = container
     
     -- Add size constraint to ensure frame never grows
@@ -908,8 +909,9 @@ function NotificationSystem:CreateContainers()
         screenGui = Instance.new("ScreenGui")
         screenGui.Name = "NotificationGui"
         screenGui.ResetOnSpawn = false
-        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        screenGui.DisplayOrder = 999 -- Maximum display order to ensure notifications appear on top
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global -- Use Global to ensure it's above everything
+        screenGui.DisplayOrder = 2147483647 -- Absolute maximum display order to ensure notifications appear on top
+        screenGui.IgnoreGuiInset = true -- Render over top bar
         screenGui.Parent = Services.PlayerGui
     end
     
