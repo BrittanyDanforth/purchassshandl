@@ -208,10 +208,8 @@ function InventoryUI.new(dependencies)
     self.TabFrames = {}
     self.StatsLabels = {}
     self.PetCardCache = {}
-    self.DeleteSelectionGrid = nil
-    self.SelectedForDeletion = {}
-    self.DeleteSelectedLabel = nil
-    self.DeleteOverlay = nil
+
+
     
     -- Real-time Stats Tracking System
     self._realtimeStats = {
@@ -3832,6 +3830,25 @@ end
 -- All old mass delete functions have been removed
 -- ========================================
 
+
+-- ========================================
+-- UTILITY FUNCTIONS
+-- ========================================
+
+function InventoryUI:OnSearchChanged(text: string)
+    -- Debounce search
+    if self.SearchDebounce then
+        task.cancel(self.SearchDebounce)
+    end
+    
+    self.SearchDebounce = task.spawn(function()
+        task.wait(SEARCH_DEBOUNCE)
+        self.SearchText = text
+        self:RefreshInventory()
+        self.SearchDebounce = nil
+    end)
+end
+
 function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolean)
     -- This function now ONLY updates the visual card itself.
     
@@ -3847,118 +3864,82 @@ function InventoryUI:UpdatePetCardEquipStatus(uniqueId: string, equipped: boolea
     else
         for _, cachedCard in ipairs(self.PetCardCache) do
             if cachedCard.Name == "PetCard_" .. uniqueId then
-                if petData.rarity == rarity and not pet.equipped and not pet.locked then
-                    self.SelectedForDeletion[petId] = true
-                    local indicator = card:FindFirstChild("SelectIndicator")
-                    if indicator then
-                        indicator.BackgroundTransparency = 0.3
-                    end
-                end
+                card = cachedCard
+                break
             end
         end
     end
     
-    self:UpdateDeleteCount()
-end
-
-function InventoryUI:DeselectAllPets()
-    self.SelectedForDeletion = {}
-    
-    if self.DeleteSelectionGrid then
-        for _, card in ipairs(self.DeleteSelectionGrid:GetChildren()) do
-            if card:IsA("Frame") then
-                local indicator = card:FindFirstChild("SelectIndicator")
-                if indicator then
-                    indicator.BackgroundTransparency = 1
-                end
-            end
-        end
-    end
-    
-    self:UpdateDeleteCount()
-end
-
-function InventoryUI:SelectAllExceptRarity(minRarity: number)
-    self.SelectedForDeletion = {}
-    
-    if self.DeleteSelectionGrid then
-        -- Get all pet cards
-        for _, card in ipairs(self.DeleteSelectionGrid:GetChildren()) do
-            if card:IsA("Frame") then
-                local petRarity = card:GetAttribute("Rarity") or 1
-                
-                if petRarity < minRarity then
-                    -- Select pets below the specified rarity
-                    self.SelectedForDeletion[card.Name] = true
-                    local indicator = card:FindFirstChild("SelectIndicator")
-                    if indicator then
-                        indicator.BackgroundTransparency = 0.7
-                    end
-                else
-                    -- Deselect pets at or above the specified rarity
-                    local indicator = card:FindFirstChild("SelectIndicator")
-                    if indicator then
-                        indicator.BackgroundTransparency = 1
-                    end
-                end
-            end
-        end
-    end
-    
-    self:UpdateDeleteCount()
-end
-
-function InventoryUI:LockSelectedPets()
-    if not next(self.SelectedForDeletion) then
-        self._notificationSystem:Show({
-            message = "No pets selected to lock!",
-            type = "warning",
-            duration = 2
-        })
+    if not card then
         return
     end
     
-    local count = 0
-    for uniqueId in pairs(self.SelectedForDeletion) do
-        -- Send lock request to server
-        if self._remoteManager then
-            self._remoteManager:Fire("TogglePetLock", {uniqueId = uniqueId, locked = true})
-            count = count + 1
+    -- Update the equipped indicator
+    local indicator = card:FindFirstChild("EquippedIndicator")
+    
+    if equipped and not indicator then
+        -- Create checkmark indicator
+        indicator = Instance.new("ImageLabel")
+        indicator.Name = "EquippedIndicator"
+        indicator.Size = UDim2.new(0, 24, 0, 24)
+        indicator.Position = UDim2.new(1, -30, 0, 6)
+        indicator.BackgroundTransparency = 1
+        indicator.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png" -- Replace with checkmark asset
+        indicator.ImageColor3 = self._config.COLORS.Success
+        indicator.ZIndex = card.ZIndex + 2
+        indicator.Parent = card
+        
+        self._utilities.Tween(indicator, {
+            ImageTransparency = 0
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Back))
+    elseif not equipped and indicator then
+        -- Fade out and destroy the checkmark
+        self._utilities.Tween(indicator, {
+            ImageTransparency = 1
+        }, TweenInfo.new(0.2, Enum.EasingStyle.Quad))
+        game:GetService("Debris"):AddItem(indicator, 0.2)
+    end
+    
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound(equipped and "Equip" or "Unequip")
+    end
+    
+    -- After updating the card, we tell our Real-Time Stats System to update the count.
+    -- This is the key to a smooth, animated update.
+    local equippedDelta = equipped and 1 or -1
+    self:UpdateSingleStat("equippedPets", equippedDelta)
+end
+
+function InventoryUI:RefreshEquippedCount()
+    -- Count equipped pets from the data
+    local equippedCount = 0
+    local playerData = self._dataCache and self._dataCache:Get("playerData")
+    if playerData and playerData.pets then
+        for _, pet in pairs(playerData.pets) do
+            if pet.equipped then
+                equippedCount = equippedCount + 1
+            end
         end
     end
     
-    self._notificationSystem:Show({
-        message = string.format("Locked %d pets!", count),
-        type = "success",
-        duration = 2
-    })
-    
-    -- Close the mass delete window since locked pets can't be deleted
-    if self.DeleteOverlay then
-        self.DeleteOverlay:Destroy()
-        self.DeleteOverlay = nil
+    -- Update the display
+    if self.StatsLabels.Equipped then
+        self.StatsLabels.Equipped.Text = equippedCount .. "/6"
     end
+    
+    -- Update real-time stats
+    self._realtimeStats.equippedPets = equippedCount
+    self._realtimeStats.animatingValues.equippedPets = equippedCount
 end
 
-function InventoryUI:UpdateDeleteCount()
-    local count = 0
-    for _ in pairs(self.SelectedForDeletion) do
-        count = count + 1
-    end
-    
-    if self.DeleteSelectedLabel then
-        self.DeleteSelectedLabel.Text = "Selected: " .. count .. " pets"
-    end
+function InventoryUI:GetEquippedCount()
+    -- Returns the live equipped count from real-time stats
+    return self._realtimeStats and self._realtimeStats.equippedPets or 0
 end
 
 
-    local count = 0
-    local petIds = {}
-    
-    for petId in pairs(self.SelectedForDeletion) do
-        count = count + 1
-        table.insert(petIds, petId)
-    end
+function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
     
     if count == 0 then
         self._notificationSystem:SendNotification("Error", "No pets selected for deletion", "error")
