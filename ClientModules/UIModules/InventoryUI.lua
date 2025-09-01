@@ -3940,34 +3940,154 @@ end
 
 
 function InventoryUI:UpdatePetCardLockStatus(uniqueId: string, locked: boolean)
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode - update the data and visible cards
+        if self.VisiblePets then
+            for _, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    petInfo.pet.locked = locked
+                    break
+                end
+            end
+        end
+        
+        -- Update any visible cards
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:SetAttribute("Locked", locked)
+                
+                local indicator = card:FindFirstChild("LockedIndicator")
+                if locked and not indicator then
+                    -- Add lock indicator
+                    indicator = Instance.new("ImageLabel")
+                    indicator.Name = "LockedIndicator"
+                    indicator.Size = UDim2.new(0, 25, 0, 25)
+                    indicator.Position = UDim2.new(1, -30, 1, -30)
+                    indicator.BackgroundTransparency = 1
+                    indicator.Image = "rbxassetid://7734021047" -- Lock icon
+                    indicator.ImageColor3 = self._config.COLORS.Warning
+                    indicator.Parent = card
+                elseif not locked and indicator then
+                    indicator:Destroy()
+                end
+                break
+            end
+        end
+    else
+        -- Traditional mode - use cache
+        for _, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:SetAttribute("Locked", locked)
+                
+                local indicator = card:FindFirstChild("LockIndicator")
+                if locked and not indicator then
+                    -- Add lock indicator
+                    indicator = Instance.new("ImageLabel")
+                    indicator.Name = "LockIndicator"
+                    indicator.Size = UDim2.new(0, 20, 0, 20)
+                    indicator.Position = UDim2.new(1, -24, 1, -24)
+                    indicator.BackgroundTransparency = 1
+                    indicator.Image = "rbxassetid://7072718266"
+                    indicator.ImageColor3 = self._config.COLORS.Warning
+                    indicator.Parent = card
+                elseif not locked and indicator then
+                    indicator:Destroy()
+                end
+                
+                break
+            end
+        end
+    end
+end
+
+function InventoryUI:RemovePetCard(uniqueId: string)
+    print("[InventoryUI] Removing pet card:", uniqueId)
     
-    if count == 0 then
-        self._notificationSystem:SendNotification("Error", "No pets selected for deletion", "error")
-        return
+    -- Remove from data cache first
+    if self._dataCache and self._dataCache.Get then
+        local playerData = self._dataCache:Get("playerData") or {}
+        if playerData.pets and playerData.pets[uniqueId] then
+            playerData.pets[uniqueId] = nil
+            if self._dataCache.Set then
+                self._dataCache:Set("playerData", playerData)
+            end
+        end
     end
     
-    -- Create confirmation dialog
-    local confirmText = string.format("Are you sure you want to delete %d pets?\n\nThis action cannot be undone!", count)
+    if self.VirtualScrollEnabled then
+        -- Virtual scrolling mode - remove from data and refresh if visible
+        if self.VisiblePets then
+            for i, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    table.remove(self.VisiblePets, i)
+                    break
+                end
+            end
+        end
+        
+        -- Remove from active cards if visible
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                self:ReturnCardToPool(card)
+                self.ActiveCards[index] = nil
+                break
+            end
+        end
+        
+        -- Force a refresh to update the view
+        self:RefreshInventory()
+    else
+        -- Traditional mode - find and remove the card
+        for i, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                card:Destroy()
+                table.remove(self.PetCardCache, i)
+                break
+            end
+        end
+    end
     
-    -- Create simple confirmation dialog
-    local overlay = Instance.new("Frame")
-    overlay.Name = "ConfirmOverlay"
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.5
-    overlay.ZIndex = self._config.ZINDEX.Overlay
-    overlay.Parent = self.ScreenGui
-    
-    local dialog = Instance.new("Frame")
-    dialog.Name = "ConfirmDialog"
-    dialog.Size = UDim2.new(0, 400, 0, 200)
-    dialog.Position = UDim2.new(0.5, -200, 0.5, -100)
-    dialog.BackgroundColor3 = self._config.COLORS.Background
-    dialog.ZIndex = self._config.ZINDEX.Modal
-    dialog.Parent = overlay
-    
-    self._utilities.CreateCorner(dialog, 12)
-    
+    -- Update real-time stats
+    self:UpdateSingleStat("totalPets", -1)
+end
+
+function InventoryUI:UpdatePetCardLevel(uniqueId: string, newLevel: number)
+    if self.VirtualScrollEnabled then
+        -- Update data
+        if self.VisiblePets then
+            for _, petInfo in ipairs(self.VisiblePets) do
+                if petInfo.pet.uniqueId == uniqueId then
+                    petInfo.pet.level = newLevel
+                    break
+                end
+            end
+        end
+        
+        -- Update visible card
+        for index, card in pairs(self.ActiveCards) do
+            if card.Name == "PetCard_" .. uniqueId then
+                local levelLabel = card:FindFirstChild("LevelLabel")
+                if levelLabel then
+                    levelLabel.Text = "Lv." .. tostring(newLevel)
+                end
+                break
+            end
+        end
+    else
+        -- Traditional mode
+        for _, card in ipairs(self.PetCardCache) do
+            if card.Name == "PetCard_" .. uniqueId then
+                local levelLabel = card:FindFirstChild("LevelLabel")
+                if levelLabel then
+                    levelLabel.Text = "Lv." .. tostring(newLevel)
+                end
+                break
+            end
+        end
+    end
+end
+
+function InventoryUI:UpdatePetCardName(uniqueId: string, newName: string)
     -- Title
     local title = self._uiFactory:CreateLabel(dialog, {
         text = "Confirm Mass Delete",
