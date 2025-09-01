@@ -3770,84 +3770,62 @@ function InventoryUI:CreateStatsTab(parent: Frame)
     content.Parent = scrollFrame
     
     local yOffset = 0
-        -- Use pet's own data
-        local aData = {
-            name = a.name or "Unknown",
-            rarity = a.rarity or 1
-        }
-        local bData = {
-            name = b.name or "Unknown",
-            rarity = b.rarity or 1
-        }
-        return (aData.rarity or 1) < (bData.rarity or 1)
-    end)
     
-    -- Create selection cards
-    for _, pet in ipairs(pets) do
-        -- Use pet's own data
-        local petData = {
-            name = pet.name or "Unknown",
-            displayName = pet.displayName or pet.name or "Unknown",
-            rarity = pet.rarity or 1
-        }
+    -- Collection stats
+    local collectionStats = {
+        {label = "Total Pets", getValue = function() return tostring(#self:GetFilteredAndSortedPets()) end},
+        {label = "Unique Species", getValue = function() return "0" end},
+        {label = "Total Pet Power", getValue = function() return "0" end},
+        {label = "Average Pet Level", getValue = function() return "0" end},
+        {label = "Pets Traded", getValue = function() return "0" end},
+        {label = "Eggs Opened", getValue = function() return "0" end},
+    }
+    
+    for _, stat in ipairs(collectionStats) do
+        local statFrame = self._uiFactory:CreateFrame(content, {
+            size = UDim2.new(1, 0, 0, 60),
+            position = UDim2.new(0, 0, 0, yOffset),
+            backgroundColor = self._config.COLORS.Surface
+        })
         
-        local card = self:CreateDeleteSelectionCard(parent, pet, petData)
+        local labelText = self._uiFactory:CreateLabel(statFrame, {
+            text = stat.label,
+            size = UDim2.new(0.6, -10, 1, 0),
+            position = UDim2.new(0, 10, 0, 0),
+            textXAlignment = Enum.TextXAlignment.Left,
+            font = self._config.FONTS.Primary
+        })
+        
+        local valueText = self._uiFactory:CreateLabel(statFrame, {
+            text = stat.getValue(),
+            size = UDim2.new(0.4, -10, 1, 0),
+            position = UDim2.new(0.6, 0, 0, 0),
+            textXAlignment = Enum.TextXAlignment.Right,
+            font = self._config.FONTS.Secondary,
+            textColor = self._config.COLORS.Primary
+        })
+        
+        yOffset = yOffset + 70
     end
 end
 
-function InventoryUI:CreateDeleteSelectionCard(parent: ScrollingFrame, petInstance: PetInstance, petData: table): Frame
-    local card = Instance.new("Frame")
-    card.Name = petInstance.uniqueId
-    card.BackgroundColor3 = self._config.COLORS.Surface
-    card.BorderSizePixel = 0
-    card:SetAttribute("Rarity", petData.rarity or 1)  -- Store rarity for filtering
-    card.ZIndex = 1  -- Ensure proper layering
-    card.Parent = parent
+-- ========================================
+-- UTILITY FUNCTIONS
+-- ========================================
+
+function InventoryUI:OnSearchChanged(text: string)
+    -- Debounce search
+    if self.SearchDebounce then
+        task.cancel(self.SearchDebounce)
+    end
     
-    self._utilities.CreateCorner(card, 8)
-    
-    -- Selection indicator
-    local indicator = Instance.new("Frame")
-    indicator.Name = "SelectIndicator"
-    indicator.Size = UDim2.new(1, 0, 1, 0)
-    indicator.BackgroundColor3 = self._config.COLORS.Success
-    indicator.BackgroundTransparency = 1
-    indicator.Parent = card
-    
-    self._utilities.CreateCorner(indicator, 8)
-    
-    -- Pet image
-    local petImage = Instance.new("ImageLabel")
-    petImage.Size = UDim2.new(1, -10, 1, -30)
-    petImage.Position = UDim2.new(0, 5, 0, 5)
-    petImage.BackgroundTransparency = 1
-    petImage.Image = petData.imageId or ""
-    petImage.ScaleType = Enum.ScaleType.Fit
-    petImage.Parent = card
-    
-    -- Name label
-    local nameLabel = self._uiFactory:CreateLabel(card, {
-        text = petInstance.nickname or petData.name or petData.displayName or "Unknown",
-        size = UDim2.new(1, -4, 0, 20),
-        position = UDim2.new(0, 2, 1, -22),
-        textScaled = true,
-        textSize = 12
-    })
-    
-    -- Rarity indicator
-    local rarityBar = Instance.new("Frame")
-    rarityBar.Size = UDim2.new(1, 0, 0, 3)
-    rarityBar.Position = UDim2.new(0, 0, 1, -3)
-    rarityBar.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
-    rarityBar.BorderSizePixel = 0
-    rarityBar.Parent = card
-    
-    -- Click handler
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 1, 0)
-    button.BackgroundTransparency = 1
-    button.Text = ""
-    button.Parent = card
+    self.SearchDebounce = task.spawn(function()
+        task.wait(SEARCH_DEBOUNCE)
+        self.SearchText = text
+        self:RefreshInventory()
+        self.SearchDebounce = nil
+    end)
+end
     
     self._janitor:Add(button.MouseButton1Click:Connect(function()
         if self.SelectedForDeletion[petInstance.uniqueId] then
