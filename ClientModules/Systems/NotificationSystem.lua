@@ -362,8 +362,9 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
     
     -- Add size constraint to ensure frame never grows
     local sizeConstraint = Instance.new("UISizeConstraint")
-    sizeConstraint.MaxSize = Vector2.new(NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT)
-    sizeConstraint.MinSize = Vector2.new(NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT)
+    local maxHeight = notification.actions and NOTIFICATION_HEIGHT + 40 or NOTIFICATION_HEIGHT
+    sizeConstraint.MaxSize = Vector2.new(NOTIFICATION_WIDTH, maxHeight)
+    sizeConstraint.MinSize = Vector2.new(NOTIFICATION_WIDTH, maxHeight)
     sizeConstraint.Parent = frame
     
     -- Add corner radius
@@ -522,25 +523,40 @@ function NotificationSystem:CreateNotificationFrame(notification: NotificationDa
         frame.Size = UDim2.new(0, NOTIFICATION_WIDTH, 0, NOTIFICATION_HEIGHT + 40)
     end
     
-    -- Add hover effect
+    -- Add hover effect with tween management
     local hovering = false
+    local hoverTween = nil
+    
     frame.MouseEnter:Connect(function()
         hovering = true
-        Services.TweenService:Create(
+        -- Cancel any existing hover tween
+        if hoverTween then
+            hoverTween:Cancel()
+        end
+        hoverTween = Services.TweenService:Create(
             frame,
             TweenInfo.new(0.2),
             {BackgroundColor3 = self._utilities.LightenColor(self._config.COLORS.Surface, 0.1)}
-        ):Play()
+        )
+        hoverTween:Play()
     end)
     
     frame.MouseLeave:Connect(function()
         hovering = false
-        Services.TweenService:Create(
+        -- Cancel any existing hover tween
+        if hoverTween then
+            hoverTween:Cancel()
+        end
+        hoverTween = Services.TweenService:Create(
             frame,
             TweenInfo.new(0.2),
             {BackgroundColor3 = self._config.COLORS.Surface}
-        ):Play()
+        )
+        hoverTween:Play()
     end)
+    
+    -- Store the hover tween reference for cleanup
+    frame:SetAttribute("HoverTween", hoverTween)
     
     return frame
 end
@@ -677,13 +693,37 @@ function NotificationSystem:UpdateStackedNotification(group: NotificationGroup)
         message.Text = string.format("%s (x%d)", first.message, group.count)
     end
     
-    -- Only pulse if not recently animated (prevent animation stacking)
-    local now = tick()
-    if not group.lastAnimated or (now - group.lastAnimated) > 0.3 then
-        group.lastAnimated = now
-        if self._animationSystem then
-            self._animationSystem:Pulse(group.frame, 1.05, 0.2)
+    -- Visual feedback without size animation to prevent growing issue
+    -- Just briefly highlight the frame instead of pulsing
+    local stroke = group.frame:FindFirstChildOfClass("UIStroke")
+    if stroke then
+        -- Cancel any existing highlight tween
+        local existingTween = group.frame:GetAttribute("HighlightTween")
+        if existingTween and self._activeTweens[existingTween] then
+            self._activeTweens[existingTween]:Cancel()
+            self._activeTweens[existingTween] = nil
         end
+        
+        -- Create highlight animation
+        local tweenId = "highlight_" .. group.id .. "_" .. tick()
+        local originalTransparency = stroke.Transparency
+        
+        -- Make stroke more visible briefly
+        stroke.Transparency = 0
+        local tween = Services.TweenService:Create(
+            stroke,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Transparency = originalTransparency}
+        )
+        
+        self._activeTweens[tweenId] = tween
+        group.frame:SetAttribute("HighlightTween", tweenId)
+        tween:Play()
+        
+        -- Clean up when complete
+        tween.Completed:Connect(function()
+            self._activeTweens[tweenId] = nil
+        end)
     end
 end
 
@@ -731,9 +771,19 @@ function NotificationSystem:UpdateNotificationPositions()
                 UDim2.new(1, -NOTIFICATION_WIDTH - NOTIFICATION_SPACING, 0, currentY) or
                 UDim2.new(0, NOTIFICATION_SPACING, 0, currentY)
             
+            -- Cancel any existing position tween for this frame
+            local existingTween = notification.frame:GetAttribute("PositionTween")
+            if existingTween and self._activeTweens[existingTween] then
+                self._activeTweens[existingTween]:Cancel()
+                self._activeTweens[existingTween] = nil
+            end
+            
             -- Stagger animation for cascade effect
             task.spawn(function()
                 task.wait((i - 1) * 0.03)
+                
+                -- Create unique tween ID
+                local tweenId = "position_" .. notification.id .. "_" .. tick()
                 
                 -- Animate to new position with smooth easing
                 local tween = Services.TweenService:Create(
@@ -741,25 +791,22 @@ function NotificationSystem:UpdateNotificationPositions()
                     TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
                     {Position = targetPos}
                 )
+                
+                -- Store and track the tween
+                self._activeTweens[tweenId] = tween
+                notification.frame:SetAttribute("PositionTween", tweenId)
+                
                 tween:Play()
                 
-                -- Add subtle bounce effect
-                if i == 1 then
-                    local bounce = Services.TweenService:Create(
-                        notification.frame,
-                        TweenInfo.new(0.1, Enum.EasingStyle.Sine),
-                        {Size = UDim2.new(0, NOTIFICATION_WIDTH + 5, 0, notification.frame.Size.Y.Offset)}
-                    )
-                    bounce:Play()
-                    task.wait(0.1)
-                    
-                    local bounceBack = Services.TweenService:Create(
-                        notification.frame,
-                        TweenInfo.new(0.1, Enum.EasingStyle.Sine),
-                        {Size = UDim2.new(0, NOTIFICATION_WIDTH, 0, notification.frame.Size.Y.Offset)}
-                    )
-                    bounceBack:Play()
-                end
+                -- Clean up when complete
+                tween.Completed:Connect(function()
+                    self._activeTweens[tweenId] = nil
+                    if notification.frame and notification.frame.Parent then
+                        notification.frame:SetAttribute("PositionTween", nil)
+                    end
+                end)
+                
+
             end)
             
             -- Update Y position for next notification
@@ -815,6 +862,16 @@ function NotificationSystem:RemoveNotification(index: number)
     
     -- Animate out
     if notification.frame then
+        -- Cancel all active tweens for this frame
+        local tweenTypes = {"HoverTween", "PositionTween", "HighlightTween"}
+        for _, tweenType in ipairs(tweenTypes) do
+            local tweenId = notification.frame:GetAttribute(tweenType)
+            if tweenId and self._activeTweens[tweenId] then
+                self._activeTweens[tweenId]:Cancel()
+                self._activeTweens[tweenId] = nil
+            end
+        end
+        
         local startPos, _ = self:GetPositions(index)
         local outPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + 400, startPos.Y.Scale, startPos.Y.Offset)
         
@@ -953,6 +1010,14 @@ end
 -- ========================================
 
 function NotificationSystem:Destroy()
+    -- Cancel all active tweens
+    for id, tween in pairs(self._activeTweens) do
+        if tween then
+            tween:Cancel()
+        end
+    end
+    self._activeTweens = {}
+    
     -- Dismiss all notifications
     self:DismissAll()
     
