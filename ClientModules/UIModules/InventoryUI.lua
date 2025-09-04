@@ -392,7 +392,8 @@ function InventoryUI:SetupEventListeners()
             if self.Frame and self.Frame.Visible then
                 -- Update just the card and stats without full refresh
                 self:UpdatePetCardEquipStatus(uniqueId, true)
-                -- No need to call RefreshStats() here, UpdatePetCardEquipStatus already handles it
+                -- Check for synergies when a pet is equipped
+                self:UpdateSynergyDisplay()
             end
         end)
         if not success then
@@ -410,7 +411,8 @@ function InventoryUI:SetupEventListeners()
             if self.Frame and self.Frame.Visible then
                 -- Update just the card and stats without full refresh
                 self:UpdatePetCardEquipStatus(uniqueId, false)
-                -- No need to call RefreshStats() here, UpdatePetCardEquipStatus already handles it
+                -- Check for synergies when a pet is unequipped
+                self:UpdateSynergyDisplay()
             end
         end)
         if not success then
@@ -711,6 +713,8 @@ function InventoryUI:Open()
     task.spawn(function()
         self:FetchPlayerData()
         self:RefreshInventory()
+        -- Update synergy display after data is loaded
+        self:UpdateSynergyDisplay()
     end)
     
     -- Play sound
@@ -938,6 +942,10 @@ function InventoryUI:CreateStatsBar()
     -- Storage bar
     local storageFrame = self:CreateStorageBar(statsBar)
     self.StatsLabels.Storage = storageFrame
+    
+    -- Synergy display
+    local synergyFrame = self:CreateSynergyDisplay(statsBar)
+    self.StatsLabels.Synergy = synergyFrame
 end
 
 function InventoryUI:CreateStatDisplay(parent: Frame, label: string, value: string, color: Color3): Frame
@@ -1029,6 +1037,44 @@ function InventoryUI:CreateStorageBar(parent: Frame): Frame
     if self.StorageBars[frame] then
         self.StorageBars[frame].updateFunc(0)
     end
+    
+    return frame
+end
+
+function InventoryUI:CreateSynergyDisplay(parent: Frame): Frame
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 1, -10)
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+    
+    local synergyIcon = self._uiFactory:CreateLabel(frame, {
+        text = "🌟",
+        size = UDim2.new(0, 30, 1, 0),
+        position = UDim2.new(0, 0, 0, 0),
+        textSize = 20
+    })
+    
+    local synergyLabel = self._uiFactory:CreateLabel(frame, {
+        text = "Synergy:",
+        size = UDim2.new(0, 60, 1, 0),
+        position = UDim2.new(0, 30, 0, 0),
+        textXAlignment = Enum.TextXAlignment.Left,
+        textColor = self._config.COLORS.TextSecondary
+    })
+    
+    local synergyValue = self._uiFactory:CreateLabel(frame, {
+        name = "SynergyValue",
+        text = "None",
+        size = UDim2.new(1, -90, 1, 0),
+        position = UDim2.new(0, 90, 0, 0),
+        textXAlignment = Enum.TextXAlignment.Left,
+        textColor = Color3.fromRGB(255, 215, 0), -- Gold color
+        font = self._config.FONTS.Secondary,
+        textSize = 14
+    })
+    
+    -- Store reference to value label for updates
+    self._synergyValueLabel = synergyValue
     
     return frame
 end
@@ -4285,6 +4331,104 @@ function InventoryUI:UpdatePetCardName(uniqueId: string, newName: string)
             end
         end
     end
+end
+
+-- ========================================
+-- SYNERGY SYSTEM
+-- ========================================
+
+function InventoryUI:UpdateSynergyDisplay()
+    -- Get equipped pets
+    local playerData = self._dataCache and self._dataCache:Get("playerData")
+    if not playerData or not playerData.pets then return end
+    
+    local equippedPetIds = {}
+    for uniqueId, pet in pairs(playerData.pets) do
+        if pet.equipped then
+            table.insert(equippedPetIds, pet.petId)
+        end
+    end
+    
+    -- Check for synergies
+    local activeSynergies = self:CheckForSynergies(equippedPetIds)
+    
+    -- Update display
+    if self._synergyValueLabel then
+        if #activeSynergies > 0 then
+            local synergyNames = {}
+            for _, synergy in ipairs(activeSynergies) do
+                table.insert(synergyNames, synergy.name)
+            end
+            self._synergyValueLabel.Text = table.concat(synergyNames, " + ")
+            self._synergyValueLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+            
+            -- Add glow effect
+            if self._synergyValueLabel.Parent then
+                local glow = Instance.new("ImageLabel")
+                glow.Name = "SynergyGlow"
+                glow.Size = UDim2.new(1.2, 0, 1.2, 0)
+                glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+                glow.AnchorPoint = Vector2.new(0.5, 0.5)
+                glow.BackgroundTransparency = 1
+                glow.Image = "rbxassetid://5028857084"
+                glow.ImageColor3 = Color3.fromRGB(255, 215, 0)
+                glow.ImageTransparency = 0.7
+                glow.ZIndex = self._synergyValueLabel.ZIndex - 1
+                glow.Parent = self._synergyValueLabel.Parent
+                
+                -- Remove old glow
+                local oldGlow = self._synergyValueLabel.Parent:FindFirstChild("SynergyGlow")
+                if oldGlow and oldGlow ~= glow then
+                    oldGlow:Destroy()
+                end
+            end
+        else
+            self._synergyValueLabel.Text = "None"
+            self._synergyValueLabel.TextColor3 = self._config.COLORS.TextSecondary
+            
+            -- Remove glow
+            if self._synergyValueLabel.Parent then
+                local oldGlow = self._synergyValueLabel.Parent:FindFirstChild("SynergyGlow")
+                if oldGlow then
+                    oldGlow:Destroy()
+                end
+            end
+        end
+    end
+end
+
+function InventoryUI:CheckForSynergies(equippedPetIds: {string}): table
+    -- Get synergy data from PetDatabase
+    local PetDatabase = require(game.ReplicatedStorage.ServerModules.PetDatabase)
+    if not PetDatabase or not PetDatabase.Synergies then return {} end
+    
+    local activeSynergies = {}
+    
+    -- Check each synergy
+    for _, synergy in ipairs(PetDatabase.Synergies) do
+        local hasAllPets = true
+        
+        -- Check if all required pets are equipped
+        for _, requiredPetId in ipairs(synergy.pets) do
+            local found = false
+            for _, equippedId in ipairs(equippedPetIds) do
+                if equippedId == requiredPetId then
+                    found = true
+                    break
+                end
+            end
+            if not found then
+                hasAllPets = false
+                break
+            end
+        end
+        
+        if hasAllPets then
+            table.insert(activeSynergies, synergy)
+        end
+    end
+    
+    return activeSynergies
 end
 
 -- ========================================

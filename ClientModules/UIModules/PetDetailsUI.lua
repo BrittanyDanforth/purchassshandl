@@ -1286,6 +1286,90 @@ end
 -- PET ABILITIES TAB
 -- ========================================
 
+-- Ability type to icon mapping
+local ABILITY_ICONS = {
+	-- Offensive
+	damage = "⚔️",
+	damage_over_time = "🔥",
+	burst_damage = "💥",
+	critical_hit = "⚡",
+	
+	-- Defensive
+	shield = "🛡️",
+	heal = "❤️",
+	immunity = "✨",
+	
+	-- Utility
+	speed_boost = "💨",
+	slow_enemy = "🐌",
+	stun = "💫",
+	freeze = "❄️",
+	
+	-- Economic
+	coin_multiplier = "💰",
+	gem_drop = "💎",
+	treasure_find = "🎁",
+	
+	-- Team
+	team_buff = "👥",
+	team_heal = "💖",
+	team_shield = "🛡️",
+	
+	-- Special
+	transformation = "🦋",
+	summon = "🌟",
+	teleport = "🌀",
+	time_control = "⏰",
+	reality_bend = "🌈",
+}
+
+-- Ability type to color mapping
+local ABILITY_COLORS = {
+	-- Offensive - Red/Orange tones
+	damage = Color3.fromRGB(255, 69, 58),
+	damage_over_time = Color3.fromRGB(255, 159, 10),
+	burst_damage = Color3.fromRGB(255, 133, 82),
+	critical_hit = Color3.fromRGB(255, 204, 0),
+	
+	-- Defensive - Blue/Green tones
+	shield = Color3.fromRGB(50, 173, 230),
+	heal = Color3.fromRGB(134, 239, 172),
+	immunity = Color3.fromRGB(175, 122, 197),
+	
+	-- Utility - Purple/Pink tones
+	speed_boost = Color3.fromRGB(90, 200, 250),
+	slow_enemy = Color3.fromRGB(142, 142, 147),
+	stun = Color3.fromRGB(255, 149, 0),
+	freeze = Color3.fromRGB(100, 210, 255),
+	
+	-- Economic - Gold/Green
+	coin_multiplier = Color3.fromRGB(255, 214, 10),
+	gem_drop = Color3.fromRGB(88, 86, 214),
+	treasure_find = Color3.fromRGB(255, 45, 85),
+	
+	-- Team - Warm colors
+	team_buff = Color3.fromRGB(255, 92, 161),
+	team_heal = Color3.fromRGB(255, 45, 85),
+	team_shield = Color3.fromRGB(0, 122, 255),
+	
+	-- Special - Rainbow/Unique
+	transformation = Color3.fromRGB(191, 90, 242),
+	summon = Color3.fromRGB(255, 55, 95),
+	teleport = Color3.fromRGB(88, 86, 214),
+	time_control = Color3.fromRGB(255, 149, 0),
+	reality_bend = Color3.fromRGB(255, 92, 161),
+}
+
+function PetDetailsUI:GetAbilityTypeFromEffects(effects)
+	-- Check the first effect type to determine ability category
+	if effects and #effects > 0 then
+		local effectType = effects[1].type
+		-- Return the raw effect type - it should match our mappings
+		return effectType
+	end
+	return nil
+end
+
 function PetDetailsUI:ShowPetAbilities(parent: Frame)
 	if not self._currentPetData then
 		local errorLabel = self._uiFactory:CreateLabel(parent, {
@@ -1324,43 +1408,131 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 	-- Display abilities (now an array in PetDatabase)
 	for i, abilityData in ipairs(self._currentPetData.abilities) do
 		local abilityFrame = Instance.new("Frame")
-		abilityFrame.Size = UDim2.new(1, -20, 0, 100)
+		abilityFrame.Size = UDim2.new(1, -20, 0, 120) -- Increased height for better display
 		abilityFrame.Position = UDim2.new(0, 10, 0, yOffset)
-		abilityFrame.BackgroundColor3 = self._config.COLORS.White
+		abilityFrame.BackgroundColor3 = self._config.COLORS.Surface
 		abilityFrame.Parent = container
 
 		self._utilities.CreateCorner(abilityFrame, 12)
+		
+		-- Add shadow for depth
+		local shadow = Instance.new("ImageLabel")
+		shadow.Size = UDim2.new(1, 10, 1, 10)
+		shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+		shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+		shadow.BackgroundTransparency = 1
+		shadow.Image = "rbxassetid://1316045217"
+		shadow.ImageColor3 = Color3.new(0, 0, 0)
+		shadow.ImageTransparency = 0.93
+		shadow.ScaleType = Enum.ScaleType.Slice
+		shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+		shadow.ZIndex = abilityFrame.ZIndex - 1
+		shadow.Parent = abilityFrame
 
-		-- Ability icon/indicator
+		-- Determine ability type and get appropriate icon/color
+		local abilityType = self:GetAbilityTypeFromEffects(abilityData.effects)
+		local abilityIcon = abilityData.icon or ABILITY_ICONS[abilityType] or "✨"
+		local abilityColor = ABILITY_COLORS[abilityType] or self._config.COLORS.Primary
+		
+		-- Check if ability is unlocked
+		local isUnlocked = not abilityData.unlockLevel or self._currentPetInstance.level >= abilityData.unlockLevel
+		local isUltimate = abilityData.isUltimate or false
+
+		-- Ability icon frame with gradient background
 		local iconFrame = Instance.new("Frame")
-		iconFrame.Size = UDim2.new(0, 60, 0, 60)
-		iconFrame.Position = UDim2.new(0, 15, 0.5, -30)
-		iconFrame.BackgroundColor3 = self._config.COLORS.Primary
+		iconFrame.Size = UDim2.new(0, 70, 0, 70)
+		iconFrame.Position = UDim2.new(0, 15, 0.5, -35)
+		iconFrame.BackgroundColor3 = abilityColor
+		iconFrame.BackgroundTransparency = isUnlocked and 0 or 0.5
 		iconFrame.Parent = abilityFrame
 
-		self._utilities.CreateCorner(iconFrame, 30)
+		self._utilities.CreateCorner(iconFrame, 35)
+		
+		-- Add gradient effect to icon frame
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = 45
+		gradient.Color = ColorSequence.new{
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(1, Color3.new(0.8, 0.8, 0.8))
+		}
+		gradient.Parent = iconFrame
+		
+		-- Ultimate ability special effect
+		if isUltimate then
+			local ultimateGlow = Instance.new("ImageLabel")
+			ultimateGlow.Size = UDim2.new(1.4, 0, 1.4, 0)
+			ultimateGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
+			ultimateGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+			ultimateGlow.BackgroundTransparency = 1
+			ultimateGlow.Image = "rbxassetid://5028857084"
+			ultimateGlow.ImageColor3 = abilityColor
+			ultimateGlow.ImageTransparency = 0.5
+			ultimateGlow.ZIndex = iconFrame.ZIndex - 1
+			ultimateGlow.Parent = iconFrame
+			
+			-- Animate ultimate glow
+			spawn(function()
+				while ultimateGlow.Parent do
+					self._utilities.Tween(ultimateGlow, {
+						ImageTransparency = 0.3,
+						Size = UDim2.new(1.6, 0, 1.6, 0)
+					}, {Time = 1, EasingStyle = Enum.EasingStyle.Sine})
+					wait(1)
+					self._utilities.Tween(ultimateGlow, {
+						ImageTransparency = 0.5,
+						Size = UDim2.new(1.4, 0, 1.4, 0)
+					}, {Time = 1, EasingStyle = Enum.EasingStyle.Sine})
+					wait(1)
+				end
+			end)
+		end
 
 		local iconLabel = self._uiFactory:CreateLabel(iconFrame, {
-			text = abilityData.icon or "✨",
+			text = abilityIcon,
 			size = UDim2.new(1, 0, 1, 0),
 			textColor = self._config.COLORS.White,
-			textSize = 24
+			textSize = isUltimate and 32 or 28
 		})
+		
+		-- Lock overlay if not unlocked
+		if not isUnlocked then
+			local lockOverlay = Instance.new("Frame")
+			lockOverlay.Size = UDim2.new(1, 0, 1, 0)
+			lockOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+			lockOverlay.BackgroundTransparency = 0.5
+			lockOverlay.ZIndex = iconLabel.ZIndex + 1
+			lockOverlay.Parent = iconFrame
+			self._utilities.CreateCorner(lockOverlay, 35)
+			
+			local lockIcon = self._uiFactory:CreateLabel(lockOverlay, {
+				text = "🔒",
+				size = UDim2.new(1, 0, 1, 0),
+				textColor = self._config.COLORS.White,
+				textSize = 24
+			})
+		end
 
 		-- Ability info
 		local infoFrame = Instance.new("Frame")
-		infoFrame.Size = UDim2.new(1, -100, 1, -20)
-		infoFrame.Position = UDim2.new(0, 85, 0, 10)
+		infoFrame.Size = UDim2.new(1, -110, 1, -20)
+		infoFrame.Position = UDim2.new(0, 95, 0, 10)
 		infoFrame.BackgroundTransparency = 1
 		infoFrame.Parent = abilityFrame
 
-		-- Ability name
+		-- Ability name with ultimate indicator
+		local nameText = abilityData.name or "Unknown Ability"
+		if isUltimate then
+			nameText = "⭐ " .. nameText .. " (ULTIMATE)"
+		end
+		
 		local nameLabel = self._uiFactory:CreateLabel(infoFrame, {
-			text = abilityData.name or "Unknown Ability",
+			text = nameText,
 			size = UDim2.new(1, 0, 0, 25),
 			position = UDim2.new(0, 0, 0, 0),
-			font = self._config.FONTS.Secondary,
-			textXAlignment = Enum.TextXAlignment.Left
+			font = self._config.FONTS.Display,
+			textXAlignment = Enum.TextXAlignment.Left,
+			textColor = isUnlocked and self._config.COLORS.Text or self._config.COLORS.TextSecondary,
+			textSize = 18
 		})
 
 		-- Ability description
@@ -1368,66 +1540,80 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 			text = abilityData.description or "No description available",
 			size = UDim2.new(1, 0, 0, 40),
 			position = UDim2.new(0, 0, 0, 25),
-			textColor = self._config.COLORS.TextSecondary,
+			textColor = isUnlocked and self._config.COLORS.TextSecondary or Color3.fromRGB(150, 150, 150),
 			textXAlignment = Enum.TextXAlignment.Left,
 			textWrapped = true,
 			textSize = 14
 		})
 
-		-- Ability stats (cooldown, mana, level requirement)
-		local statsText = {}
+		-- Ability stats with icons
+		local statsFrame = Instance.new("Frame")
+		statsFrame.Size = UDim2.new(1, 0, 0, 25)
+		statsFrame.Position = UDim2.new(0, 0, 0, 70)
+		statsFrame.BackgroundTransparency = 1
+		statsFrame.Parent = infoFrame
 		
+		local statsLayout = Instance.new("UIListLayout")
+		statsLayout.FillDirection = Enum.FillDirection.Horizontal
+		statsLayout.Padding = UDim.new(0, 15)
+		statsLayout.Parent = statsFrame
+		
+		-- Cooldown stat
 		if abilityData.cooldown then
-			table.insert(statsText, string.format("Cooldown: %ds", abilityData.cooldown))
+			local cooldownFrame = self:CreateAbilityStat(statsFrame, "⏱️", 
+				string.format("%ds", abilityData.cooldown), "Cooldown", isUnlocked)
 		end
 		
+		-- Mana cost stat
 		if abilityData.manaCost then
-			table.insert(statsText, string.format("Mana: %d", abilityData.manaCost))
+			local manaFrame = self:CreateAbilityStat(statsFrame, "💧", 
+				tostring(abilityData.manaCost), "Mana Cost", isUnlocked)
 		end
 		
+		-- Level requirement
 		if abilityData.unlockLevel and abilityData.unlockLevel > 1 then
-			local hasLevel = self._currentPetInstance.level >= abilityData.unlockLevel
-			local levelText = string.format("Requires Lv.%d", abilityData.unlockLevel)
-			if not hasLevel then
-				levelText = "🔒 " .. levelText
-			end
-			table.insert(statsText, levelText)
+			local levelColor = isUnlocked and self._config.COLORS.Success or self._config.COLORS.Error
+			local levelFrame = self:CreateAbilityStat(statsFrame, "📊", 
+				string.format("Lv.%d", abilityData.unlockLevel), "Required Level", isUnlocked, levelColor)
 		end
 		
-		if #statsText > 0 then
-			local statsLabel = self._uiFactory:CreateLabel(infoFrame, {
-				text = table.concat(statsText, " | "),
-				size = UDim2.new(1, 0, 0, 20),
-				position = UDim2.new(0, 0, 0, 65),
-				textColor = self._config.COLORS.TextSecondary,
-				textXAlignment = Enum.TextXAlignment.Left,
-				textSize = 12
-			})
-		end
-		
-		-- Ultimate ability indicator
-		if abilityData.isUltimate then
-			local ultBadge = Instance.new("Frame")
-			ultBadge.Size = UDim2.new(0, 80, 0, 20)
-			ultBadge.Position = UDim2.new(1, -85, 0, 5)
-			ultBadge.BackgroundColor3 = RARITY_COLORS[8] -- Immortal purple
-			ultBadge.Parent = abilityFrame
-			
-			self._utilities.CreateCorner(ultBadge, 10)
-			
-			local ultLabel = self._uiFactory:CreateLabel(ultBadge, {
-				text = "ULTIMATE",
-				size = UDim2.new(1, 0, 1, 0),
-				textColor = Color3.new(1, 1, 1),
-				textSize = 12,
-				font = self._config.FONTS.Secondary
-			})
+		-- Range indicator
+		if abilityData.range then
+			local rangeFrame = self:CreateAbilityStat(statsFrame, "📏", 
+				string.format("%d", abilityData.range), "Range", isUnlocked)
 		end
 
-		yOffset = yOffset + 110
+		yOffset = yOffset + 130
 	end
 
 	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
+end
+
+function PetDetailsUI:CreateAbilityStat(parent: Frame, icon: string, value: string, tooltip: string, isEnabled: boolean, customColor: Color3?)
+	local statFrame = Instance.new("Frame")
+	statFrame.Size = UDim2.new(0, 60, 1, 0)
+	statFrame.BackgroundTransparency = 1
+	statFrame.Parent = parent
+	
+	local iconLabel = self._uiFactory:CreateLabel(statFrame, {
+		text = icon,
+		size = UDim2.new(0, 20, 1, 0),
+		position = UDim2.new(0, 0, 0, 0),
+		textSize = 16,
+		textColor = isEnabled and (customColor or self._config.COLORS.Text) or self._config.COLORS.TextSecondary
+	})
+	
+	local valueLabel = self._uiFactory:CreateLabel(statFrame, {
+		text = value,
+		size = UDim2.new(1, -25, 1, 0),
+		position = UDim2.new(0, 25, 0, 0),
+		textSize = 14,
+		textXAlignment = Enum.TextXAlignment.Left,
+		textColor = isEnabled and (customColor or self._config.COLORS.Text) or self._config.COLORS.TextSecondary,
+		font = self._config.FONTS.Body
+	})
+	
+	return statFrame
 end
 
 -- ========================================
@@ -1666,6 +1852,20 @@ function PetDetailsUI:ShowPetInfo(parent: Frame)
 		{label = "Total Battles", value = tostring(self._currentPetInstance.battleCount or 0)},
 		{label = "Wins", value = tostring(self._currentPetInstance.wins or 0)}
 	}
+	
+	-- Add synergy info
+	local synergies = self:GetPetSynergies(self._currentPetInstance.petId)
+	if #synergies > 0 then
+		local synergyNames = {}
+		for _, synergy in ipairs(synergies) do
+			table.insert(synergyNames, synergy.name)
+		end
+		table.insert(infoList, {
+			label = "Synergies",
+			value = table.concat(synergyNames, ", "),
+			color = Color3.fromRGB(255, 215, 0) -- Gold
+		})
+	end
 
 	local yOffset = 0
 
@@ -1733,6 +1933,30 @@ function PetDetailsUI:ShowPetInfo(parent: Frame)
 	
 	-- Update canvas size to fit all content
 	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
+end
+
+-- ========================================
+-- SYNERGY HELPERS
+-- ========================================
+
+function PetDetailsUI:GetPetSynergies(petId: string): table
+	-- Get synergy data from PetDatabase
+	local PetDatabase = require(game.ReplicatedStorage.ServerModules.PetDatabase)
+	if not PetDatabase or not PetDatabase.Synergies then return {} end
+	
+	local petSynergies = {}
+	
+	-- Check each synergy to see if this pet is part of it
+	for _, synergy in ipairs(PetDatabase.Synergies) do
+		for _, synergyPetId in ipairs(synergy.pets) do
+			if synergyPetId == petId then
+				table.insert(petSynergies, synergy)
+				break
+			end
+		end
+	end
+	
+	return petSynergies
 end
 
 -- ========================================
