@@ -1,0 +1,1330 @@
+--[[
+    Module: CaseOpeningUI
+    Description: Case opening animation UI with spinning reel, multi-egg support, 
+                 skip functionality, particles, sounds, auto-delete, and shine effects
+    Features: Animated spinning, rarity effects, particle bursts, skip button, multi-result handling
+]]
+
+local Types = require(script.Parent.Parent.Core.ClientTypes)
+local Config = require(script.Parent.Parent.Core.ClientConfig)
+local Services = require(script.Parent.Parent.Core.ClientServices)
+local Utilities = require(script.Parent.Parent.Core.ClientUtilities)
+local Janitor = require(game.ReplicatedStorage.Modules.Shared.Janitor)
+
+local CaseOpeningUI = {}
+CaseOpeningUI.__index = CaseOpeningUI
+
+-- ========================================
+-- TYPES
+-- ========================================
+
+type CaseResult = {
+    petId: string,
+    petData: Types.PetData?,
+    isNew: boolean?,
+    variant: string?,
+    caseItems: {string}?, -- Items shown in spinner
+}
+
+type CaseOpeningOptions = {
+    skipDelay: number?,
+    autoDelete: boolean?,
+    particleEffects: boolean?,
+    soundEffects: boolean?,
+}
+
+-- ========================================
+-- CONSTANTS
+-- ========================================
+
+local OVERLAY_FADE_TIME = 0.5
+local CONTAINER_SIZE = Vector2.new(900, 650)
+local SPINNER_HEIGHT = 250
+local CASE_ITEM_WIDTH = 180
+local CASE_ITEMS_VISIBLE = 5
+local CASE_SPIN_TIME = 4.5
+local CASE_DECELERATION = 0.96
+local RESULT_DISPLAY_TIME = 3
+local SKIP_BUTTON_DELAY = 1
+local COLLECT_BUTTON_SIZE = Vector2.new(250, 60)
+local PET_DISPLAY_SIZE = 280
+local GLOW_EFFECT_SIZE = 400
+local PARTICLE_BURST_COUNT = 30
+local SHINE_EFFECT_DELAY = 0.1
+
+-- Rarity names
+local RARITY_NAMES = {
+    "Common",
+    "Uncommon", 
+    "Rare",
+    "Epic",
+    "Legendary",
+    "Mythical",
+    "SECRET"
+}
+
+-- ========================================
+-- INITIALIZATION
+-- ========================================
+
+function CaseOpeningUI.new(dependencies)
+    local self = setmetatable({}, CaseOpeningUI)
+    
+    -- Initialize Janitor for memory management
+    self._janitor = Janitor.new()
+    
+    -- Dependencies
+    self._eventBus = dependencies.EventBus
+    self._dataCache = dependencies.DataCache
+    self._soundSystem = dependencies.SoundSystem
+    self._particleSystem = dependencies.ParticleSystem
+    self._effectsLibrary = dependencies.EffectsLibrary
+    self._animationSystem = dependencies.AnimationSystem
+    self._notificationSystem = dependencies.NotificationSystem
+    self._uiFactory = dependencies.UIFactory
+    self._config = dependencies.Config or Config
+    self._utilities = dependencies.Utilities or Utilities
+    
+    -- UI References
+    self._overlay = nil
+    self._container = nil
+    self._currentResults = nil
+    self._currentIndex = 1
+    self._skipButton = nil
+    self._collectButton = nil
+    self._animationInProgress = false
+    self._skipAnimation = false
+    
+    -- Settings
+    self._options = {
+        skipDelay = SKIP_BUTTON_DELAY,
+        autoDelete = true,
+        particleEffects = true,
+        soundEffects = true,
+    }
+    
+    -- State
+    self._isOpen = false
+    self._debugMode = self._config.DEBUG.ENABLED
+    
+    -- Set up event listeners
+    self:SetupEventListeners()
+    
+    return self
+end
+
+function CaseOpeningUI:SetupEventListeners()
+    if not self._eventBus then return end
+    
+    -- Listen for case opening requests
+    self._eventBus:On("OpenCaseAnimation", function(data)
+        if data.results then
+            self:Open(data.results, data.eggData)
+        end
+    end)
+end
+
+-- ========================================
+-- OPEN/CLOSE
+-- ========================================
+
+function CaseOpeningUI:Open(results: {CaseResult}, eggData: table?)
+    if self._isOpen then
+        self:Close()
+    end
+    
+    -- Clean up any existing UI
+    self:Cleanup()
+    
+    self._currentResults = results
+    self._currentIndex = 1
+    self._isOpen = true
+    
+    -- Debug logging
+    print("[CaseOpeningUI] Opening with results:", results)
+    if type(results) == "table" then
+        for i, result in ipairs(results) do
+            if type(result) == "table" then
+                print("  Result", i, ":")
+                print("    petId:", result.petId)
+                print("    petName:", result.petName)
+                print("    pet:", result.pet)
+                if result.pet then
+                    print("      pet.petId:", result.pet.petId)
+                    print("      pet.uniqueId:", result.pet.uniqueId)
+                    print("      pet.displayName:", result.pet.displayName)
+                    print("      pet.name:", result.pet.name)
+                end
+            end
+        end
+    end
+    
+    -- Ensure we have pet names
+    if type(results) == "table" then
+        for i, result in ipairs(results) do
+            if type(result) == "table" and result.pet and result.pet.petId and not result.petId then
+                result.petId = result.pet.petId
+            end
+        end
+    end
+    self._skipAnimation = false
+    
+    -- Create UI
+    self:CreateOverlay()
+    self:CreateContainer()
+    
+    -- Start animations
+    self:StartCaseOpeningSequence()
+    
+    -- Play opening sound
+    if self._soundSystem and self._options.soundEffects then
+        self._soundSystem:PlayUISound("CaseOpen")
+    end
+end
+
+function CaseOpeningUI:Close()
+    if not self._isOpen then return end
+    
+    self._isOpen = false
+    self._animationInProgress = false
+    self._skipAnimation = true
+    
+    -- Immediate cleanup - no animation for now
+    self:Cleanup()
+    
+    -- Fire event
+    if self._eventBus then
+        self._eventBus:Fire("CaseOpeningClosed", {})
+    end
+end
+
+function CaseOpeningUI:Cleanup()
+    -- Destroy overlay properly
+    if self._overlay then
+        self._overlay:Destroy()
+    else
+        -- Also check in ScreenGui if not tracked
+        local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+        if screenGui then
+            local existingOverlay = screenGui:FindFirstChild("CaseOpeningOverlay")
+            if existingOverlay then
+                existingOverlay:Destroy()
+            end
+        end
+    end
+    
+    self._overlay = nil
+    self._container = nil
+    self._skipButton = nil
+    self._collectButton = nil
+end
+
+-- ========================================
+-- UI CREATION
+-- ========================================
+
+function CaseOpeningUI:CreateOverlay()
+    local screenGui = Services.Players.LocalPlayer.PlayerGui:FindFirstChild("SanrioTycoonUI")
+    if not screenGui then
+        warn("[CaseOpeningUI] No ScreenGui found")
+        return
+    end
+    
+    -- Create fullscreen overlay
+    self._overlay = Instance.new("Frame")
+    self._overlay.Name = "CaseOpeningOverlay"
+    self._overlay.Size = UDim2.new(1, 0, 1, 0)
+    self._overlay.BackgroundColor3 = Color3.fromRGB(10, 10, 15) -- Very dark background
+    self._overlay.BackgroundTransparency = 1
+    self._overlay.ZIndex = self._config.ZINDEX.CaseOpening
+    self._overlay.Parent = screenGui
+    
+    -- Fade in
+    self._utilities.Tween(self._overlay, {
+        BackgroundTransparency = 0.8
+    }, TweenInfo.new(OVERLAY_FADE_TIME))
+end
+
+function CaseOpeningUI:CreateContainer()
+    -- Clean up any existing container
+    if self._container then
+        self._container:Destroy()
+        self._container = nil
+    end
+    
+    -- Main container
+    self._container = Instance.new("Frame")
+    self._container.Name = "CaseContainer"
+    self._container.Size = UDim2.new(0, CONTAINER_SIZE.X, 0, CONTAINER_SIZE.Y)
+    self._container.Position = UDim2.new(0.5, 0, 0.5, 0)
+    self._container.AnchorPoint = Vector2.new(0.5, 0.5)
+    self._container.BackgroundColor3 = Color3.fromRGB(25, 25, 35) -- Dark premium color
+    self._container.BorderSizePixel = 0
+    self._container.ZIndex = self._config.ZINDEX.CaseOpeningContent
+    self._container.Parent = self._overlay
+    
+    self._utilities.CreateCorner(self._container, 20)
+    
+    -- Premium dark gradient background with gold accents
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = 90
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 15, 25)),      -- Very dark navy
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(25, 20, 40)),    -- Dark purple
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 25, 50)),    -- Mid purple
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(25, 20, 40)),    -- Dark purple
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 25))       -- Very dark navy
+    })
+    gradient.Parent = self._container
+    
+    -- Add gold border stroke for premium feel
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 215, 0)  -- Gold
+    stroke.Thickness = 3
+    stroke.Transparency = 0.7
+    stroke.Parent = self._container
+    
+    -- Add animated gradient effect
+    task.spawn(function()
+        while self._container and self._container.Parent do
+            Services.TweenService:Create(gradient, TweenInfo.new(5, Enum.EasingStyle.Linear), {
+                Rotation = gradient.Rotation + 360
+            }):Play()
+            task.wait(5)
+        end
+    end)
+    
+    -- Create skip button (initially hidden)
+    self:CreateSkipButton()
+end
+
+function CaseOpeningUI:CreateSkipButton()
+    self._skipButton = self._uiFactory:CreateButton(self._container, {
+        text = "Skip Animation",
+        size = UDim2.new(0, 150, 0, 40),
+        position = UDim2.new(1, -160, 0, 10),
+        backgroundColor = self._config.COLORS.Secondary,
+        visible = false,
+        zIndex = 105,
+        callback = function()
+            self._skipAnimation = true
+            if self._skipButton then
+                self._skipButton.Visible = false
+            end
+        end
+    })
+    
+    -- Show skip button after delay
+    task.delay(self._options.skipDelay, function()
+        if self._skipButton and self._animationInProgress then
+            self._skipButton.Visible = true
+            
+            -- Fade in animation
+            self._skipButton.BackgroundTransparency = 1
+            self._utilities.Tween(self._skipButton, {
+                BackgroundTransparency = 0
+            }, self._config.TWEEN_INFO.Fast)
+        end
+    end)
+end
+
+-- ========================================
+-- CASE OPENING SEQUENCE
+-- ========================================
+
+function CaseOpeningUI:StartCaseOpeningSequence()
+    spawn(function()
+        -- For multiple results, show them in a grid
+        if #self._currentResults > 1 then
+            self:ShowMultipleResults(self._currentResults)
+            
+            -- Wait for animations
+            if not self._skipAnimation then
+                task.wait(RESULT_DISPLAY_TIME * 1.5)
+            end
+        else
+            -- Single result - use original animation
+            for i, result in ipairs(self._currentResults) do
+                if not self._isOpen then break end
+                
+                self._currentIndex = i
+                
+                -- Show animation for this result
+                self:ShowCaseAnimation(result, i, #self._currentResults)
+                
+                -- Wait if not skipping
+                if not self._skipAnimation then
+                    task.wait(RESULT_DISPLAY_TIME)
+                end
+            end
+        end
+        
+        -- All animations complete, show collect button
+        if self._isOpen then
+            task.wait(1)
+            self:CreateCollectButton()
+        end
+    end)
+end
+
+function CaseOpeningUI:ShowCaseAnimation(result: CaseResult, index: number, total: number)
+    self._animationInProgress = true
+    
+    -- Clear previous content
+    for _, child in ipairs(self._container:GetChildren()) do
+        if child.Name == "CaseContent" then
+            child:Destroy()
+        end
+    end
+    
+    local content = Instance.new("Frame")
+    content.Name = "CaseContent"
+    content.Size = UDim2.new(1, 0, 1, 0)
+    content.BackgroundTransparency = 1
+    content.ZIndex = self._config.ZINDEX.CaseOpeningContent + 1
+    content.Parent = self._container
+    
+    -- Title
+    local titleText = total > 1 and 
+        string.format("Opening Case %d of %d...", index, total) or 
+        "Opening Case..."
+    
+    local titleLabel = self._uiFactory:CreateLabel(content, {
+        text = titleText,
+        size = UDim2.new(1, 0, 0, 40),
+        position = UDim2.new(0, 0, 0, 20),
+        font = self._config.FONTS.Display,
+        textColor = self._config.COLORS.White,
+        zIndex = 103
+    })
+    
+    if self._skipAnimation then
+        -- Skip directly to result
+        self:ShowResult(content, result)
+    else
+        -- Show spinning animation
+        self:CreateSpinnerAnimation(content, result)
+    end
+    
+    self._animationInProgress = false
+end
+
+function CaseOpeningUI:ShowMultipleResults(results: {CaseResult})
+    self._animationInProgress = true
+    
+    -- Clear previous content
+    for _, child in ipairs(self._container:GetChildren()) do
+        if child.Name == "CaseContent" or child.Name == "MultiResultContent" then
+            child:Destroy()
+        end
+    end
+    
+    local content = Instance.new("Frame")
+    content.Name = "MultiResultContent"
+    content.Size = UDim2.new(1, 0, 1, 0)
+    content.BackgroundTransparency = 1
+    content.ZIndex = self._config.ZINDEX.CaseOpeningContent + 1
+    content.Parent = self._container
+    
+    -- Title
+    local titleLabel = self._uiFactory:CreateLabel(content, {
+        text = string.format("You opened %d pets!", #results),
+        size = UDim2.new(1, 0, 0, 40),
+        position = UDim2.new(0, 0, 0, 20),
+        font = self._config.FONTS.Display,
+        textColor = self._config.COLORS.White,
+        textSize = 28,
+        zIndex = 103
+    })
+    
+    -- Create scroll frame for results
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -40, 1, -100)
+    scrollFrame.Position = UDim2.new(0, 20, 0, 70)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.ScrollBarImageColor3 = self._config.COLORS.Primary
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.ZIndex = 103
+    scrollFrame.Parent = content
+    
+    -- Grid layout
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.CellSize = UDim2.new(0, 180, 0, 220)
+    gridLayout.CellPadding = UDim2.new(0, 15, 0, 15)
+    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    gridLayout.Parent = scrollFrame
+    
+    -- Update canvas size when layout changes
+    gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    -- Create pet cards with staggered animations
+    for i, result in ipairs(results) do
+        task.spawn(function()
+            -- Stagger the animations
+            task.wait((i - 1) * 0.1)
+            
+            local petCard = self:CreateMultiResultCard(result, i)
+            petCard.Parent = scrollFrame
+            
+            -- Entrance animation
+            petCard.Size = UDim2.new(0, 0, 0, 0)
+            petCard.ImageTransparency = 1
+            
+            self._utilities.Tween(petCard, {
+                Size = UDim2.new(0, 180, 0, 220),
+                ImageTransparency = 0
+            }, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+            
+            -- Play sound for each card
+            if self._soundSystem and self._options.soundEffects then
+                self._soundSystem:PlayUISound("CardReveal")
+            end
+        end)
+    end
+    
+    self._animationInProgress = false
+end
+
+function CaseOpeningUI:CreateMultiResultCard(result: CaseResult, index: number): ImageLabel
+    -- Get pet data
+    local petData = result.pet or {}
+    if result.petData then
+        petData = result.petData
+    elseif result.petId or result.petName then
+        -- Fallback logic for pet data
+        local petId = result.petId or result.petName
+        petData.name = petId
+        petData.displayName = petId:gsub("_", " "):gsub("(%a)([%w_']*)", function(first, rest)
+            return first:upper() .. rest:lower()
+        end)
+    end
+    
+    -- Create card
+    local card = Instance.new("ImageLabel")
+    card.Name = "PetCard_" .. index
+    card.BackgroundColor3 = self._config.COLORS.Surface
+    card.BorderSizePixel = 0
+    card.LayoutOrder = index
+    card.ZIndex = 104
+    
+    self._utilities.CreateCorner(card, 12)
+    
+    -- Rarity border
+    local rarityColor = self._utilities.GetRarityColor(petData.rarity or 1)
+    local border = Instance.new("UIStroke")
+    border.Color = rarityColor
+    border.Thickness = 3
+    border.Transparency = 0
+    border.Parent = card
+    
+    -- Pet image
+    local petImage = Instance.new("ImageLabel")
+    petImage.Size = UDim2.new(1, -20, 0.7, -20)
+    petImage.Position = UDim2.new(0, 10, 0, 10)
+    petImage.BackgroundTransparency = 1
+    petImage.Image = petData.imageId or ""
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.ZIndex = 105
+    petImage.Parent = card
+    
+    -- Pet name
+    local nameLabel = self._uiFactory:CreateLabel(card, {
+        text = petData.displayName or petData.name or "Unknown",
+        size = UDim2.new(1, -10, 0.2, 0),
+        position = UDim2.new(0, 5, 0.75, 0),
+        textSize = 16,
+        font = self._config.FONTS.Secondary,
+        textColor = self._config.COLORS.Text,
+        zIndex = 105
+    })
+    
+    -- Rarity label
+    local rarityName = RARITY_NAMES[petData.rarity or 1] or "Common"
+    local rarityLabel = self._uiFactory:CreateLabel(card, {
+        text = rarityName,
+        size = UDim2.new(1, -10, 0.1, 0),
+        position = UDim2.new(0, 5, 0.9, 0),
+        textSize = 14,
+        font = self._config.FONTS.Primary,
+        textColor = rarityColor,
+        zIndex = 105
+    })
+    
+    -- New indicator
+    if result.isNew then
+        local newBadge = self._uiFactory:CreateLabel(card, {
+            text = "NEW!",
+            size = UDim2.new(0, 50, 0, 25),
+            position = UDim2.new(1, -55, 0, 5),
+            backgroundColor = self._config.COLORS.Success,
+            textColor = self._config.COLORS.White,
+            font = self._config.FONTS.Bold,
+            textSize = 12,
+            zIndex = 106
+        })
+        self._utilities.CreateCorner(newBadge, 6)
+    end
+    
+    return card
+end
+
+-- ========================================
+-- SPINNER ANIMATION
+-- ========================================
+
+function CaseOpeningUI:CreateSpinnerAnimation(container: Frame, result: CaseResult)
+    -- Create spinner frame
+    local spinnerFrame = Instance.new("Frame")
+    spinnerFrame.Name = "SpinnerFrame"
+    spinnerFrame.Size = UDim2.new(1, -100, 0, SPINNER_HEIGHT)
+    spinnerFrame.Position = UDim2.new(0, 50, 0.5, -SPINNER_HEIGHT/2)
+    -- Premium spinner background
+    spinnerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    
+    -- Add gradient to spinner
+    local spinnerGradient = Instance.new("UIGradient")
+    spinnerGradient.Rotation = 90
+    spinnerGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 30, 40)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 40, 50))
+    })
+    spinnerGradient.Parent = spinnerFrame
+    
+    -- Add border glow
+    local spinnerStroke = Instance.new("UIStroke")
+    spinnerStroke.Color = Color3.fromRGB(100, 80, 255)
+    spinnerStroke.Thickness = 2
+    spinnerStroke.Transparency = 0.5
+    spinnerStroke.Parent = spinnerFrame
+    spinnerFrame.BorderSizePixel = 0
+    spinnerFrame.ClipsDescendants = true
+    spinnerFrame.ZIndex = 203 -- Spinner above container
+    spinnerFrame.Parent = container
+    
+    self._utilities.CreateCorner(spinnerFrame, 12)
+    
+    -- Create item container
+    local itemContainer = Instance.new("Frame")
+    itemContainer.Name = "ItemContainer"
+    local caseItems = result.caseItems or self:GenerateCaseItems(result)
+    itemContainer.Size = UDim2.new(0, #caseItems * CASE_ITEM_WIDTH, 1, 0)
+    itemContainer.BackgroundTransparency = 1
+    itemContainer.ZIndex = 103
+    itemContainer.Parent = spinnerFrame
+    
+    -- Create indicator
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 4, 1, 20)
+    indicator.Position = UDim2.new(0.5, -2, 0, -10)
+    indicator.BackgroundColor3 = self._config.COLORS.Error
+    indicator.ZIndex = 205 -- Indicator on top of spinner
+    indicator.Parent = spinnerFrame
+    
+    -- Generate case items
+    local winnerPosition = caseItems.winnerPosition or math.floor(#caseItems / 2)
+    for i, petId in ipairs(caseItems) do
+        if type(petId) == "string" then -- Skip the winnerPosition field
+            local itemFrame = self:CreateCaseItem(petId, i == winnerPosition)
+            itemFrame.Position = UDim2.new(0, (i - 1) * CASE_ITEM_WIDTH, 0, 0)
+            itemFrame.Parent = itemContainer
+        end
+    end
+    
+    -- Play spin sound
+    if self._soundSystem and self._options.soundEffects then
+        self._soundSystem:PlayUISound("CaseOpen")
+    end
+    
+    -- Calculate target position
+    local targetPosition = -((winnerPosition - 1) * CASE_ITEM_WIDTH) + 
+                          (spinnerFrame.AbsoluteSize.X / 2) - (CASE_ITEM_WIDTH / 2)
+    targetPosition = targetPosition + math.random(-20, 20) -- Add randomness
+    
+    -- Spin animation
+    local spinDuration = self._skipAnimation and 0.5 or CASE_SPIN_TIME
+    local spinTween = self._utilities.Tween(itemContainer, {
+        Position = UDim2.new(0, targetPosition, 0, 0)
+    }, TweenInfo.new(spinDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+    
+    -- Wait for spin
+    spinTween.Completed:Wait()
+    
+    if not self._skipAnimation then
+        -- Flash winner
+        task.wait(0.5)
+        local winnerItem = itemContainer:GetChildren()[winnerPosition]
+        if winnerItem then
+            for i = 1, 3 do
+                self._utilities.Tween(winnerItem, {
+                    BackgroundColor3 = self._config.COLORS.Warning
+                }, TweenInfo.new(0.2))
+                task.wait(0.2)
+                self._utilities.Tween(winnerItem, {
+                    BackgroundColor3 = self._config.COLORS.White
+                }, TweenInfo.new(0.2))
+                task.wait(0.2)
+            end
+        end
+    end
+    
+    -- Show result
+    self:ShowResult(container, result)
+end
+
+function CaseOpeningUI:CreateCaseItem(petId: string, isWinner: boolean): Frame
+    -- Get pet data with multiple fallbacks
+    local petData
+    
+    -- First check if petId is actually a pet data table (from server)
+    if type(petId) == "table" and petId.name then
+        petData = petId
+        petId = petData.id or petData.name
+    else
+        -- Try multiple sources for pet data
+        -- 1. Try data cache
+        if self._dataCache then
+            petData = self._dataCache:Get("petDatabase." .. petId)
+        end
+        
+        -- 2. Try ReplicatedStorage paths
+        if not petData then
+            local locations = {
+                game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules"),
+                game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):FindFirstChild("Shared"),
+                game:GetService("ReplicatedStorage"):FindFirstChild("ServerModules")
+            }
+            
+            for _, location in ipairs(locations) do
+                if location then
+                    local petDatabase = location:FindFirstChild("PetDatabase")
+                    if petDatabase then
+                        local success, PetDatabase = pcall(require, petDatabase)
+                        if success then
+                            if type(PetDatabase) == "table" then
+                                if PetDatabase.GetPet then
+                                    petData = PetDatabase:GetPet(petId)
+                                else
+                                    petData = PetDatabase[petId]
+                                end
+                                if petData then break end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- 3. Ultimate fallback - create readable name from ID
+        if not petData then
+            -- Convert pet ID to readable name
+            local displayName = petId or "Unknown"
+            if type(displayName) == "string" then
+                -- Convert hello_kitty_classic to "Hello Kitty Classic"
+                displayName = displayName:gsub("_", " ")
+                displayName = displayName:gsub("(%a)([%w_']*)", function(first, rest)
+                    return first:upper() .. rest:lower()
+                end)
+            end
+            
+            -- Determine rarity from name
+            local rarity = 1
+            if displayName:lower():find("legendary") then
+                rarity = 5
+            elseif displayName:lower():find("mythical") or displayName:lower():find("secret") then
+                rarity = 6
+            elseif displayName:lower():find("epic") then
+                rarity = 4
+            elseif displayName:lower():find("rare") then
+                rarity = 3
+            elseif displayName:lower():find("uncommon") then
+                rarity = 2
+            end
+            
+            petData = {
+                displayName = displayName,
+                name = displayName,
+                rarity = rarity,
+                imageId = "rbxassetid://11410884298" -- Default pet image
+            }
+        end
+    end
+    
+    local item = Instance.new("Frame")
+    item.Name = petId
+    item.Size = UDim2.new(0, CASE_ITEM_WIDTH - 10, 1, -20)
+    item.BackgroundColor3 = self._config.COLORS.White
+    item.BorderSizePixel = 0
+    item.ZIndex = 103
+    item.Parent = parent
+    
+    self._utilities.CreateCorner(item, 8)
+    
+    -- Rarity border
+    local border = Instance.new("Frame")
+    border.Size = UDim2.new(1, 0, 0, 4)
+    border.Position = UDim2.new(0, 0, 1, -4)
+    border.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity)
+    border.BorderSizePixel = 0
+    border.ZIndex = 104
+    border.Parent = item
+    
+    -- Pet image
+    local petImage = Instance.new("ImageLabel")
+    petImage.Size = UDim2.new(1, -20, 1, -30)
+    petImage.Position = UDim2.new(0, 10, 0, 10)
+    petImage.BackgroundTransparency = 1
+    petImage.Image = petData.imageId or ""
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.ZIndex = 104
+    petImage.Parent = item
+    
+    -- Name label
+    local nameLabel = self._uiFactory:CreateLabel(item, {
+        text = petData.displayName or petData.name or "???",
+        size = UDim2.new(1, -10, 0, 20),
+        position = UDim2.new(0, 5, 1, -25),
+        textScaled = true,
+        font = self._config.FONTS.Primary,
+        zIndex = 104
+    })
+    
+    if isWinner then
+        -- Add glow effect for winner
+        local glow = Instance.new("ImageLabel")
+        glow.Size = UDim2.new(1, 20, 1, 20)
+        glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.BackgroundTransparency = 1
+        glow.Image = "rbxassetid://5028857084"
+        glow.ImageColor3 = self._utilities.GetRarityColor(petData.rarity)
+        glow.ImageTransparency = 0.5
+        glow.ZIndex = 102
+        glow.Parent = item
+    end
+    
+    return item
+end
+
+-- ========================================
+-- RESULT DISPLAY
+-- ========================================
+
+function CaseOpeningUI:ShowResult(container: Frame, result: CaseResult)
+    -- Clear any existing content
+    for _, child in ipairs(container:GetChildren()) do
+        if child.Name ~= "Title" then
+            child:Destroy()
+        end
+    end
+    
+    -- Create result frame
+    local resultFrame = Instance.new("Frame")
+    resultFrame.Name = "ResultFrame"
+    resultFrame.Size = UDim2.new(1, -100, 1, -200)
+    resultFrame.Position = UDim2.new(0, 50, 0, 100)
+    resultFrame.BackgroundTransparency = 1
+    resultFrame.ZIndex = 103
+    resultFrame.Parent = container
+    
+    -- Get pet data - handle both old and new formats
+    local petData
+    if result.pet then
+        -- New format from server
+        petData = result.pet
+    elseif result.petData then
+        petData = result.petData
+    elseif result.petId or result.petName then
+        local petId = result.petId or result.petName
+        -- Try multiple sources
+        local locations = {
+            game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules"),
+            game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):FindFirstChild("Shared"),
+            game:GetService("ReplicatedStorage"):FindFirstChild("ServerModules")
+        }
+        
+        for _, location in ipairs(locations) do
+            if location then
+                local petDatabase = location:FindFirstChild("PetDatabase")
+                if petDatabase then
+                    local success, PetDatabase = pcall(require, petDatabase)
+                    if success and type(PetDatabase) == "table" then
+                        if PetDatabase.GetPet then
+                            petData = PetDatabase:GetPet(petId)
+                        else
+                            petData = PetDatabase[petId]
+                        end
+                        if petData then break end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Fallback with better defaults
+    petData = petData or {
+        displayName = result.petName or result.petId or "Unknown Pet",
+        name = result.petName or result.petId or "Unknown Pet",
+        rarity = result.rarity or 1,
+        imageId = "rbxassetid://11410884298" -- Default pet image
+    }
+    
+    -- Handle variants
+    local finalPetData = petData
+    if result.variant and petData.variants and petData.variants[result.variant] then
+        finalPetData = table.clone(petData)
+        for k, v in pairs(petData.variants[result.variant]) do
+            finalPetData[k] = v
+        end
+    end
+    
+    -- Pet name with new indicator
+    local petName = tostring(finalPetData.displayName or finalPetData.name or "Unknown Pet")
+    if result.isNew then
+        petName = "✨ " .. petName .. " ✨"
+    end
+    
+    local nameLabel = self._uiFactory:CreateLabel(resultFrame, {
+        text = petName,
+        size = UDim2.new(1, 0, 0, 40),
+        position = UDim2.new(0, 0, 0, 0),
+        font = self._config.FONTS.Display,
+        textColor = self._config.COLORS.White,
+        zIndex = 104
+    })
+    
+    -- Pet display
+    local petDisplay = Instance.new("Frame")
+    petDisplay.Size = UDim2.new(0, PET_DISPLAY_SIZE, 0, PET_DISPLAY_SIZE)
+    petDisplay.Position = UDim2.new(0.5, -PET_DISPLAY_SIZE/2, 0.5, -PET_DISPLAY_SIZE/2)
+    petDisplay.BackgroundTransparency = 1
+    petDisplay.ZIndex = 104
+    petDisplay.Parent = resultFrame
+    
+    -- Pet image with entrance animation
+    local petImage = Instance.new("ImageLabel")
+    petImage.Size = UDim2.new(0.8, 0, 0.8, 0)  -- Start smaller
+    petImage.Position = UDim2.new(0.5, 0, 0.5, 0)
+    petImage.AnchorPoint = Vector2.new(0.5, 0.5)
+    petImage.BackgroundTransparency = 1
+    petImage.Image = finalPetData.imageId or ""
+    petImage.ScaleType = Enum.ScaleType.Fit
+    petImage.ImageTransparency = 1  -- Start invisible
+    petImage.ZIndex = 105
+    petImage.Parent = petDisplay
+    
+    -- Entrance animation
+    task.spawn(function()
+        task.wait(0.2)  -- Small delay
+        
+        -- Fade in and scale up
+        self._utilities.Tween(petImage, {
+            Size = UDim2.new(1, 0, 1, 0),
+            ImageTransparency = 0
+        }, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+        
+        -- Add bounce effect for epic pets
+        if finalPetData.rarity >= 4 then
+            task.wait(0.6)
+            self._utilities.Tween(petImage, {
+                Size = UDim2.new(1.1, 0, 1.1, 0)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+            
+            task.wait(0.2)
+            self._utilities.Tween(petImage, {
+                Size = UDim2.new(1, 0, 1, 0)
+            }, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+        end
+    end)
+    
+    -- Add shine effect for rare pets
+    if finalPetData.rarity >= 4 then
+        petImage.ClipsDescendants = true
+        
+        -- Use effects library for shine
+        if self._effectsLibrary then
+            task.delay(SHINE_EFFECT_DELAY, function()
+                self._effectsLibrary:CreateShineEffect(petImage)
+            end)
+        end
+    end
+    
+    -- Rarity effects
+    local rarityColor = self._utilities.GetRarityColor(finalPetData.rarity)
+    
+    -- Background glow
+    local glow = Instance.new("ImageLabel")
+    glow.Size = UDim2.new(0, GLOW_EFFECT_SIZE, 0, GLOW_EFFECT_SIZE)
+    glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    glow.BackgroundTransparency = 1
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = rarityColor
+    glow.ImageTransparency = 0.5
+    glow.ZIndex = 103
+    glow.Parent = petDisplay
+    
+    -- Animate glow with pulsing effect
+    self._utilities.Tween(glow, {
+        Size = UDim2.new(0, GLOW_EFFECT_SIZE + 50, 0, GLOW_EFFECT_SIZE + 50),
+        ImageTransparency = 0.3
+    }, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true))
+    
+    -- Add rotating light rays for epic pets
+    if finalPetData.rarity >= 4 then
+        local rayContainer = Instance.new("Frame")
+        rayContainer.Size = UDim2.new(0, PET_DISPLAY_SIZE * 2, 0, PET_DISPLAY_SIZE * 2)
+        rayContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+        rayContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+        rayContainer.BackgroundTransparency = 1
+        rayContainer.ZIndex = 102
+        rayContainer.Parent = petDisplay
+        
+        -- Create light rays
+        for i = 1, 6 do
+            local ray = Instance.new("Frame")
+            ray.Size = UDim2.new(0, 4, 0, PET_DISPLAY_SIZE * 2)
+            ray.Position = UDim2.new(0.5, 0, 0.5, 0)
+            ray.AnchorPoint = Vector2.new(0.5, 0.5)
+            ray.BackgroundColor3 = rarityColor
+            ray.BorderSizePixel = 0
+            ray.Rotation = (i - 1) * 60
+            ray.ZIndex = 102
+            ray.Parent = rayContainer
+            
+            -- Add gradient to rays
+            local rayGradient = Instance.new("UIGradient")
+            rayGradient.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.4, 0.8),
+                NumberSequenceKeypoint.new(0.5, 0),
+                NumberSequenceKeypoint.new(0.6, 0.8),
+                NumberSequenceKeypoint.new(1, 1)
+            })
+            rayGradient.Rotation = 90
+            rayGradient.Parent = ray
+        end
+        
+        -- Animate rotation
+        task.spawn(function()
+            while rayContainer.Parent do
+                Services.TweenService:Create(rayContainer, TweenInfo.new(8, Enum.EasingStyle.Linear), {
+                    Rotation = rayContainer.Rotation + 360
+                }):Play()
+                task.wait(8)
+            end
+        end)
+    end
+    
+    -- Variant indicator
+    if result.variant then
+        local variantText = tostring(result.variant or ""):upper()
+        if variantText ~= "" then
+            local variantLabel = self._uiFactory:CreateLabel(resultFrame, {
+                text = variantText .. " VARIANT!",
+                size = UDim2.new(1, 0, 0, 25),
+                position = UDim2.new(0, 0, 0, 410),
+                textColor = self._config.COLORS.Warning,
+                font = self._config.FONTS.Secondary,
+                zIndex = 104
+            })
+        end
+        
+        -- Extra particles for variants
+        if self._particleSystem and self._options.particleEffects then
+            self._particleSystem:CreateBurst(resultFrame, "star", UDim2.new(0.5, 0, 0.5, 0), PARTICLE_BURST_COUNT)
+        end
+    end
+    
+    -- Rarity label
+    local rarity = finalPetData.rarity or 1
+    local rarityName = RARITY_NAMES[rarity] or "Unknown"
+    
+    local rarityLabel = self._uiFactory:CreateLabel(resultFrame, {
+        text = rarityName,
+        size = UDim2.new(1, 0, 0, 25),
+        position = UDim2.new(0, 0, 0, 440),
+        textColor = rarityColor,
+        font = self._config.FONTS.Secondary,
+        zIndex = 104
+    })
+    
+    -- Play sounds based on rarity
+    if self._soundSystem and self._options.soundEffects then
+        if finalPetData.rarity >= 5 then
+            self._soundSystem:PlayUISound("Legendary")
+        else
+            self._soundSystem:PlayUISound("Success")
+        end
+    end
+    
+    -- Particles based on rarity
+    if self._particleSystem and self._options.particleEffects and finalPetData.rarity >= 4 then
+        -- Get screen position of result frame
+        local camera = workspace.CurrentCamera
+        local frameCenter = resultFrame.AbsolutePosition + resultFrame.AbsoluteSize/2
+        local depth = 10 -- Distance from camera
+        local worldPos = camera:ScreenPointToRay(frameCenter.X, frameCenter.Y, depth).Origin
+        
+        for i = 1, 50 do
+            spawn(function()
+                task.wait(i * 0.05)
+                -- Create particle at world position with some randomness
+                local offset = Vector3.new(
+                    (math.random() - 0.5) * 5,
+                    (math.random() - 0.5) * 5,
+                    (math.random() - 0.5) * 2
+                )
+                self._particleSystem:CreateParticle("star", worldPos + offset, {
+                    velocity = Vector3.new(
+                        (math.random() - 0.5) * 10,
+                        math.random() * 10 + 5,
+                        (math.random() - 0.5) * 10
+                    ),
+                    lifetime = 2,
+                    size = math.random() * 0.5 + 0.5
+                })
+            end)
+        end
+    end
+    
+    -- Fade in animation
+    self:FadeInResult(resultFrame)
+    
+    -- Auto-delete handling
+    if self._options.autoDelete and result.isNew == false then
+        -- Add auto-delete indicator
+        local autoDeleteLabel = self._uiFactory:CreateLabel(resultFrame, {
+            text = "(Auto-Delete Duplicate)",
+            size = UDim2.new(1, 0, 0, 20),
+            position = UDim2.new(0, 0, 1, -30),
+            textColor = self._config.COLORS.TextSecondary,
+            font = self._config.FONTS.Primary,
+            textSize = 14,
+            zIndex = 104
+        })
+    end
+end
+
+function CaseOpeningUI:FadeInResult(resultFrame: Frame)
+    -- Fade in all elements
+    for _, obj in ipairs(resultFrame:GetDescendants()) do
+        if obj:IsA("GuiObject") then
+            local transparency = obj.BackgroundTransparency
+            obj.BackgroundTransparency = 1
+            self._utilities.Tween(obj, {
+                BackgroundTransparency = transparency
+            }, self._config.TWEEN_INFO.Slow)
+        end
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            local transparency = obj.TextTransparency or 0
+            obj.TextTransparency = 1
+            self._utilities.Tween(obj, {
+                TextTransparency = transparency
+            }, self._config.TWEEN_INFO.Slow)
+        end
+        if obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+            local transparency = obj.ImageTransparency or 0
+            obj.ImageTransparency = 1
+            self._utilities.Tween(obj, {
+                ImageTransparency = transparency
+            }, self._config.TWEEN_INFO.Slow)
+        end
+    end
+end
+
+-- ========================================
+-- COLLECT BUTTON
+-- ========================================
+
+function CaseOpeningUI:CreateCollectButton()
+    -- Make sure we don't create duplicate buttons
+    if self._collectButton then return end
+    
+    self._collectButton = self._uiFactory:CreateButton(self._container, {
+        text = "Collect & Continue",
+        size = UDim2.new(0, COLLECT_BUTTON_SIZE.X, 0, COLLECT_BUTTON_SIZE.Y),
+        position = UDim2.new(0.5, -COLLECT_BUTTON_SIZE.X/2, 1, -70),
+        backgroundColor = self._config.COLORS.Success,
+        zIndex = 105,
+        callback = function()
+            self:OnCollectClicked()
+        end
+    })
+    
+    -- Animate in
+    self._collectButton.Position = UDim2.new(0.5, -COLLECT_BUTTON_SIZE.X/2, 1, 20)
+    self._utilities.Tween(self._collectButton, {
+        Position = UDim2.new(0.5, -COLLECT_BUTTON_SIZE.X/2, 1, -70)
+    }, self._config.TWEEN_INFO.Bounce)
+    
+    -- Add glow effect (only if button is parented)
+    if self._effectsLibrary and self._collectButton.Parent then
+        self._effectsLibrary:CreateGlowEffect(self._collectButton, {
+            color = self._config.COLORS.Success,
+            size = 30
+        })
+    end
+end
+
+function CaseOpeningUI:OnCollectClicked()
+    -- Play sound
+    if self._soundSystem then
+        self._soundSystem:PlayUISound("Click")
+    end
+    
+    -- Update inventory if needed
+    if self._eventBus then
+        self._eventBus:Fire("CaseResultsCollected", {
+            results = self._currentResults
+        })
+    end
+    
+    -- Close UI
+    self:Close()
+end
+
+-- ========================================
+-- UTILITY FUNCTIONS
+-- ========================================
+
+function CaseOpeningUI:GenerateCaseItems(result: CaseResult): {string}
+    -- Generate random items for the spinner if not provided
+    local items = {}
+    local itemCount = 100
+    
+    -- Get all possible pets from database
+    local allPets = {}
+    
+    -- Try to get pet list from various sources
+    if self._dataCache then
+        local petDatabase = self._dataCache:Get("petDatabase") or {}
+        for petId, _ in pairs(petDatabase) do
+            table.insert(allPets, petId)
+        end
+    end
+    
+    -- If still no pets, try to get from modules
+    if #allPets == 0 then
+        local locations = {
+            game:GetService("ReplicatedStorage"):FindFirstChild("SharedModules"),
+            game:GetService("ReplicatedStorage"):FindFirstChild("Modules"):FindFirstChild("Shared")
+        }
+        
+        for _, location in ipairs(locations) do
+            if location then
+                local petDatabase = location:FindFirstChild("PetDatabase")
+                if petDatabase then
+                    local success, PetDatabase = pcall(require, petDatabase)
+                    if success and type(PetDatabase) == "table" then
+                        for petId, _ in pairs(PetDatabase) do
+                            if type(petId) == "string" then
+                                table.insert(allPets, petId)
+                            end
+                        end
+                        if #allPets > 0 then break end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- If still no pets found, use actual Sanrio pet IDs
+    if #allPets == 0 then
+        allPets = {
+            "hello_kitty_classic",
+            "hello_kitty_angel", 
+            "my_melody_classic",
+            "kuromi_classic",
+            "cinnamoroll_classic",
+            "pompompurin_classic",
+            "badtz_maru_classic",
+            "keroppi_classic",
+            "tuxedosam_classic",
+            "chococat_classic"
+        }
+    end
+    
+    -- Generate random items
+    local winnerPetId = result.petId or result.petName or allPets[1]
+    
+    -- Fill with random pets first
+    for i = 1, itemCount do
+        table.insert(items, allPets[math.random(1, #allPets)])
+    end
+    
+    -- Place winner at a random position near the middle (40-60% of the reel)
+    local minPos = math.floor(itemCount * 0.4)
+    local maxPos = math.floor(itemCount * 0.6)
+    local winnerPos = math.random(minPos, maxPos)
+    items[winnerPos] = winnerPetId
+    
+    -- Store winner position for the animation
+    items.winnerPosition = winnerPos
+    
+    return items
+end
+
+-- ========================================
+-- SETTINGS
+-- ========================================
+
+function CaseOpeningUI:SetAutoDelete(enabled: boolean)
+    self._options.autoDelete = enabled
+end
+
+function CaseOpeningUI:SetParticleEffects(enabled: boolean)
+    self._options.particleEffects = enabled
+end
+
+function CaseOpeningUI:SetSoundEffects(enabled: boolean)
+    self._options.soundEffects = enabled
+end
+
+-- ========================================
+-- DEBUGGING
+-- ========================================
+
+if Config.DEBUG.ENABLED then
+    function CaseOpeningUI:DebugPrint()
+        print("\n=== CaseOpeningUI Debug Info ===")
+        print("Is Open:", self._isOpen)
+        print("Animation In Progress:", self._animationInProgress)
+        print("Skip Animation:", self._skipAnimation)
+        print("Current Results:", self._currentResults and #self._currentResults or 0)
+        print("Current Index:", self._currentIndex)
+        
+        print("\nOptions:")
+        for key, value in pairs(self._options) do
+            print("  " .. key .. ":", tostring(value))
+        end
+        
+        print("===========================\n")
+    end
+end
+
+-- ========================================
+-- CLEANUP
+-- ========================================
+
+function CaseOpeningUI:Destroy()
+    self:Cleanup()
+    
+    -- Clean up all connections and objects via Janitor
+    if self._janitor then
+        self._janitor:Cleanup()
+        self._janitor = nil
+    end
+    
+    -- Clear references
+    self._currentResults = nil
+    self._isOpen = false
+    self._animationInProgress = false
+    self._skipAnimation = false
+end
+
+return CaseOpeningUI
