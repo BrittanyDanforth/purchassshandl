@@ -1213,6 +1213,495 @@ local Pets = {
 	},
 	
 	-- ====================================
+	-- POMPOMPURIN SERIES (Complete Chain)
+	-- ====================================
+	
+	["pompompurin_basic"] = {
+		id = "pompompurin_basic",
+		name = "Pompompurin",
+		displayName = "Pompompurin",
+		description = "A golden retriever who loves pudding!",
+		rarity = RARITY.COMMON,
+		icon = "rbxassetid://454545454",
+		model = "rbxassetid://464646464",
+		baseStats = {
+			health = 180,
+			attack = 35,
+			defense = 40,
+			speed = 40,
+			luck = 15,
+			critChance = 0.05,
+			critDamage = 1.5,
+		},
+		abilities = {
+			{
+				id = "pudding_power",
+				name = "Pudding Power",
+				description = "Heals self over time",
+				unlockLevel = 1,
+				cooldown = 20,
+				manaCost = 15,
+				effects = {
+					{
+						type = ABILITY_TYPES.REGEN,
+						healAmount = 0.2,
+						duration = 10,
+						visualEffect = "PuddingGlow"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "pudding_lover",
+				name = "Pudding Lover",
+				description = "20% more health",
+				stats = {health = 0.2}
+			}
+		},
+		variants = {"Brown Beret", "Red Beret", "Rainbow Beret"},
+		evolution = {
+			evolvesTo = "pompompurin_chef",
+			requiredLevel = 22,
+			requiredItems = {
+				{id = "coins", amount = 9000}
+			}
+		}
+	},
+	
+	["pompompurin_chef"] = {
+		id = "pompompurin_chef",
+		name = "Chef Pompompurin",
+		displayName = "Chef Pompompurin",
+		description = "Master chef Pompompurin with his cooking hat!",
+		rarity = RARITY.RARE,
+		icon = "rbxassetid://454545455",
+		model = "rbxassetid://464646465",
+		baseStats = {
+			health = 400,
+			attack = 80,
+			defense = 100,
+			speed = 60,
+			luck = 40,
+			critChance = 0.10,
+			critDamage = 2.0,
+		},
+		abilities = {
+			{
+				id = "healing_feast",
+				name = "Healing Feast",
+				description = "Creates food that heals all allies",
+				unlockLevel = 1,
+				cooldown = 45,
+				manaCost = 40,
+				effects = {
+					{
+						type = ABILITY_TYPES.TEAM_HEAL,
+						healAmount = 150,
+						visualEffect = "FoodParticles"
+					}
+				}
+			},
+			{
+				id = "sugar_boost",
+				name = "Sugar Boost",
+				description = "Increases all stats temporarily",
+				unlockLevel = 18,
+				cooldown = 60,
+				manaCost = 50,
+				effects = {
+					{
+						type = ABILITY_TYPES.TEAM_BUFF,
+						statMultiplier = 1.3,
+						duration = 30,
+						visualEffect = "SugarRush"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "master_chef",
+				name = "Master Chef",
+				description = "35% more health and 25% healing power",
+				stats = {health = 0.35, healing = 0.25}
+			}
+		},
+		evolution = {
+			evolvesTo = "pompompurin_gourmet",
+			requiredLevel = 50,
+			requiredItems = {
+				{id = "gems", amount = 1000},
+				{id = "golden_spoon", amount = 1}
+			}
+		}
+	},
+	
+	["pompompurin_gourmet"] = {
+		id = "pompompurin_gourmet",
+		name = "Gourmet Pompompurin",
+		displayName = "Gourmet Pompompurin",
+		description = "World-renowned chef Pompompurin!",
+		rarity = RARITY.EPIC,
+		icon = "rbxassetid://454545456",
+		model = "rbxassetid://464646466",
+		baseStats = {
+			health = 800,
+			attack = 200,
+			defense = 250,
+			speed = 100,
+			luck = 80,
+			critChance = 0.20,
+			critDamage = 3.0,
+		},
+		abilities = {
+			{
+				id = "gourmet_banquet",
+				name = "Gourmet Banquet",
+				description = "Creates a feast that fully heals and buffs all allies",
+				unlockLevel = 1,
+				cooldown = 120,
+				manaCost = 100,
+				effects = {
+					{
+						type = ABILITY_TYPES.TEAM_HEAL,
+						healPercent = 1.0,
+						additionalEffects = {
+							{type = ABILITY_TYPES.TEAM_BUFF, statMultiplier = 2.0, duration = 60}
+						},
+						visualEffect = "GourmetFeast"
+					}
+				}
+			},
+			{
+				id = "comfort_food",
+				name = "Comfort Food",
+				description = "Removes all debuffs and grants immunity",
+				unlockLevel = 30,
+				cooldown = 90,
+				manaCost = 80,
+				effects = {
+					{
+						type = ABILITY_TYPES.IMMUNITY,
+						duration = 10,
+						removeDebuffs = true,
+						visualEffect = "ComfortAura"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "culinary_master",
+				name = "Culinary Master",
+				description = "Team regenerates 5% health per second",
+				teamRegen = 0.05
+			}
+		},
+		evolution = {
+			evolvesTo = "pompompurin_divine_chef",
+			requiredLevel = 100,
+			requiredItems = {
+				{id = "gems", amount = 5000},
+				{id = "divine_cookbook", amount = 1}
+			}
+		}
+	},
+	
+	["pompompurin_divine_chef"] = {
+		id = "pompompurin_divine_chef",
+		name = "Divine Chef Pompompurin",
+		displayName = "Divine Chef Pompompurin",
+		description = "The god of cooking himself!",
+		rarity = RARITY.MYTHICAL,
+		icon = "rbxassetid://454545457",
+		model = "rbxassetid://464646467",
+		baseStats = {
+			health = 2000,
+			attack = 500,
+			defense = 500,
+			speed = 200,
+			luck = 200,
+			critChance = 0.40,
+			critDamage = 5.0,
+		},
+		abilities = {
+			{
+				id = "divine_cuisine",
+				name = "Divine Cuisine",
+				description = "Creates food that grants immortality",
+				unlockLevel = 1,
+				cooldown = 300,
+				manaCost = 300,
+				isUltimate = true,
+				effects = {
+					{
+						type = ABILITY_TYPES.IMMUNITY,
+						duration = 30,
+						makeImmortal = true,
+						visualEffect = "DivineFood"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "food_god",
+				name = "Food God",
+				description = "All healing effects tripled",
+				healingMultiplier = 3.0
+			}
+		}
+	},
+	
+	-- ====================================
+	-- KEROPPI SERIES (Complete Chain)
+	-- ====================================
+	
+	["keroppi_basic"] = {
+		id = "keroppi_basic",
+		name = "Keroppi",
+		displayName = "Keroppi",
+		description = "A cheerful frog from Donut Pond!",
+		rarity = RARITY.COMMON,
+		icon = "rbxassetid://474747474",
+		model = "rbxassetid://484848484",
+		baseStats = {
+			health = 110,
+			attack = 28,
+			defense = 22,
+			speed = 85,
+			luck = 30,
+			critChance = 0.15,
+			critDamage = 2.25,
+		},
+		abilities = {
+			{
+				id = "lily_hop",
+				name = "Lily Hop",
+				description = "Hops between lily pads, dodging attacks",
+				unlockLevel = 1,
+				cooldown = 15,
+				manaCost = 20,
+				effects = {
+					{
+						type = ABILITY_TYPES.TELEPORT,
+						range = 30,
+						invulnerabilityFrames = 0.5,
+						visualEffect = "LilyPadJump"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "amphibian_agility",
+				name = "Amphibian Agility",
+				description = "20% increased jump height and speed",
+				stats = {speed = 0.2, jump = 0.2}
+			}
+		},
+		variants = {"Green", "Blue", "Pink"},
+		evolution = {
+			evolvesTo = "keroppi_ninja",
+			requiredLevel = 28,
+			requiredItems = {
+				{id = "coins", amount = 11000}
+			}
+		}
+	},
+	
+	["keroppi_ninja"] = {
+		id = "keroppi_ninja",
+		name = "Ninja Keroppi",
+		displayName = "Ninja Keroppi", 
+		description = "Keroppi trained in the ninja arts!",
+		rarity = RARITY.RARE,
+		icon = "rbxassetid://474747475",
+		model = "rbxassetid://484848485",
+		baseStats = {
+			health = 300,
+			attack = 160,
+			defense = 80,
+			speed = 250,
+			luck = 120,
+			critChance = 0.35,
+			critDamage = 3.5,
+		},
+		abilities = {
+			{
+				id = "shadow_clone",
+				name = "Shadow Clone",
+				description = "Creates clones that confuse enemies",
+				unlockLevel = 1,
+				cooldown = 60,
+				manaCost = 60,
+				effects = {
+					{
+						type = "clone",
+						count = 3,
+						duration = 15,
+						damagePercent = 0.5,
+						visualEffect = "NinjaClones"
+					}
+				}
+			},
+			{
+				id = "smoke_bomb",
+				name = "Smoke Bomb",
+				description = "Become invisible and gain speed",
+				unlockLevel = 20,
+				cooldown = 90,
+				manaCost = 80,
+				effects = {
+					{
+						type = ABILITY_TYPES.STEALTH,
+						duration = 10,
+						speedBonus = 0.5,
+						visualEffect = "SmokeBomb"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "ninja_training",
+				name = "Ninja Training",
+				description = "30% evasion and 25% crit chance",
+				stats = {evasion = 0.3, critChance = 0.25}
+			}
+		},
+		evolution = {
+			evolvesTo = "keroppi_shadow_master",
+			requiredLevel = 60,
+			requiredItems = {
+				{id = "gems", amount = 2000},
+				{id = "shadow_scroll", amount = 1}
+			}
+		}
+	},
+	
+	-- ====================================
+	-- BADTZ-MARU SERIES (Complete Chain)
+	-- ====================================
+	
+	["badtz_maru_basic"] = {
+		id = "badtz_maru_basic",
+		name = "Badtz-Maru",
+		displayName = "Badtz-Maru",
+		description = "A mischievous penguin with attitude!",
+		rarity = RARITY.RARE,
+		icon = "rbxassetid://494949494",
+		model = "rbxassetid://505050505",
+		baseStats = {
+			health = 140,
+			attack = 50,
+			defense = 35,
+			speed = 75,
+			luck = 40,
+			critChance = 0.25,
+			critDamage = 2.75,
+		},
+		abilities = {
+			{
+				id = "ice_slide",
+				name = "Ice Slide",
+				description = "Slides on ice, freezing enemies in path",
+				unlockLevel = 1,
+				cooldown = 20,
+				manaCost = 30,
+				effects = {
+					{
+						type = ABILITY_TYPES.FREEZE,
+						duration = 2,
+						damage = 1.5,
+						trail = true,
+						visualEffect = "IceTrail"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "cool_attitude",
+				name = "Cool Attitude",
+				description = "15% evasion and ice resistance",
+				stats = {evasion = 0.15},
+				resistances = {ice = 0.5}
+			}
+		},
+		variants = {"Classic", "Punk", "Cool"},
+		evolution = {
+			evolvesTo = "badtz_maru_rebel",
+			requiredLevel = 25,
+			requiredItems = {
+				{id = "coins", amount = 13000}
+			}
+		}
+	},
+	
+	["badtz_maru_rebel"] = {
+		id = "badtz_maru_rebel",
+		name = "Rebel Badtz-Maru",
+		displayName = "Rebel Badtz-Maru",
+		description = "The ultimate rebel penguin!",
+		rarity = RARITY.EPIC,
+		icon = "rbxassetid://494949495",
+		model = "rbxassetid://505050506",
+		baseStats = {
+			health = 350,
+			attack = 140,
+			defense = 100,
+			speed = 150,
+			luck = 100,
+			critChance = 0.35,
+			critDamage = 4.0,
+		},
+		abilities = {
+			{
+				id = "rebel_yell",
+				name = "Rebel Yell",
+				description = "Intimidates all enemies",
+				unlockLevel = 1,
+				cooldown = 60,
+				manaCost = 50,
+				effects = {
+					{
+						type = "fear",
+						duration = 3,
+						reduceStats = 0.3,
+						visualEffect = "IntimidationWave"
+					}
+				}
+			},
+			{
+				id = "ice_prison",
+				name = "Ice Prison",
+				description = "Freezes all enemies",
+				unlockLevel = 15,
+				cooldown = 90,
+				manaCost = 80,
+				effects = {
+					{
+						type = ABILITY_TYPES.FREEZE,
+						duration = 5,
+						targetAll = true,
+						visualEffect = "IcePrison"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "rebel_power",
+				name = "Rebel Power",
+				description = "25% power boost and 30% evasion",
+				stats = {attack = 0.25, evasion = 0.3}
+			}
+		}
+	},
+	
+	-- ====================================
 	-- SPECIAL VARIANTS
 	-- ====================================
 	
@@ -1294,9 +1783,523 @@ local Pets = {
 		}
 	},
 	
-	-- More pets would continue here...
-	-- This is a sample structure showing complete evolution chains
-	-- The full 200 pets would follow this pattern
+	-- ====================================
+	-- POCHACCO SERIES (Complete Chain)
+	-- ====================================
+	
+	["pochacco_basic"] = {
+		id = "pochacco_basic",
+		name = "Pochacco",
+		displayName = "Pochacco",
+		description = "A sporty white dog who loves basketball!",
+		rarity = RARITY.COMMON,
+		icon = "rbxassetid://575757575",
+		model = "rbxassetid://585858585",
+		baseStats = {
+			health = 130,
+			attack = 32,
+			defense = 28,
+			speed = 90,
+			luck = 25,
+			critChance = 0.10,
+			critDamage = 2.0,
+		},
+		abilities = {
+			{
+				id = "sports_rush",
+				name = "Sports Rush",
+				description = "Gains massive speed and kicks a ball at enemies",
+				unlockLevel = 1,
+				cooldown = 25,
+				manaCost = 30,
+				effects = {
+					{
+						type = ABILITY_TYPES.SPEED,
+						value = 3.0,
+						duration = 5,
+						additionalEffect = {
+							projectile = "SoccerBall",
+							damage = 2.0,
+						},
+						visualEffect = "SportsStar"
+					},
+				},
+			},
+		},
+		passives = {
+			{
+				id = "athletic_spirit",
+				name = "Athletic Spirit",
+				description = "15% speed boost",
+				stats = {speed = 0.15}
+			}
+		},
+		variants = {"Soccer", "Basketball", "Baseball"},
+		evolution = {
+			evolvesTo = "pochacco_athlete",
+			requiredLevel = 20,
+			requiredItems = {
+				{id = "coins", amount = 8500}
+			}
+		}
+	},
+	
+	["pochacco_athlete"] = {
+		id = "pochacco_athlete",
+		name = "Athlete Pochacco",
+		displayName = "Athlete Pochacco",
+		description = "The ultimate sports champion!",
+		rarity = RARITY.RARE,
+		icon = "rbxassetid://575757576",
+		model = "rbxassetid://585858586",
+		baseStats = {
+			health = 300,
+			attack = 85,
+			defense = 70,
+			speed = 180,
+			luck = 50,
+			critChance = 0.20,
+			critDamage = 2.5,
+		},
+		abilities = {
+			{
+				id = "team_spirit",
+				name = "Team Spirit",
+				description = "Boosts all team stats",
+				unlockLevel = 1,
+				cooldown = 60,
+				manaCost = 50,
+				effects = {
+					{
+						type = ABILITY_TYPES.TEAM_BUFF,
+						statMultiplier = 1.2,
+						duration = 30,
+						visualEffect = "TeamworkAura"
+					}
+				}
+			},
+			{
+				id = "victory_rush",
+				name = "Victory Rush",
+				description = "Massive speed and power boost",
+				unlockLevel = 20,
+				cooldown = 120,
+				manaCost = 80,
+				effects = {
+					{
+						type = "super_boost",
+						stats = {attack = 0.5, speed = 0.5},
+						duration = 20,
+						visualEffect = "VictoryFlames"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "champion_spirit",
+				name = "Champion Spirit",
+				description = "30% speed and 20% stamina",
+				stats = {speed = 0.3, stamina = 0.2}
+			}
+		}
+	},
+	
+	-- ====================================
+	-- TUXEDOSAM SERIES (Complete Chain)
+	-- ====================================
+	
+	["tuxedosam_basic"] = {
+		id = "tuxedosam_basic",
+		name = "Tuxedosam",
+		displayName = "Tuxedosam",
+		description = "A classy penguin who loves to eat!",
+		rarity = RARITY.COMMON,
+		icon = "rbxassetid://595959595",
+		model = "rbxassetid://606060606",
+		baseStats = {
+			health = 200,
+			attack = 25,
+			defense = 50,
+			speed = 30,
+			luck = 20,
+			critChance = 0.05,
+			critDamage = 1.5,
+		},
+		abilities = {
+			{
+				id = "belly_bounce",
+				name = "Belly Bounce",
+				description = "Bounces on belly, stunning nearby enemies",
+				unlockLevel = 1,
+				cooldown = 30,
+				manaCost = 25,
+				effects = {
+					{
+						type = ABILITY_TYPES.STUN,
+						duration = 2,
+						aoe = true,
+						damage = 1.5,
+						visualEffect = "BellyImpact",
+					},
+				},
+			},
+		},
+		passives = {
+			{
+				id = "well_fed",
+				name = "Well Fed",
+				description = "25% more health",
+				stats = {health = 0.25}
+			}
+		},
+		variants = {"Bow Tie", "Top Hat", "Monocle"},
+		evolution = {
+			evolvesTo = "tuxedosam_gentleman",
+			requiredLevel = 23,
+			requiredItems = {
+				{id = "coins", amount = 10000}
+			}
+		}
+	},
+	
+	["tuxedosam_gentleman"] = {
+		id = "tuxedosam_gentleman",
+		name = "Gentleman Tuxedosam",
+		displayName = "Gentleman Tuxedosam",
+		description = "The most refined penguin!",
+		rarity = RARITY.RARE,
+		icon = "rbxassetid://595959596",
+		model = "rbxassetid://606060607",
+		baseStats = {
+			health = 440,
+			attack = 70,
+			defense = 120,
+			speed = 60,
+			luck = 35,
+			critChance = 0.10,
+			critDamage = 2.0,
+		},
+		abilities = {
+			{
+				id = "gentlemans_agreement",
+				name = "Gentleman's Agreement",
+				description = "Reduces enemy attack",
+				unlockLevel = 1,
+				cooldown = 45,
+				manaCost = 40,
+				effects = {
+					{
+						type = "weaken",
+						value = 0.3,
+						duration = 20,
+						visualEffect = "PoliteDebuff"
+					}
+				}
+			},
+			{
+				id = "fancy_feast",
+				name = "Fancy Feast",
+				description = "Heals team based on damage dealt",
+				unlockLevel = 18,
+				cooldown = 60,
+				manaCost = 60,
+				effects = {
+					{
+						type = "lifesteal",
+						value = 0.5,
+						teamwide = true,
+						visualEffect = "FancyMeal"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "refined_taste",
+				name = "Refined Taste",
+				description = "40% health and 30% defense",
+				stats = {health = 0.4, defense = 0.3}
+			}
+		}
+	},
+	
+	-- ====================================
+	-- CHOCOCAT SERIES (Complete Chain)
+	-- ====================================
+	
+	["chococat_basic"] = {
+		id = "chococat_basic",
+		name = "Chococat",
+		displayName = "Chococat",
+		description = "A curious black cat who knows everything!",
+		rarity = RARITY.RARE,
+		icon = "rbxassetid://616161616",
+		model = "rbxassetid://626262626",
+		baseStats = {
+			health = 160,
+			attack = 55,
+			defense = 40,
+			speed = 95,
+			luck = 80,
+			critChance = 0.30,
+			critDamage = 3.0,
+		},
+		abilities = {
+			{
+				id = "all_seeing",
+				name = "All Seeing",
+				description = "Reveals all secrets and weak points",
+				unlockLevel = 1,
+				cooldown = 30,
+				manaCost = 40,
+				effects = {
+					{
+						type = ABILITY_TYPES.CRITICAL,
+						guaranteedCrit = true,
+						revealTreasure = true,
+						duration = 10,
+						visualEffect = "ThirdEye",
+					},
+				},
+			},
+		},
+		passives = {
+			{
+				id = "curious_nature",
+				name = "Curious Nature",
+				description = "20% luck bonus",
+				stats = {luck = 0.2}
+			}
+		},
+		variants = {"Blue Collar", "Red Collar", "Gold Collar"},
+		evolution = {
+			evolvesTo = "chococat_wise",
+			requiredLevel = 27,
+			requiredItems = {
+				{id = "coins", amount = 14000}
+			}
+		}
+	},
+	
+	["chococat_wise"] = {
+		id = "chococat_wise",
+		name = "Wise Chococat",
+		displayName = "Wise Chococat",
+		description = "All-knowing Chococat!",
+		rarity = RARITY.EPIC,
+		icon = "rbxassetid://616161617",
+		model = "rbxassetid://626262627",
+		baseStats = {
+			health = 380,
+			attack = 165,
+			defense = 120,
+			speed = 180,
+			luck = 180,
+			critChance = 0.45,
+			critDamage = 4.5,
+		},
+		abilities = {
+			{
+				id = "foresight",
+				name = "Foresight",
+				description = "Dodge next 3 attacks",
+				unlockLevel = 1,
+				cooldown = 60,
+				manaCost = 50,
+				effects = {
+					{
+						type = "perfect_dodge",
+						count = 3,
+						duration = 15,
+						visualEffect = "FutureVision"
+					}
+				}
+			},
+			{
+				id = "wisdom_share",
+				name = "Wisdom Share",
+				description = "Boost team's critical chance",
+				unlockLevel = 22,
+				cooldown = 90,
+				manaCost = 70,
+				effects = {
+					{
+						type = "team_crit",
+						value = 0.5,
+						duration = 30,
+						visualEffect = "WisdomAura"
+					}
+				}
+			}
+		},
+		passives = {
+			{
+				id = "ancient_wisdom",
+				name = "Ancient Wisdom",
+				description = "40% luck and 30% crit chance",
+				stats = {luck = 0.4, critChance = 0.3}
+			}
+		}
+	},
+	
+	-- ====================================
+	-- CLASSIC PETS FROM OLD DATABASE
+	-- ====================================
+	
+	["hello_kitty_classic"] = {
+		id = "hello_kitty_classic",
+		name = "Classic Hello Kitty",
+		displayName = "Classic Hello Kitty",
+		description = "The iconic white cat with a red bow!",
+		rarity = RARITY.COMMON,
+		icon = "rbxassetid://123456788",
+		model = "rbxassetid://987654320",
+		baseStats = {
+			health = 100,
+			attack = 25,
+			defense = 20,
+			speed = 50,
+			luck = 20,
+			critChance = 0.05,
+			critDamage = 1.5,
+		},
+		abilities = {
+			{
+				id = "cute_charm_classic",
+				name = "Cute Charm",
+				description = "Increases coin collection by 10%",
+				unlockLevel = 1,
+				cooldown = 30,
+				effect = {type = "coin_boost", value = 0.1}
+			}
+		},
+		passiveBonus = {
+			coins = 0.05
+		},
+		variants = {"Pink Bow", "Blue Bow", "Rainbow Bow"},
+		evolution = {
+			evolvesTo = "hello_kitty_angel",
+			requiredLevel = 25,
+			requiredItems = {coins = 10000}
+		}
+	},
+	
+	["golden_cinnamoroll"] = {
+		id = "golden_cinnamoroll",
+		name = "Golden Cinnamoroll",
+		displayName = "Golden Cinnamoroll",
+		description = "A legendary golden variant!",
+		rarity = RARITY.MYTHICAL,
+		icon = "rbxassetid://777777777",
+		model = "rbxassetid://888888888",
+		baseStats = {
+			health = 800,
+			attack = 400,
+			defense = 300,
+			speed = 300,
+			luck = 150,
+			critChance = 0.40,
+			critDamage = 5.0,
+		},
+		abilities = {
+			{
+				id = "golden_wind",
+				name = "Golden Wind",
+				description = "Powerful wind attack",
+				unlockLevel = 1,
+				cooldown = 60,
+				manaCost = 100,
+				effects = {
+					{
+						type = "wind_blast",
+						damage = 3.0,
+						element = "Wind",
+						visualEffect = "GoldenWindstorm"
+					}
+				}
+			},
+			{
+				id = "midas_touch",
+				name = "Midas Touch",
+				description = "Turns damage into coins",
+				unlockLevel = 30,
+				cooldown = 120,
+				manaCost = 150,
+				effects = {
+					{
+						type = "coin_generation",
+						rate = 2.0,
+						duration = 30,
+						visualEffect = "GoldParticles"
+					}
+				}
+			}
+		},
+		passiveBonus = {
+			coins = 0.75,
+			speed = 0.5,
+			evasion = 0.4
+		}
+	},
+	
+	["shadow_kuromi"] = {
+		id = "shadow_kuromi",
+		name = "Shadow Kuromi",
+		displayName = "Shadow Kuromi",
+		description = "Dark and mysterious variant!",
+		rarity = RARITY.MYTHICAL,
+		icon = "rbxassetid://999999999",
+		model = "rbxassetid://111111111",
+		baseStats = {
+			health = 900,
+			attack = 350,
+			defense = 200,
+			speed = 200,
+			luck = 125,
+			critChance = 0.50,
+			critDamage = 6.0,
+		},
+		abilities = {
+			{
+				id = "shadow_strike",
+				name = "Shadow Strike",
+				description = "Instant critical hit",
+				unlockLevel = 1,
+				cooldown = 45,
+				manaCost = 60,
+				effects = {
+					{
+						type = "guaranteed_crit",
+						damage = 2.5,
+						element = "Shadow",
+						visualEffect = "ShadowSlash"
+					}
+				}
+			},
+			{
+				id = "darkness_falls",
+				name = "Darkness Falls",
+				description = "Blinds all enemies",
+				unlockLevel = 25,
+				cooldown = 90,
+				manaCost = 100,
+				effects = {
+					{
+						type = "blind_all",
+						duration = 5,
+						reduceAccuracy = 0.8,
+						visualEffect = "DarknessField"
+					}
+				}
+			}
+		},
+		passiveBonus = {
+			critChance = 0.5,
+			attack = 0.4,
+			lifesteal = 0.2
+		}
+	}
 }
 
 -- ========================================
