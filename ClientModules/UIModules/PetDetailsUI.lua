@@ -60,14 +60,16 @@ type PetData = {
 -- CONSTANTS
 -- ========================================
 
-local WINDOW_SIZE = Vector2.new(700, 500)
-local HEADER_HEIGHT = 60
-local PET_DISPLAY_SIZE = 180
-local BUTTON_HEIGHT = 45
-local BUTTON_SPACING = 12
-local TAB_HEIGHT = 40
+-- Increased window size to fit all content properly
+local WINDOW_SIZE = Vector2.new(900, 650)
+local HEADER_HEIGHT = 70
+local PET_DISPLAY_SIZE = 220
+local BUTTON_HEIGHT = 50
+local BUTTON_SPACING = 10
+local TAB_HEIGHT = 45
 local ANIMATION_TIME = 0.3
 local RENAME_DIALOG_SIZE = Vector2.new(400, 200)
+local CONTENT_PADDING = 20
 
 -- Stat display configuration
 local STAT_ICONS = {
@@ -547,23 +549,23 @@ end
 function PetDetailsUI:CreateContent()
 	local content = Instance.new("Frame")
 	content.Name = "Content"
-	content.Size = UDim2.new(1, -20, 1, -HEADER_HEIGHT - 20)
-	content.Position = UDim2.new(0, 10, 0, HEADER_HEIGHT + 10)
+	content.Size = UDim2.new(1, -CONTENT_PADDING * 2, 1, -HEADER_HEIGHT - CONTENT_PADDING * 2)
+	content.Position = UDim2.new(0, CONTENT_PADDING, 0, HEADER_HEIGHT + CONTENT_PADDING)
 	content.BackgroundTransparency = 1
 	content.ZIndex = 202
 	content.Parent = self._detailsFrame
 
-	-- Left side - Pet display and actions
+	-- Left side - Pet display and actions (35% width)
 	self:CreateLeftSide(content)
 
-	-- Right side - Stats and info tabs
+	-- Right side - Stats and info tabs (65% width)
 	self:CreateRightSide(content)
 end
 
 function PetDetailsUI:CreateLeftSide(parent: Frame)
 	local leftSide = Instance.new("Frame")
 	leftSide.Name = "LeftSide"
-	leftSide.Size = UDim2.new(0.4, -10, 1, 0)
+	leftSide.Size = UDim2.new(0.35, -10, 1, 0)
 	leftSide.Position = UDim2.new(0, 0, 0, 0)
 	leftSide.BackgroundTransparency = 1
 	leftSide.ZIndex = 202
@@ -580,31 +582,58 @@ function PetDetailsUI:CreateLeftSide(parent: Frame)
 
 	self._utilities.CreateCorner(petDisplay, 12)
 
-	-- Add ViewportFrame for 3D pet display
+	-- Create viewport for 3D pet display
 	local viewportFrame = Instance.new("ViewportFrame")
 	viewportFrame.Name = "PetViewport"
 	viewportFrame.Size = UDim2.new(0.9, 0, 0.9, 0)
-	viewportFrame.Position = UDim2.new(0.05, 0, 0.05, 0)
+	viewportFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	viewportFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	viewportFrame.BackgroundTransparency = 1
-	viewportFrame.ZIndex = 203
+	viewportFrame.ZIndex = 204
 	viewportFrame.Parent = petDisplay
-
-	-- Camera for viewport
+	
+	-- Set up camera
 	local camera = Instance.new("Camera")
-	camera.CFrame = CFrame.new(Vector3.new(0, 0, 5), Vector3.new(0, 0, 0))
+	camera.CFrame = CFrame.new(0, 0, 5) * CFrame.Angles(0, math.rad(180), 0)
 	camera.FieldOfView = 40
 	viewportFrame.CurrentCamera = camera
-
-	-- Pet image (fallback if no 3D model)
+	
+	-- Use image as fallback (always for now since we don't have 3D models)
 	local petImage = Instance.new("ImageLabel")
 	petImage.Name = "PetImage"
-	petImage.Size = UDim2.new(0.8, 0, 0.8, 0)
-	petImage.Position = UDim2.new(0.1, 0, 0.1, 0)
+	petImage.Size = UDim2.new(1, 0, 1, 0)
 	petImage.BackgroundTransparency = 1
-	petImage.Image = self._currentPetData.imageId or ""
+	petImage.Image = self._currentPetData.imageId or self._currentPetData.icon or ""
 	petImage.ScaleType = Enum.ScaleType.Fit
-	petImage.ZIndex = 203
-	petImage.Parent = petDisplay
+	petImage.Parent = viewportFrame
+	
+	-- Add rarity glow effect
+	local rarityColor = RARITY_COLORS[self._currentPetData.rarity] or RARITY_COLORS[1]
+	local glowFrame = Instance.new("ImageLabel")
+	glowFrame.Name = "RarityGlow"
+	glowFrame.Size = UDim2.new(1.3, 0, 1.3, 0)
+	glowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	glowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	glowFrame.BackgroundTransparency = 1
+	glowFrame.Image = "rbxassetid://5028857084"
+	glowFrame.ImageColor3 = rarityColor
+	glowFrame.ImageTransparency = 0.5
+	glowFrame.ZIndex = 202
+	glowFrame.Parent = petDisplay
+	
+	-- Add variant indicator
+	if self._currentPetInstance.variant and self._currentPetInstance.variant ~= "NORMAL" then
+		local variantLabel = Instance.new("TextLabel")
+		variantLabel.Size = UDim2.new(0, 80, 0, 25)
+		variantLabel.Position = UDim2.new(1, -85, 0, 5)
+		variantLabel.BackgroundColor3 = rarityColor
+		variantLabel.Text = self._currentPetInstance.variant
+		variantLabel.TextColor3 = Color3.new(1, 1, 1)
+		variantLabel.Font = Enum.Font.GothamBold
+		variantLabel.TextScaled = true
+		variantLabel.Parent = petDisplay
+		self._utilities.CreateCorner(variantLabel, 12)
+	end
 
 	-- Apply variant effects
 	if self._currentPetInstance.variant then
@@ -797,8 +826,8 @@ end
 function PetDetailsUI:CreateRightSide(parent: Frame)
 	local rightSide = Instance.new("Frame")
 	rightSide.Name = "RightSide"
-	rightSide.Size = UDim2.new(0.6, -10, 1, 0)
-	rightSide.Position = UDim2.new(0.4, 10, 0, 0)
+	rightSide.Size = UDim2.new(0.65, -10, 1, 0)
+	rightSide.Position = UDim2.new(0.35, 10, 0, 0)
 	rightSide.BackgroundTransparency = 1
 	rightSide.ZIndex = 202
 	rightSide.Parent = parent
@@ -849,7 +878,7 @@ function PetDetailsUI:CreateTabs(parent: Frame, tabs: table)
 		-- Tab button
 		local tabButton = self._uiFactory:CreateButton(tabButtonsFrame, {
 			text = tab.name,
-			size = UDim2.new(0, 120, 1, 0),
+			size = UDim2.new(0.25, -5, 1, 0), -- Each tab gets 25% width minus spacing
 			backgroundColor = i == 1 and Color3.fromRGB(255, 92, 161) or Color3.new(1, 1, 1),
 			textColor = i == 1 and Color3.new(1, 1, 1) or Color3.fromRGB(255, 92, 161),
 			callback = function()
