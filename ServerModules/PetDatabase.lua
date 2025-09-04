@@ -13,18 +13,21 @@ local PetDatabase = {}
 local Configuration = require(script.Parent.Configuration)
 
 -- ========================================
--- RARITY TIERS (FOMO-INDUCING)
+-- RARITY TIERS
 -- ========================================
-local RARITY = Configuration.RARITY or {
-	COMMON = 1,      -- 35% drop rate
-	RARE = 2,        -- 25% drop rate  
-	EPIC = 3,        -- 20% drop rate
-	LEGENDARY = 4,   -- 10% drop rate
-	MYTHICAL = 5,    -- 5% drop rate
-	DIVINE = 6,      -- 3% drop rate
-	CELESTIAL = 7,   -- 1.5% drop rate
-	IMMORTAL = 8,    -- 0.5% drop rate
-}
+-- Use Configuration RARITY
+local RARITY = Configuration.RARITY
+
+-- Add additional rarities if they don't exist
+if not RARITY.DIVINE then
+	RARITY.DIVINE = 10
+end
+if not RARITY.CELESTIAL then
+	RARITY.CELESTIAL = 11
+end
+if not RARITY.IMMORTAL then
+	RARITY.IMMORTAL = 12
+end
 
 -- Rarity visual data
 local RARITY_DATA = {
@@ -33,6 +36,12 @@ local RARITY_DATA = {
 		color = Color3.fromRGB(200, 200, 200),
 		particleEffect = "CommonSparkle",
 		glowIntensity = 0.1,
+	},
+	[RARITY.UNCOMMON] = {
+		name = "Uncommon",
+		color = Color3.fromRGB(100, 200, 100),
+		particleEffect = "UncommonGlow",
+		glowIntensity = 0.2,
 	},
 	[RARITY.RARE] = {
 		name = "Rare",
@@ -56,6 +65,25 @@ local RARITY_DATA = {
 		name = "Mythical",
 		color = Color3.fromRGB(255, 92, 161),
 		particleEffect = "MythicalStars",
+		glowIntensity = 0.9,
+	},
+	[RARITY.SECRET] = {
+		name = "Secret",
+		color = Color3.fromRGB(255, 0, 100),
+		particleEffect = "SecretMystery",
+		glowIntensity = 1.0,
+		hasAura = true,
+	},
+	[RARITY.EVENT] = {
+		name = "Event",
+		color = Color3.fromRGB(255, 215, 0),
+		particleEffect = "EventSparkle",
+		glowIntensity = 0.8,
+	},
+	[RARITY.EXCLUSIVE] = {
+		name = "Exclusive",
+		color = Color3.fromRGB(220, 20, 60),
+		particleEffect = "ExclusiveShine",
 		glowIntensity = 0.9,
 	},
 	[RARITY.DIVINE] = {
