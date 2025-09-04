@@ -843,13 +843,14 @@ function PetDetailsUI:SwitchTab(tabName: string)
 	for name, tab in pairs(self._tabFrames) do
 		local isActive = name == tabName
 
-		-- Update button appearance (consistent colors like Stats tab)
+		-- Update button appearance with FIXED colors
+		-- Active button: Pink background, WHITE text
 		tab.button.BackgroundColor3 = isActive and 
-			self._config.COLORS.Primary or 
-			self._config.COLORS.Surface
+			Color3.fromRGB(255, 92, 161) or 
+			Color3.new(1, 1, 1)
 		tab.button.TextColor3 = isActive and 
-			self._config.COLORS.White or 
-			self._config.COLORS.TextSecondary
+			Color3.new(1, 1, 1) or  -- WHITE TEXT FIX
+			Color3.fromRGB(255, 92, 161)
 
 		-- Show/hide frame
 		tab.frame.Visible = isActive

@@ -44,10 +44,20 @@ type SortType = "Rarity" | "Level" | "Power" | "Recent" | "Name"
 -- ========================================
 
 local GRID_PADDING = 10
-local CARD_SIZE = Vector2.new(120, 140) -- Reduced height - no stats display
+local CARD_SIZE = Vector2.new(130, 150) -- Updated size as requested
 local CARDS_PER_ROW = 5
 local SCROLL_THRESHOLD = 5 -- Cards to preload above/below viewport
 local SEARCH_DEBOUNCE = 0.3
+
+-- Modern color palette
+local MODERN_COLORS = {
+    Primary = Color3.fromRGB(255, 92, 161),
+    Secondary = Color3.fromRGB(255, 182, 213),
+    Background = Color3.fromRGB(252, 250, 251),
+    Surface = Color3.fromRGB(255, 255, 255),
+    Dark = Color3.fromRGB(45, 45, 50),
+    Success = Color3.fromRGB(134, 239, 172),
+}
 
 -- Sort and Filter type constants to prevent typos
 local SORT_TYPE = {
@@ -1834,6 +1844,20 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     card.BorderSizePixel = 0
     card.Parent = parent
     
+    -- Add shadow
+    local shadow = Instance.new("ImageLabel")
+    shadow.Size = UDim2.new(1, 10, 1, 10)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.93
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.ZIndex = -1
+    shadow.Parent = card
+    
     -- Store pet data as attributes for filtering
     card:SetAttribute("PetName", petData.name or petData.displayName or "Unknown")
     card:SetAttribute("PetNickname", petInstance.nickname or "")
@@ -1841,7 +1865,7 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     card:SetAttribute("Equipped", petInstance.equipped or false)
     card:SetAttribute("Locked", petInstance.locked or false)
     
-    self._utilities.CreateCorner(card, 8)
+    self._utilities.CreateCorner(card, 12)
     
     -- Rarity border
     local border = Instance.new("Frame")
@@ -2741,7 +2765,7 @@ function InventoryUI:GetPooledCard()
     card.BackgroundColor3 = self._config.COLORS.White or Color3.new(1, 1, 1)
     card.BorderSizePixel = 0
     
-    self._utilities.CreateCorner(card, 8)
+    self._utilities.CreateCorner(card, 12)
     
     -- Basic structure that will be reused
     local border = Instance.new("Frame")
