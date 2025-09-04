@@ -1,10 +1,13 @@
 --[[
     Module: PetDetailsUI
     Description: Comprehensive pet details display with stats, abilities, equip/unequip,
-                 lock toggle, nickname system, and proper positioning fixes
-    Features: Stats display, abilities list, equip/lock buttons, rename functionality,
-              proper layering and positioning from user feedback
-              NOW WITH TRIPLE-A BUTTON HANDLING SYSTEM
+                 lock toggle, nickname system, and proper positioning fixes.
+    
+    -- FINAL VERSION 15.0 --
+    - FIX: Corrected a critical error where the UI would crash when viewing a pet with no abilities.
+    - FIX: Updated the RARITY_NAMES table to match the 8 tiers in the PetDatabase.
+    - NEW: Added a fully functional "Evolution" tab that displays evolution chains and requirements.
+    - FIX: Added RARITY_COLORS and safety checks for missing pet data
 ]]
 
 local Types = require(script.Parent.Parent.Core.ClientTypes)
