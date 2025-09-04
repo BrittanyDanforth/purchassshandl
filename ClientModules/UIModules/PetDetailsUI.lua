@@ -1066,15 +1066,31 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
 
 	yOffset = yOffset + 20
 
-	-- Combat stats from PetDatabase with level scaling
+	-- Combat stats from PetDatabase with level scaling and variant bonus
+	local variantMultiplier = 1
+	if petInstance.variant and petInstance.variant ~= "NORMAL" then
+		local variantMultipliers = {
+			SHINY = 1.5,
+			GOLDEN = 2,
+			RAINBOW = 3,
+			SHADOW = 4,
+			COSMIC = 5,
+			VOID = 10
+		}
+		variantMultiplier = variantMultipliers[petInstance.variant] or 1
+	end
+	
+	-- Calculate total multiplier
+	local totalMultiplier = levelMultiplier * variantMultiplier
+	
 	local stats = {
-		{name = "Health", value = math.floor((baseStats.health or 100) * levelMultiplier), icon = "❤️", color = self._config.COLORS.Error},
-		{name = "Attack", value = math.floor((baseStats.attack or 10) * levelMultiplier), icon = "⚔️", color = self._config.COLORS.Error},
-		{name = "Defense", value = math.floor((baseStats.defense or 10) * levelMultiplier), icon = "🛡️", color = self._config.COLORS.Primary},
-		{name = "Speed", value = math.floor((baseStats.speed or 10) * levelMultiplier), icon = "💨", color = self._config.COLORS.Warning},
-		{name = "Luck", value = math.floor((baseStats.luck or 10) * levelMultiplier), icon = "🍀", color = self._config.COLORS.Success},
-		{name = "Crit Chance", value = string.format("%.1f%%", (baseStats.critChance or 0.05) * 100), icon = "⚡", color = self._config.COLORS.Warning},
-		{name = "Crit Damage", value = string.format("%.1fx", baseStats.critDamage or 1.5), icon = "💥", color = self._config.COLORS.Info}
+		{name = "Health", value = math.floor((baseStats.health or 100) * totalMultiplier), base = baseStats.health or 100, icon = "❤️", color = self._config.COLORS.Error},
+		{name = "Attack", value = math.floor((baseStats.attack or 10) * totalMultiplier), base = baseStats.attack or 10, icon = "⚔️", color = self._config.COLORS.Error},
+		{name = "Defense", value = math.floor((baseStats.defense or 10) * totalMultiplier), base = baseStats.defense or 10, icon = "🛡️", color = self._config.COLORS.Primary},
+		{name = "Speed", value = math.floor((baseStats.speed or 10) * totalMultiplier), base = baseStats.speed or 10, icon = "💨", color = self._config.COLORS.Warning},
+		{name = "Luck", value = math.floor((baseStats.luck or 10) * totalMultiplier), base = baseStats.luck or 10, icon = "🍀", color = self._config.COLORS.Success},
+		{name = "Crit Chance", value = string.format("%.1f%%", ((baseStats.critChance or 0.05) + level * 0.001) * 100), icon = "⚡", color = self._config.COLORS.Warning},
+		{name = "Crit Damage", value = string.format("%.1fx", (baseStats.critDamage or 1.5) + level * 0.01), icon = "💥", color = self._config.COLORS.Info}
 	}
 	
 	-- Add variant bonus if exists
@@ -1092,37 +1108,91 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
 	end
 
 	for _, stat in ipairs(stats) do
-		local statFrame = self:CreateStatRow(container, stat.name, 
-			tostring(stat.value), stat.icon, yOffset, stat.color)
-
-		-- Add base stat comparison
-		local baseValue = self._currentPetData.baseStats and 
-			self._currentPetData.baseStats[stat.name:lower()] or 0
-
-		if baseValue > 0 then
-			local diffText = stat.value > baseValue and 
-				string.format(" (+%d)", stat.value - baseValue) or ""
-
-			if diffText ~= "" then
-				local diffLabel = self._uiFactory:CreateLabel(statFrame, {
-					text = diffText,
-					size = UDim2.new(0, 50, 1, 0),
-					position = UDim2.new(1, -50, 0, 0),
-					textColor = self._config.COLORS.Success,
-					textSize = 14
-				})
-			end
+		local statFrame = Instance.new("Frame")
+		statFrame.Size = UDim2.new(1, -20, 0, 60) -- Taller for base comparison
+		statFrame.Position = UDim2.new(0, 10, 0, yOffset)
+		statFrame.BackgroundColor3 = self._config.COLORS.Surface
+		statFrame.Parent = container
+		
+		self._utilities.CreateCorner(statFrame, 8)
+		
+		-- Icon
+		local iconLabel = self._uiFactory:CreateLabel(statFrame, {
+			text = stat.icon or "",
+			size = UDim2.new(0, 40, 0, 40),
+			position = UDim2.new(0, 10, 0.5, -20),
+			textSize = 24
+		})
+		
+		-- Stat name
+		local nameLabel = self._uiFactory:CreateLabel(statFrame, {
+			text = stat.name,
+			size = UDim2.new(0.4, -60, 0.5, 0),
+			position = UDim2.new(0, 60, 0, 5),
+			textXAlignment = Enum.TextXAlignment.Left,
+			textSize = 16,
+			font = self._config.FONTS.Body
+		})
+		
+		-- Current value (big)
+		local valueLabel = self._uiFactory:CreateLabel(statFrame, {
+			text = tostring(stat.value),
+			size = UDim2.new(0.3, 0, 0.6, 0),
+			position = UDim2.new(0.7, 0, 0, 5),
+			textXAlignment = Enum.TextXAlignment.Right,
+			textSize = 22,
+			font = self._config.FONTS.Display,
+			textColor = stat.color or self._config.COLORS.Text
+		})
+		
+		-- Base value comparison
+		if stat.base then
+			local increase = stat.value - stat.base
+			local percentIncrease = math.floor((increase / stat.base) * 100)
+			
+			local comparisonLabel = self._uiFactory:CreateLabel(statFrame, {
+				text = string.format("Base: %d (+%d, +%d%%)", stat.base, increase, percentIncrease),
+				size = UDim2.new(0.6, -60, 0.4, 0),
+				position = UDim2.new(0, 60, 0.6, -5),
+				textXAlignment = Enum.TextXAlignment.Left,
+				textSize = 12,
+				textColor = self._config.COLORS.TextSecondary
+			})
 		end
 
-		yOffset = yOffset + 50
+		yOffset = yOffset + 70
 	end
 
 	-- Rarity and value
 	yOffset = yOffset + 20
 
+	-- Add separator before summary stats
+	local separator2 = Instance.new("Frame")
+	separator2.Size = UDim2.new(1, -40, 0, 1)
+	separator2.Position = UDim2.new(0, 20, 0, yOffset)
+	separator2.BackgroundColor3 = self._config.COLORS.TextSecondary
+	separator2.BackgroundTransparency = 0.5
+	separator2.Parent = container
+	
+	yOffset = yOffset + 20
+
 	local rarityFrame = self:CreateStatRow(container, "Rarity", 
-		RARITY_NAMES[self._currentPetData.rarity] or "Unknown", "💎", yOffset,
-		self._utilities.GetRarityColor(self._currentPetData.rarity))
+		RARITY_NAMES[self._currentPetData.rarity] or "Unknown", "⭐", yOffset,
+		RARITY_COLORS[self._currentPetData.rarity or 1])
+		
+	yOffset = yOffset + 50
+	
+	-- Calculate total power
+	local totalPower = 0
+	for _, stat in ipairs(stats) do
+		if type(stat.value) == "number" then
+			totalPower = totalPower + stat.value
+		end
+	end
+	
+	local powerFrame = self:CreateStatRow(container, "Total Power", 
+		string.format("%d", totalPower), "💪", yOffset,
+		self._config.COLORS.Warning)
 
 	yOffset = yOffset + 50
 
