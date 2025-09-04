@@ -1709,7 +1709,11 @@ function PetDetailsUI:ShowPetEvolution(parent: Frame)
 		self._utilities.CreateCorner(nextFrame, 12)
 		
 		-- Get next pet data if available
-		local PetDatabase = require(game.ReplicatedStorage.Modules.Shared.PetDatabase)
+		local success, PetDatabase = pcall(require, game.ReplicatedStorage.Modules.Shared.PetDatabase)
+		if not success then
+			warn("[PetDetailsUI] Failed to load PetDatabase for evolution chain")
+			return nil
+		end
 		local nextPetData = PetDatabase:GetPet(evolution.evolvesTo)
 		
 		if nextPetData then
@@ -1941,7 +1945,11 @@ end
 
 function PetDetailsUI:GetPetSynergies(petId: string): table
 	-- Get synergy data from PetDatabase
-	local PetDatabase = require(game.ReplicatedStorage.ServerModules.PetDatabase)
+	local success, PetDatabase = pcall(require, game.ReplicatedStorage.Modules.Shared.PetDatabase)
+	if not success then
+		warn("[PetDetailsUI] Failed to load PetDatabase for synergies")
+		return {}
+	end
 	if not PetDatabase or not PetDatabase.Synergies then return {} end
 	
 	local petSynergies = {}
