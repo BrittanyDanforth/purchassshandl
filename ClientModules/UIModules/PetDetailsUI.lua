@@ -759,6 +759,7 @@ function PetDetailsUI:CreateRightSide(parent: Frame)
 	local tabs = {
 		{name = "Stats", callback = function(frame) self:ShowPetStats(frame) end},
 		{name = "Abilities", callback = function(frame) self:ShowPetAbilities(frame) end},
+		{name = "Evolution", callback = function(frame) self:ShowPetEvolution(frame) end},
 		{name = "Info", callback = function(frame) self:ShowPetInfo(frame) end}
 	}
 
@@ -903,13 +904,16 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
 		return
 	end
 
-	-- Ensure required fields exist
+	-- Get stats from PetDatabase baseStats
 	local petInstance = self._currentPetInstance
+	local petData = self._currentPetData
 	petInstance.level = petInstance.level or 1
 	petInstance.experience = petInstance.experience or 0
-	petInstance.power = petInstance.power or 0
-	petInstance.speed = petInstance.speed or 0
-	petInstance.luck = petInstance.luck or 0
+	
+	-- Use baseStats from PetDatabase
+	local baseStats = petData.baseStats or {}
+	local level = petInstance.level
+	local levelMultiplier = 1 + (level - 1) * 0.1
 
 	local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
 		size = UDim2.new(1, 0, 1, 0),
@@ -979,19 +983,30 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
 
 	yOffset = yOffset + 20
 
-	-- Combat stats - check multiple sources for stats
-	local petStats = petInstance.stats or {}
-	local baseStats = self._currentPetData.baseStats or {}
-
+	-- Combat stats from PetDatabase with level scaling
 	local stats = {
-		{name = "Power", value = petStats.power or petInstance.power or baseStats.power or 0, icon = STAT_ICONS.power, color = self._config.COLORS.Error},
-		{name = "Health", value = petStats.health or petInstance.health or baseStats.health or 100, icon = "❤️", color = self._config.COLORS.Error},
-		{name = "Defense", value = petStats.defense or petInstance.defense or baseStats.defense or 0, icon = "🛡️", color = self._config.COLORS.Primary},
-		{name = "Speed", value = petStats.speed or petInstance.speed or baseStats.speed or 0, icon = STAT_ICONS.speed, color = self._config.COLORS.Warning},
-		{name = "Luck", value = petStats.luck or petInstance.luck or baseStats.luck or 0, icon = STAT_ICONS.luck, color = self._config.COLORS.Success},
-		{name = "Coins", value = petStats.coins or petInstance.coins or baseStats.coins or 0, icon = "💰", color = self._config.COLORS.Warning},
-		{name = "Gems", value = petStats.gems or petInstance.gems or baseStats.gems or 0, icon = "💎", color = self._config.COLORS.Info}
+		{name = "Health", value = math.floor((baseStats.health or 100) * levelMultiplier), icon = "❤️", color = self._config.COLORS.Error},
+		{name = "Attack", value = math.floor((baseStats.attack or 10) * levelMultiplier), icon = "⚔️", color = self._config.COLORS.Error},
+		{name = "Defense", value = math.floor((baseStats.defense or 10) * levelMultiplier), icon = "🛡️", color = self._config.COLORS.Primary},
+		{name = "Speed", value = math.floor((baseStats.speed or 10) * levelMultiplier), icon = "💨", color = self._config.COLORS.Warning},
+		{name = "Luck", value = math.floor((baseStats.luck or 10) * levelMultiplier), icon = "🍀", color = self._config.COLORS.Success},
+		{name = "Crit Chance", value = string.format("%.1f%%", (baseStats.critChance or 0.05) * 100), icon = "⚡", color = self._config.COLORS.Warning},
+		{name = "Crit Damage", value = string.format("%.1fx", baseStats.critDamage or 1.5), icon = "💥", color = self._config.COLORS.Info}
 	}
+	
+	-- Add variant bonus if exists
+	if petInstance.variant and petInstance.variant ~= "NORMAL" then
+		local variantMultipliers = {
+			SHINY = 1.5,
+			GOLDEN = 2,
+			RAINBOW = 3,
+			SHADOW = 4,
+			COSMIC = 5,
+			VOID = 10
+		}
+		local variantMult = variantMultipliers[petInstance.variant] or 1
+		table.insert(stats, {name = "Variant Bonus", value = string.format("x%.1f", variantMult), icon = "✨", color = RARITY_COLORS[8]})
+	end
 
 	for _, stat in ipairs(stats) do
 		local statFrame = self:CreateStatRow(container, stat.name, 
@@ -1142,7 +1157,7 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 	local yOffset = 0
 
 	-- Check if pet has abilities
-	if not self._currentPetData.abilities or next(self._currentPetData.abilities) == nil then
+	if not self._currentPetData.abilities or #self._currentPetData.abilities == 0 then
 		local noAbilitiesLabel = self._uiFactory:CreateLabel(container, {
 			text = "This pet has no special abilities",
 			size = UDim2.new(1, 0, 0, 50),
@@ -1153,8 +1168,8 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 		return
 	end
 
-	-- Display abilities
-	for abilityName, abilityData in pairs(self._currentPetData.abilities) do
+	-- Display abilities (now an array in PetDatabase)
+	for i, abilityData in ipairs(self._currentPetData.abilities) do
 		local abilityFrame = Instance.new("Frame")
 		abilityFrame.Size = UDim2.new(1, -20, 0, 100)
 		abilityFrame.Position = UDim2.new(0, 10, 0, yOffset)
@@ -1188,7 +1203,7 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 
 		-- Ability name
 		local nameLabel = self._uiFactory:CreateLabel(infoFrame, {
-			text = abilityName,
+			text = abilityData.name or "Unknown Ability",
 			size = UDim2.new(1, 0, 0, 25),
 			position = UDim2.new(0, 0, 0, 0),
 			font = self._config.FONTS.Secondary,
@@ -1206,15 +1221,53 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 			textSize = 14
 		})
 
-		-- Ability stats
-		if abilityData.value then
-			local valueLabel = self._uiFactory:CreateLabel(infoFrame, {
-				text = string.format("Effect: +%d%%", abilityData.value),
+		-- Ability stats (cooldown, mana, level requirement)
+		local statsText = {}
+		
+		if abilityData.cooldown then
+			table.insert(statsText, string.format("Cooldown: %ds", abilityData.cooldown))
+		end
+		
+		if abilityData.manaCost then
+			table.insert(statsText, string.format("Mana: %d", abilityData.manaCost))
+		end
+		
+		if abilityData.unlockLevel and abilityData.unlockLevel > 1 then
+			local hasLevel = self._currentPetInstance.level >= abilityData.unlockLevel
+			local levelText = string.format("Requires Lv.%d", abilityData.unlockLevel)
+			if not hasLevel then
+				levelText = "🔒 " .. levelText
+			end
+			table.insert(statsText, levelText)
+		end
+		
+		if #statsText > 0 then
+			local statsLabel = self._uiFactory:CreateLabel(infoFrame, {
+				text = table.concat(statsText, " | "),
 				size = UDim2.new(1, 0, 0, 20),
 				position = UDim2.new(0, 0, 0, 65),
-				textColor = self._config.COLORS.Success,
+				textColor = self._config.COLORS.TextSecondary,
 				textXAlignment = Enum.TextXAlignment.Left,
-				textSize = 14
+				textSize = 12
+			})
+		end
+		
+		-- Ultimate ability indicator
+		if abilityData.isUltimate then
+			local ultBadge = Instance.new("Frame")
+			ultBadge.Size = UDim2.new(0, 80, 0, 20)
+			ultBadge.Position = UDim2.new(1, -85, 0, 5)
+			ultBadge.BackgroundColor3 = RARITY_COLORS[8] -- Immortal purple
+			ultBadge.Parent = abilityFrame
+			
+			self._utilities.CreateCorner(ultBadge, 10)
+			
+			local ultLabel = self._uiFactory:CreateLabel(ultBadge, {
+				text = "ULTIMATE",
+				size = UDim2.new(1, 0, 1, 0),
+				textColor = Color3.new(1, 1, 1),
+				textSize = 12,
+				font = self._config.FONTS.Secondary
 			})
 		end
 
@@ -1222,6 +1275,205 @@ function PetDetailsUI:ShowPetAbilities(parent: Frame)
 	end
 
 	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
+end
+
+-- ========================================
+-- PET EVOLUTION TAB
+-- ========================================
+
+function PetDetailsUI:ShowPetEvolution(parent: Frame)
+	if not self._currentPetData then
+		local errorLabel = self._uiFactory:CreateLabel(parent, {
+			text = "No evolution data available",
+			size = UDim2.new(1, 0, 0, 50),
+			position = UDim2.new(0, 0, 0.5, -25),
+			textColor = self._config.COLORS.TextSecondary
+		})
+		return
+	end
+	
+	local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
+		size = UDim2.new(1, 0, 1, 0),
+		position = UDim2.new(0, 0, 0, 0)
+	})
+	
+	local container = Instance.new("Frame")
+	container.Size = UDim2.new(1, -10, 0, 500)
+	container.BackgroundTransparency = 1
+	container.Parent = scrollFrame
+	
+	local yOffset = 20
+	
+	-- Current form display
+	local currentFrame = Instance.new("Frame")
+	currentFrame.Size = UDim2.new(1, -40, 0, 120)
+	currentFrame.Position = UDim2.new(0, 20, 0, yOffset)
+	currentFrame.BackgroundColor3 = self._config.COLORS.Surface
+	currentFrame.Parent = container
+	
+	self._utilities.CreateCorner(currentFrame, 12)
+	self._utilities.CreateStroke(currentFrame, RARITY_COLORS[self._currentPetData.rarity] or RARITY_COLORS[1], 2)
+	
+	-- Current pet info
+	local currentTitle = self._uiFactory:CreateLabel(currentFrame, {
+		text = "Current Form",
+		size = UDim2.new(1, 0, 0, 25),
+		position = UDim2.new(0, 0, 0, 10),
+		font = self._config.FONTS.Secondary,
+		textColor = RARITY_COLORS[self._currentPetData.rarity] or RARITY_COLORS[1]
+	})
+	
+	local currentName = self._uiFactory:CreateLabel(currentFrame, {
+		text = self._currentPetData.displayName or self._currentPetData.name,
+		size = UDim2.new(1, 0, 0, 30),
+		position = UDim2.new(0, 0, 0, 35),
+		font = self._config.FONTS.Primary,
+		textSize = 20
+	})
+	
+	local currentLevel = self._uiFactory:CreateLabel(currentFrame, {
+		text = "Level " .. tostring(self._currentPetInstance.level or 1),
+		size = UDim2.new(1, 0, 0, 20),
+		position = UDim2.new(0, 0, 0, 70),
+		textColor = self._config.COLORS.TextSecondary
+	})
+	
+	yOffset = yOffset + 140
+	
+	-- Check if pet can evolve
+	if self._currentPetData.evolution then
+		local evolution = self._currentPetData.evolution
+		
+		-- Arrow
+		local arrow = self._uiFactory:CreateLabel(container, {
+			text = "⬇️",
+			size = UDim2.new(1, 0, 0, 40),
+			position = UDim2.new(0, 0, 0, yOffset),
+			textSize = 30
+		})
+		
+		yOffset = yOffset + 50
+		
+		-- Next form
+		local nextFrame = Instance.new("Frame")
+		nextFrame.Size = UDim2.new(1, -40, 0, 120)
+		nextFrame.Position = UDim2.new(0, 20, 0, yOffset)
+		nextFrame.BackgroundColor3 = self._config.COLORS.Surface
+		nextFrame.Parent = container
+		
+		self._utilities.CreateCorner(nextFrame, 12)
+		
+		-- Get next pet data if available
+		local PetDatabase = require(game.ReplicatedStorage.Modules.Shared.PetDatabase)
+		local nextPetData = PetDatabase:GetPet(evolution.evolvesTo)
+		
+		if nextPetData then
+			self._utilities.CreateStroke(nextFrame, RARITY_COLORS[nextPetData.rarity] or RARITY_COLORS[1], 2)
+			
+			local nextTitle = self._uiFactory:CreateLabel(nextFrame, {
+				text = "Evolves To",
+				size = UDim2.new(1, 0, 0, 25),
+				position = UDim2.new(0, 0, 0, 10),
+				font = self._config.FONTS.Secondary,
+				textColor = RARITY_COLORS[nextPetData.rarity] or RARITY_COLORS[1]
+			})
+			
+			local nextName = self._uiFactory:CreateLabel(nextFrame, {
+				text = nextPetData.displayName or nextPetData.name,
+				size = UDim2.new(1, 0, 0, 30),
+				position = UDim2.new(0, 0, 0, 35),
+				font = self._config.FONTS.Primary,
+				textSize = 20
+			})
+		end
+		
+		yOffset = yOffset + 140
+		
+		-- Requirements
+		local reqFrame = Instance.new("Frame")
+		reqFrame.Size = UDim2.new(1, -40, 0, 100)
+		reqFrame.Position = UDim2.new(0, 20, 0, yOffset)
+		reqFrame.BackgroundColor3 = self._config.COLORS.Surface
+		reqFrame.Parent = container
+		
+		self._utilities.CreateCorner(reqFrame, 12)
+		
+		local reqTitle = self._uiFactory:CreateLabel(reqFrame, {
+			text = "Evolution Requirements",
+			size = UDim2.new(1, 0, 0, 25),
+			position = UDim2.new(0, 0, 0, 10),
+			font = self._config.FONTS.Secondary,
+			textColor = self._config.COLORS.Primary
+		})
+		
+		-- Level requirement
+		local levelReq = evolution.requiredLevel or 50
+		local hasLevel = self._currentPetInstance.level >= levelReq
+		
+		local levelReqLabel = self._uiFactory:CreateLabel(reqFrame, {
+			text = string.format("%s Level %d", hasLevel and "✅" or "❌", levelReq),
+			size = UDim2.new(1, 0, 0, 20),
+			position = UDim2.new(0, 20, 0, 40),
+			textColor = hasLevel and self._config.COLORS.Success or self._config.COLORS.Error,
+			textXAlignment = Enum.TextXAlignment.Left
+		})
+		
+		-- Item requirements
+		if evolution.requiredItems then
+			local itemY = 65
+			for itemType, amount in pairs(evolution.requiredItems) do
+				local itemLabel = self._uiFactory:CreateLabel(reqFrame, {
+					text = string.format("• %s: %s", itemType:gsub("^%l", string.upper), tostring(amount)),
+					size = UDim2.new(1, 0, 0, 20),
+					position = UDim2.new(0, 20, 0, itemY),
+					textColor = self._config.COLORS.TextSecondary,
+					textXAlignment = Enum.TextXAlignment.Left,
+					textSize = 14
+				})
+				itemY = itemY + 20
+			end
+			
+			reqFrame.Size = UDim2.new(1, -40, 0, itemY + 20)
+		end
+		
+		yOffset = yOffset + reqFrame.Size.Y.Offset + 20
+		
+		-- Evolve button
+		if hasLevel then
+			local evolveButton = self._uiFactory:CreateButton(container, {
+				text = "EVOLVE",
+				size = UDim2.new(0.6, 0, 0, 50),
+				position = UDim2.new(0.2, 0, 0, yOffset),
+				backgroundColor = self._config.COLORS.Success,
+				callback = function()
+					self:OnEvolveClicked()
+				end
+			})
+			
+			yOffset = yOffset + 70
+		end
+	else
+		-- No evolution available
+		local noEvoLabel = self._uiFactory:CreateLabel(container, {
+			text = "This pet has reached its final form!",
+			size = UDim2.new(1, 0, 0, 50),
+			position = UDim2.new(0, 0, 0, yOffset),
+			textColor = RARITY_COLORS[self._currentPetData.rarity] or self._config.COLORS.Primary,
+			font = self._config.FONTS.Secondary,
+			textSize = 18
+		})
+		
+		yOffset = yOffset + 70
+	end
+	
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+function PetDetailsUI:OnEvolveClicked()
+	if self._remoteManager then
+		self._remoteManager:InvokeServer("EvolvePet", self._currentPetInstance.uniqueId)
+		self._soundSystem:PlayUISound("Evolve")
+	end
 end
 
 -- ========================================

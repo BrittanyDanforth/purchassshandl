@@ -59,6 +59,18 @@ local MODERN_COLORS = {
     Success = Color3.fromRGB(134, 239, 172),
 }
 
+-- Epic rarity colors from PetDatabase
+local RARITY_COLORS = {
+    [1] = Color3.fromRGB(200, 200, 200), -- Common
+    [2] = Color3.fromRGB(85, 170, 255),  -- Rare
+    [3] = Color3.fromRGB(163, 53, 238),  -- Epic
+    [4] = Color3.fromRGB(255, 170, 0),   -- Legendary
+    [5] = Color3.fromRGB(255, 92, 161),  -- Mythical
+    [6] = Color3.fromRGB(255, 255, 0),   -- Divine
+    [7] = Color3.fromRGB(185, 242, 255), -- Celestial
+    [8] = Color3.fromRGB(255, 0, 255),   -- Immortal
+}
+
 -- Sort and Filter type constants to prevent typos
 local SORT_TYPE = {
     RARITY = "Rarity",
@@ -73,14 +85,24 @@ local FILTER_TYPE = {
     EQUIPPED = "Equipped",
     LOCKED = "Locked",
     COMMON = "Common",
-    UNCOMMON = "Uncommon",
     RARE = "Rare",
     EPIC = "Epic",
     LEGENDARY = "Legendary",
     MYTHICAL = "Mythical",
+    DIVINE = "Divine",
+    CELESTIAL = "Celestial",
+    IMMORTAL = "Immortal",
+    -- Variants
     SHINY = "Shiny",
     GOLDEN = "Golden",
     RAINBOW = "Rainbow",
+    SHADOW = "Shadow",
+    COSMIC = "Cosmic",
+    VOID = "Void",
+    -- Special
+    LIMITED = "Limited",
+    SECRET = "Secret",
+    EVENT = "Event",
 }
 
 local PET_ATTRIBUTE = {
@@ -99,15 +121,26 @@ local FILTER_DEFINITIONS = {
     All = function() return true end,
     Equipped = function(pet) return pet.equipped == true end,
     Locked = function(pet) return pet.locked == true end,
+    -- Rarities (matching PetDatabase)
     Common = function(pet, petData) return petData.rarity == 1 end,
-    Uncommon = function(pet, petData) return petData.rarity == 2 end,
-    Rare = function(pet, petData) return petData.rarity == 3 end,
-    Epic = function(pet, petData) return petData.rarity == 4 end,
-    Legendary = function(pet, petData) return petData.rarity == 5 end,
-    Mythical = function(pet, petData) return petData.rarity == 6 end,
-    Shiny = function(pet) return pet.variant == "shiny" end,
-    Golden = function(pet) return pet.variant == "golden" end,
-    Rainbow = function(pet) return pet.variant == "rainbow" end,
+    Rare = function(pet, petData) return petData.rarity == 2 end,
+    Epic = function(pet, petData) return petData.rarity == 3 end,
+    Legendary = function(pet, petData) return petData.rarity == 4 end,
+    Mythical = function(pet, petData) return petData.rarity == 5 end,
+    Divine = function(pet, petData) return petData.rarity == 6 end,
+    Celestial = function(pet, petData) return petData.rarity == 7 end,
+    Immortal = function(pet, petData) return petData.rarity == 8 end,
+    -- Variants
+    Shiny = function(pet) return pet.variant == "SHINY" end,
+    Golden = function(pet) return pet.variant == "GOLDEN" end,
+    Rainbow = function(pet) return pet.variant == "RAINBOW" end,
+    Shadow = function(pet) return pet.variant == "SHADOW" end,
+    Cosmic = function(pet) return pet.variant == "COSMIC" end,
+    Void = function(pet) return pet.variant == "VOID" end,
+    -- Special types
+    Limited = function(pet, petData) return petData.limitedEdition == true end,
+    Secret = function(pet, petData) return petData.secret == true end,
+    Event = function(pet, petData) return petData.eventExclusive ~= nil end,
 }
 
 -- Sort functions
@@ -128,38 +161,39 @@ local SORT_FUNCTIONS = {
             
             local power = 0
             
-            -- Try direct power value
-            if pet.power and type(pet.power) == "number" and pet.power > 0 then
-                power = pet.power
-            -- Calculate from stats if available
-            elseif pet.stats then
-                -- Common stat names for power calculation
-                local attack = pet.stats.attack or pet.stats.damage or pet.stats.atk or 0
-                local defense = pet.stats.defense or pet.stats.def or 0
-                local health = pet.stats.health or pet.stats.hp or 0
-                local speed = pet.stats.speed or pet.stats.spd or 0
+            -- Use PetDatabase baseStats structure
+            if petData and petData.baseStats then
+                local stats = petData.baseStats
+                -- Calculate base power from stats
+                power = (stats.attack or 0) + (stats.defense or 0) + ((stats.health or 0) / 10) + (stats.speed or 0)
                 
-                -- Calculate combined power
-                power = (attack * 2) + defense + (health / 10) + speed
-            -- Try baseStats from template data
-            elseif petData and petData.baseStats then
-                local basePower = petData.baseStats.power or petData.baseStats.attack or 100
-                power = basePower * (pet.level or 1)
-            else
-                -- Fallback: use rarity and level
-                local rarityMultiplier = 1
-                if petData and petData.rarity then
-                    rarityMultiplier = petData.rarity
-                elseif pet.rarity then
-                    rarityMultiplier = pet.rarity
+                -- Apply level scaling
+                local level = pet.level or 1
+                power = power * (1 + (level - 1) * 0.1)
+                
+                -- Apply rarity multiplier
+                power = power * (petData.rarity or 1)
+                
+                -- Apply variant multiplier if exists
+                if pet.variant and pet.variant ~= "NORMAL" then
+                    local variantMultipliers = {
+                        SHINY = 1.5,
+                        GOLDEN = 2,
+                        RAINBOW = 3,
+                        SHADOW = 4,
+                        COSMIC = 5,
+                        VOID = 10
+                    }
+                    power = power * (variantMultipliers[pet.variant] or 1)
                 end
-                
-                power = (pet.level or 1) * 100 * rarityMultiplier
+            else
+                -- Fallback calculation
+                power = (pet.level or 1) * 100 * (petData and petData.rarity or 1)
             end
             
             -- Cache the calculated power
-            pet.calculatedPower = power
-            return power
+            pet.calculatedPower = math.floor(power)
+            return pet.calculatedPower
         end
         
         local aPower = calculatePower(a, aData)
@@ -1867,14 +1901,38 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     
     self._utilities.CreateCorner(card, 12)
     
-    -- Rarity border
+    -- Rarity border with epic colors
     local border = Instance.new("Frame")
     border.Name = "RarityBorder"
     border.Size = UDim2.new(1, 0, 0, 4)
     border.Position = UDim2.new(0, 0, 1, -4)
-    border.BackgroundColor3 = self._utilities.GetRarityColor(petData.rarity or 1)
+    border.BackgroundColor3 = RARITY_COLORS[petData.rarity] or RARITY_COLORS[1]
     border.BorderSizePixel = 0
     border.Parent = card
+    
+    -- Add rarity glow for high tier pets
+    if petData.rarity >= 6 then -- Divine and above
+        local glow = Instance.new("ImageLabel")
+        glow.Size = UDim2.new(1, 20, 1, 20)
+        glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.BackgroundTransparency = 1
+        glow.Image = "rbxassetid://5028857084"
+        glow.ImageColor3 = RARITY_COLORS[petData.rarity]
+        glow.ImageTransparency = 0.5
+        glow.ZIndex = -1
+        glow.Parent = card
+        
+        -- Animate glow for immortal pets
+        if petData.rarity == 8 then
+            task.spawn(function()
+                while glow.Parent do
+                    glow.ImageTransparency = 0.3 + math.sin(tick() * 2) * 0.2
+                    task.wait()
+                end
+            end)
+        end
+    end
     
     -- Pet image container
     local imageContainer = Instance.new("Frame")
@@ -1890,11 +1948,75 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     petImage.Name = "PetImage"
     petImage.Size = UDim2.new(1, 0, 1, 0)
     petImage.BackgroundTransparency = 1
-    petImage.Image = petData.imageId or ""
+    petImage.Image = petData.imageId or petData.icon or ""
     petImage.ScaleType = Enum.ScaleType.Fit
     petImage.Parent = imageContainer
     
-
+    -- Add variant effects
+    if petInstance.variant and petInstance.variant ~= "NORMAL" then
+        if petInstance.variant == "SHINY" then
+            -- Add sparkles
+            local sparkle = Instance.new("ImageLabel")
+            sparkle.Size = UDim2.new(1.2, 0, 1.2, 0)
+            sparkle.Position = UDim2.new(0.5, 0, 0.5, 0)
+            sparkle.AnchorPoint = Vector2.new(0.5, 0.5)
+            sparkle.BackgroundTransparency = 1
+            sparkle.Image = "rbxassetid://6034684949" -- Sparkle texture
+            sparkle.ImageTransparency = 0.5
+            sparkle.Parent = imageContainer
+            
+        elseif petInstance.variant == "GOLDEN" then
+            -- Golden overlay
+            local goldOverlay = Instance.new("Frame")
+            goldOverlay.Size = UDim2.new(1, 0, 1, 0)
+            goldOverlay.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+            goldOverlay.BackgroundTransparency = 0.8
+            goldOverlay.Parent = imageContainer
+            
+        elseif petInstance.variant == "RAINBOW" then
+            -- Rainbow gradient
+            local rainbow = Instance.new("UIGradient")
+            rainbow.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+                ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+            })
+            rainbow.Parent = petImage
+            
+        elseif petInstance.variant == "VOID" then
+            -- Void effect
+            petImage.ImageColor3 = Color3.new(0.2, 0, 0.2)
+            local voidGlow = Instance.new("ImageLabel")
+            voidGlow.Size = UDim2.new(1.5, 0, 1.5, 0)
+            voidGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
+            voidGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+            voidGlow.BackgroundTransparency = 1
+            voidGlow.Image = "rbxassetid://5028857084"
+            voidGlow.ImageColor3 = Color3.fromRGB(255, 0, 255)
+            voidGlow.ImageTransparency = 0.7
+            voidGlow.ZIndex = -1
+            voidGlow.Parent = imageContainer
+        end
+        
+        -- Variant badge
+        local variantBadge = Instance.new("Frame")
+        variantBadge.Size = UDim2.new(0, 50, 0, 18)
+        variantBadge.Position = UDim2.new(1, -52, 0, 2)
+        variantBadge.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        variantBadge.Parent = card
+        
+        self._utilities.CreateCorner(variantBadge, 4)
+        
+        local variantText = Instance.new("TextLabel")
+        variantText.Size = UDim2.new(1, 0, 1, 0)
+        variantText.BackgroundTransparency = 1
+        variantText.Font = Enum.Font.GothamBold
+        variantText.Text = petInstance.variant:sub(1, 3) -- First 3 letters
+        variantText.TextColor3 = Color3.fromRGB(50, 50, 50)
+        variantText.TextScaled = true
+        variantText.Parent = variantBadge
+    end
     
     -- Level badge
     local levelBadge = Instance.new("Frame")
@@ -1950,6 +2072,35 @@ function InventoryUI:CreatePetCard(parent: ScrollingFrame, petInstance: PetInsta
     -- Store data as attributes for later VFX refresh
     card:SetAttribute("PetInstance", petInstance)
     card:SetAttribute("PetData", petData)
+    
+    -- Add special badges
+    if petData.limitedEdition then
+        local limitedBadge = Instance.new("Frame")
+        limitedBadge.Size = UDim2.new(0, 60, 0, 20)
+        limitedBadge.Position = UDim2.new(0.5, -30, 0, -10)
+        limitedBadge.BackgroundColor3 = RARITY_COLORS[6] -- Divine yellow
+        limitedBadge.Parent = card
+        self._utilities.CreateCorner(limitedBadge, 10)
+        
+        local limitedText = Instance.new("TextLabel")
+        limitedText.Size = UDim2.new(1, 0, 1, 0)
+        limitedText.BackgroundTransparency = 1
+        limitedText.Font = Enum.Font.GothamBold
+        limitedText.Text = "LIMITED"
+        limitedText.TextColor3 = Color3.new(0, 0, 0)
+        limitedText.TextScaled = true
+        limitedText.Parent = limitedBadge
+    end
+    
+    if petData.secret then
+        local secretBadge = Instance.new("ImageLabel")
+        secretBadge.Size = UDim2.new(0, 25, 0, 25)
+        secretBadge.Position = UDim2.new(0, 5, 1, -30)
+        secretBadge.BackgroundTransparency = 1
+        secretBadge.Image = "rbxassetid://7072724538" -- Lock icon
+        secretBadge.ImageColor3 = RARITY_COLORS[8] -- Immortal purple
+        secretBadge.Parent = card
+    end
     
     -- DISABLED VFX TO FIX LAG
     -- self:ApplyPremiumVFX(card, petInstance, petData)
