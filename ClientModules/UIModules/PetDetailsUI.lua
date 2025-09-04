@@ -85,6 +85,18 @@ local RARITY_NAMES = {
 	"SECRET"
 }
 
+-- Epic rarity colors from PetDatabase
+local RARITY_COLORS = {
+	[1] = Color3.fromRGB(200, 200, 200), -- Common
+	[2] = Color3.fromRGB(85, 170, 255),  -- Rare
+	[3] = Color3.fromRGB(163, 53, 238),  -- Epic
+	[4] = Color3.fromRGB(255, 170, 0),   -- Legendary
+	[5] = Color3.fromRGB(255, 92, 161),  -- Mythical
+	[6] = Color3.fromRGB(255, 255, 0),   -- Divine
+	[7] = Color3.fromRGB(185, 242, 255), -- Celestial
+	[8] = Color3.fromRGB(255, 0, 255),   -- Immortal
+}
+
 -- ========================================
 -- INITIALIZATION
 -- ========================================
@@ -203,6 +215,39 @@ function PetDetailsUI:Open(petInstance: PetInstance, petData: PetData)
 	self._currentPetInstance = petInstance
 	self._currentPetData = petData
 	self._isOpen = true
+	
+	-- Ensure pet data has required fields
+	if self._currentPetData then
+		-- Default rarity if missing
+		if not self._currentPetData.rarity then
+			warn("[PetDetailsUI] Pet data missing rarity, defaulting to 1")
+			self._currentPetData.rarity = 1
+		end
+		
+		-- Default baseStats if missing
+		if not self._currentPetData.baseStats then
+			warn("[PetDetailsUI] Pet data missing baseStats, creating defaults")
+			self._currentPetData.baseStats = {
+				health = 100,
+				attack = 10,
+				defense = 10,
+				speed = 10,
+				luck = 10,
+				critChance = 0.05,
+				critDamage = 1.5
+			}
+		end
+		
+		-- Default abilities if missing
+		if not self._currentPetData.abilities then
+			self._currentPetData.abilities = {}
+		end
+		
+		-- Ensure display name
+		if not self._currentPetData.displayName then
+			self._currentPetData.displayName = self._currentPetData.name or "Unknown Pet"
+		end
+	end
 
 	-- Create UI with error handling
 	local success, err = pcall(function()
@@ -910,6 +955,12 @@ function PetDetailsUI:ShowPetStats(parent: Frame)
 	petInstance.level = petInstance.level or 1
 	petInstance.experience = petInstance.experience or 0
 	
+	-- Safety check for pet data
+	if not petData then
+		warn("[PetDetailsUI] No pet data available in ShowPetStats")
+		return
+	end
+	
 	-- Use baseStats from PetDatabase
 	local baseStats = petData.baseStats or {}
 	local level = petInstance.level
@@ -1290,6 +1341,12 @@ function PetDetailsUI:ShowPetEvolution(parent: Frame)
 			textColor = self._config.COLORS.TextSecondary
 		})
 		return
+	end
+	
+	-- Safety check for rarity
+	if not self._currentPetData.rarity then
+		warn("[PetDetailsUI] Pet data missing rarity:", self._currentPetData)
+		self._currentPetData.rarity = 1 -- Default to common
 	end
 	
 	local scrollFrame = self._uiFactory:CreateScrollingFrame(parent, {
