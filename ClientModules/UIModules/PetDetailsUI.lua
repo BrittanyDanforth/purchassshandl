@@ -801,14 +801,31 @@ function PetDetailsUI:CreateTabs(parent: Frame, tabs: table)
 		local tabButton = self._uiFactory:CreateButton(tabButtonsFrame, {
 			text = tab.name,
 			size = UDim2.new(0, 120, 1, 0),
-			backgroundColor = i == 1 and self._config.COLORS.Primary or self._config.COLORS.Surface,
-			textColor = i == 1 and self._config.COLORS.White or self._config.COLORS.Dark,
+			backgroundColor = i == 1 and Color3.fromRGB(255, 92, 161) or Color3.new(1, 1, 1),
+			textColor = i == 1 and Color3.new(1, 1, 1) or Color3.fromRGB(255, 92, 161),
 			callback = function()
 				self:SwitchTab(tab.name)
 			end
 		})
 
 		tabButton.Name = tab.name .. "Button"
+		
+		-- Force set initial colors in case factory doesn't apply them correctly
+		if i == 1 then
+			tabButton.BackgroundColor3 = Color3.fromRGB(255, 92, 161)
+			tabButton.TextColor3 = Color3.new(1, 1, 1)
+			local textLabel = tabButton:FindFirstChildOfClass("TextLabel")
+			if textLabel then
+				textLabel.TextColor3 = Color3.new(1, 1, 1)
+			end
+		else
+			tabButton.BackgroundColor3 = Color3.new(1, 1, 1)
+			tabButton.TextColor3 = Color3.fromRGB(255, 92, 161)
+			local textLabel = tabButton:FindFirstChildOfClass("TextLabel")
+			if textLabel then
+				textLabel.TextColor3 = Color3.fromRGB(255, 92, 161)
+			end
+		end
 
 		-- Tab frame
 		local tabFrame = Instance.new("Frame")
@@ -851,6 +868,14 @@ function PetDetailsUI:SwitchTab(tabName: string)
 		tab.button.TextColor3 = isActive and 
 			Color3.new(1, 1, 1) or  -- WHITE TEXT FIX
 			Color3.fromRGB(255, 92, 161)
+			
+		-- Also check if button has a TextLabel child (some UI factories create buttons this way)
+		local textLabel = tab.button:FindFirstChildOfClass("TextLabel")
+		if textLabel then
+			textLabel.TextColor3 = isActive and 
+				Color3.new(1, 1, 1) or  -- WHITE TEXT for active
+				Color3.fromRGB(255, 92, 161)  -- Pink text for inactive
+		end
 
 		-- Show/hide frame
 		tab.frame.Visible = isActive
